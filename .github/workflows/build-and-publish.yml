@@ -1,0 +1,68 @@
+name: Build and Publish
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write   # This is required for requesting the JWT
+  contents: read    # This is required for actions/checkout
+
+jobs:
+
+  publish:
+    name: Deploy playground
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: NPM Install
+        if: github.ref == 'refs/heads/main'
+        run: npm ci
+
+      - name: NPM Build
+        run: NODE_OPTIONS=--max_old_space_size=8192 npm run build
+        if: github.ref == 'refs/heads/main'
+
+      - name: Set S3
+        if: github.ref == 'refs/heads/main'
+        run: |
+            echo "AWS_S3_BUCKET=${{secrets.AWS_S3_BUCKET}}" >> $GITHUB_ENV
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync dist s3://${{ secrets.AWS_S3_BUCKET }} \
+            --acl public-read \
+            --follow-symlinks \
+            --delete
+        env:
+          AWS_REGION: 'us-east-1'
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+        env:
+          AWS_REGION: 'us-east-1'
