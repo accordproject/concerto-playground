@@ -4,7 +4,6 @@ test.describe('App Loading', () => {
   test('should load the app and show the header', async ({ page }) => {
     await page.goto('/');
 
-    // Header contains the Accord Project logo
     const logo = page.getByRole('img', { name: 'Accord Project' }).first();
     await expect(logo).toBeVisible({ timeout: 15000 });
   });
@@ -12,9 +11,8 @@ test.describe('App Loading', () => {
   test('should show the toolbar with CTO toggle and example buttons', async ({ page }) => {
     await page.goto('/');
 
-    // CTO panel toggle button
-    const ctoToggle = page.getByRole('button', { name: /CTO/i });
-    await expect(ctoToggle).toBeVisible({ timeout: 15000 });
+    // The main toolbar CTO toggle has title="Hide CTO panel" (distinct from graph toolbar's "Hide CTO text")
+    await expect(page.locator('button[title="Hide CTO panel"]')).toBeVisible({ timeout: 15000 });
 
     // Example buttons
     await expect(page.getByRole('button', { name: 'NDA' })).toBeVisible();
@@ -24,7 +22,8 @@ test.describe('App Loading', () => {
 
   test('should show the view mode toggle buttons', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('button', { name: 'Graph' })).toBeVisible({ timeout: 15000 });
+    // Use .first() because ReactFlow renders additional elements that may include "Graph"
+    await expect(page.getByRole('button', { name: 'Graph' }).first()).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('button', { name: 'Form' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Code' })).toBeVisible();
   });
@@ -51,8 +50,9 @@ test.describe('App Loading', () => {
     await expect(docsLink).toBeVisible({ timeout: 15000 });
     await expect(docsLink).toHaveAttribute('href', 'https://concerto.accordproject.org/docs/intro');
 
-    const githubStatusLink = page.getByRole('link', { name: 'GitHub' }).last();
-    await expect(githubStatusLink).toBeVisible();
+    // Status bar has a GitHub link (last one since header also has GitHub)
+    const githubLinks = page.getByRole('link', { name: 'GitHub' });
+    await expect(githubLinks.last()).toBeVisible();
   });
 });
 
