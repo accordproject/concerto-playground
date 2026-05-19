@@ -23,6 +23,8 @@ const ALL_TARGETS: TargetLanguage[] = [
   "protobuf",
   "avro",
   "openapi",
+  "odata",
+  "xmlschema",
 ];
 
 const EXAMPLES = [

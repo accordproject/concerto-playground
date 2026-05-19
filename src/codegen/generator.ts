@@ -16,7 +16,9 @@ export type TargetLanguage =
   | "rust"
   | "graphql"
   | "protobuf"
-  | "avro";
+  | "avro"
+  | "odata"
+  | "xmlschema";
 
 export interface GenerationResult {
   output: string;
@@ -51,6 +53,8 @@ async function generateLive(
     graphql: CodeGen.GraphQLVisitor,
     protobuf: CodeGen.ProtobufVisitor,
     avro: CodeGen.AvroVisitor,
+    odata: CodeGen.ODataVisitor,
+    xmlschema: CodeGen.XmlSchemaVisitor,
   };
 
   const VisitorClass = visitorMap[target];

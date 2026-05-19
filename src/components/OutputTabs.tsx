@@ -13,6 +13,8 @@ const TABS: { id: TargetLanguage; label: string; lang: string }[] = [
   { id: "protobuf", label: "Protobuf", lang: "proto" },
   { id: "avro", label: "Avro", lang: "json" },
   { id: "openapi", label: "OpenAPI", lang: "yaml" },
+  { id: "odata", label: "OData", lang: "xml" },
+  { id: "xmlschema", label: "XML Schema", lang: "xml" },
 ];
 
 interface OutputTabsProps {
