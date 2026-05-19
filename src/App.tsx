@@ -16,7 +16,12 @@ const ALL_TARGETS: TargetLanguage[] = [
   "typescript",
   "jsonschema",
   "java",
+  "csharp",
   "go",
+  "rust",
+  "graphql",
+  "protobuf",
+  "avro",
   "openapi",
 ];
 

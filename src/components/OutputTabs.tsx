@@ -6,7 +6,12 @@ const TABS: { id: TargetLanguage; label: string; lang: string }[] = [
   { id: "typescript", label: "TypeScript", lang: "typescript" },
   { id: "jsonschema", label: "JSON Schema", lang: "json" },
   { id: "java", label: "Java", lang: "java" },
+  { id: "csharp", label: "C#", lang: "csharp" },
   { id: "go", label: "Go", lang: "go" },
+  { id: "rust", label: "Rust", lang: "rust" },
+  { id: "graphql", label: "GraphQL", lang: "graphql" },
+  { id: "protobuf", label: "Protobuf", lang: "proto" },
+  { id: "avro", label: "Avro", lang: "json" },
   { id: "openapi", label: "OpenAPI", lang: "yaml" },
 ];
 
