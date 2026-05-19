@@ -76,6 +76,7 @@ export default function App() {
   const [showCto, setShowCto] = useState(true);
   const [activeTab, setActiveTab] = useState<TargetLanguage>("typescript");
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
+  const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The "active" source for single-model views (graph editor, CTO editor)
@@ -165,9 +166,13 @@ export default function App() {
     window.location.hash = LZString.compressToEncodedURIComponent(payload);
     try {
       await navigator.clipboard.writeText(window.location.href);
+      setShareLabel("Copied!");
     } catch {
-      // Clipboard write may be denied (e.g. Firefox without focus); the hash
-      // is already updated so users can copy the URL bar manually.
+      // Clipboard write denied (e.g. Firefox without focus) — hash is updated
+      // so the user can copy the URL bar manually.
+      setShareLabel("Copy URL bar");
+    } finally {
+      setTimeout(() => setShareLabel("Share URL"), 2000);
     }
   }
 
@@ -334,7 +339,7 @@ export default function App() {
               (e.currentTarget as HTMLButtonElement).style.color = "#a0aec0";
             }}
           >
-            Share URL
+            {shareLabel}
           </button>
         </div>
       </div>

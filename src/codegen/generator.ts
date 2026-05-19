@@ -41,12 +41,17 @@ async function generateLive(
   ctoSources.forEach((src, i) => {
     modelManager.addCTOModel(src, `model${i}.cto`, true);
   });
-  await Promise.race([
-    modelManager.updateExternalModels(),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('updateExternalModels timed out after 10s')), 10000)
-    ),
-  ]);
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      modelManager.updateExternalModels(),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('updateExternalModels timed out after 10s')), 10000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const visitorMap: Partial<Record<TargetLanguage, new () => any>> = {
