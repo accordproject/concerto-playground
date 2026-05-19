@@ -41,7 +41,12 @@ async function generateLive(
   ctoSources.forEach((src, i) => {
     modelManager.addCTOModel(src, `model${i}.cto`, true);
   });
-  await modelManager.updateExternalModels();
+  await Promise.race([
+    modelManager.updateExternalModels(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('updateExternalModels timed out after 10s')), 10000)
+    ),
+  ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const visitorMap: Partial<Record<TargetLanguage, new () => any>> = {
@@ -278,12 +283,11 @@ components:
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export async function generate(
-  ctoSource: string | string[],
+  ctoSources: string[],
   target: TargetLanguage,
 ): Promise<GenerationResult> {
-  const sources = Array.isArray(ctoSource) ? ctoSource : [ctoSource];
   try {
-    const output = await generateLive(sources, target);
+    const output = await generateLive(ctoSources, target);
     return { output, isLive: true };
   } catch (liveError) {
     const errMsg = liveError instanceof Error ? liveError.message : String(liveError);

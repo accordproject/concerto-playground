@@ -100,11 +100,13 @@ export function getExtendsCandidates(declarations: Declaration[], declName: stri
   const decl = declarations.find((d) => d.name === declName);
   if (!decl) return [];
 
-  const ancestors = new Set<string>();
+  // Collect all declarations that descend from declName so we can exclude them
+  // as superType candidates (preventing circular inheritance).
+  const descendants = new Set<string>();
   const collectDescendants = (name: string) => {
     for (const d of declarations) {
-      if (d.superType === name && !ancestors.has(d.name)) {
-        ancestors.add(d.name);
+      if (d.superType === name && !descendants.has(d.name)) {
+        descendants.add(d.name);
         collectDescendants(d.name);
       }
     }
@@ -117,7 +119,7 @@ export function getExtendsCandidates(declarations: Declaration[], declName: stri
       d.type !== 'enum' &&
       d.type !== 'map' &&
       d.type !== 'scalar' &&
-      !ancestors.has(d.name)
+      !descendants.has(d.name)
     )
     .map((d) => d.name);
 }
