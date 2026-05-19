@@ -60,3 +60,4 @@ The URL hash contains the lz-string-compressed schema. Paste any Concerto schema
 ## License
 
 Apache-2.0 — Linux Foundation project
+
