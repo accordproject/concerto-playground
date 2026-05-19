@@ -105,7 +105,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden pt-16">
       <Header />
 
       {/* Toolbar */}
