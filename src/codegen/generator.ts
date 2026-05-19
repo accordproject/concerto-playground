@@ -29,7 +29,7 @@ export interface GenerationResult {
 // ── Live generation ──────────────────────────────────────────────────────────
 
 async function generateLive(
-  ctoSource: string,
+  ctoSources: string[],
   target: TargetLanguage,
 ): Promise<string> {
   // Dynamic imports so Vite can tree-shake if bundling fails
@@ -38,7 +38,9 @@ async function generateLive(
   const { InMemoryWriter } = await import("@accordproject/concerto-util");
 
   const modelManager = new ModelManager();
-  modelManager.addCTOModel(ctoSource, "input.cto", true);
+  ctoSources.forEach((src, i) => {
+    modelManager.addCTOModel(src, `model${i}.cto`, true);
+  });
   await modelManager.updateExternalModels();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -276,11 +278,12 @@ components:
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export async function generate(
-  ctoSource: string,
+  ctoSource: string | string[],
   target: TargetLanguage,
 ): Promise<GenerationResult> {
+  const sources = Array.isArray(ctoSource) ? ctoSource : [ctoSource];
   try {
-    const output = await generateLive(ctoSource, target);
+    const output = await generateLive(sources, target);
     return { output, isLive: true };
   } catch (liveError) {
     const errMsg = liveError instanceof Error ? liveError.message : String(liveError);

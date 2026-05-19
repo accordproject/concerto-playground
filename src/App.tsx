@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import LZString from "lz-string";
+import JSZip from "jszip";
 import { Header } from "./components/Header";
 import { Editor } from "./components/Editor";
 import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
+import { FormView } from "./components/form/FormView";
 import { validateCto } from "./utils/graph/ctoToGraph";
 import { NDA_EXAMPLE, LOAN_EXAMPLE, SERVICE_EXAMPLE } from "./examples/nda.cto";
 import {
@@ -33,29 +35,49 @@ const EXAMPLES = [
   { label: "Service Agreement", source: SERVICE_EXAMPLE },
 ];
 
-function loadInitialSource(): string {
+// Extract namespace from the first "namespace <name>" line
+function extractNamespace(cto: string): string {
+  const m = cto.match(/^\s*namespace\s+(\S+)/m);
+  return m ? m[1] : `org.example.unknown@1.0.0`;
+}
+
+function loadInitialModels(): Record<string, string> {
   const hash = window.location.hash.slice(1);
   if (hash) {
     const decoded = LZString.decompressFromEncodedURIComponent(hash);
-    if (decoded) return decoded;
+    if (decoded) {
+      const ns = extractNamespace(decoded);
+      return { [ns]: decoded };
+    }
   }
-  return NDA_EXAMPLE;
+  const ns = extractNamespace(NDA_EXAMPLE);
+  return { [ns]: NDA_EXAMPLE };
 }
 
 export default function App() {
-  const [source, setSource] = useState(loadInitialSource);
-  const [viewMode, setViewMode] = useState<"graph" | "code">("graph");
+  const [models, setModels] = useState<Record<string, string>>(loadInitialModels);
+  const [activeNamespace, setActiveNamespace] = useState<string>(() => {
+    const initial = loadInitialModels();
+    return Object.keys(initial)[0];
+  });
+  const [viewMode, setViewMode] = useState<"graph" | "code" | "form">("graph");
   const [showCto, setShowCto] = useState(true);
   const [activeTab, setActiveTab] = useState<TargetLanguage>("typescript");
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const validationError = useMemo(() => validateCto(source), [source]);
+  // The "active" source for single-model views (graph editor, CTO editor)
+  const source = models[activeNamespace] ?? "";
 
-  const runGeneration = useCallback(async (src: string) => {
+  const validationError = useMemo(() => {
+    const peers = Object.values(models).filter((s) => s && s !== source);
+    try { return validateCto(source, peers); } catch { return null; }
+  }, [source, models]);
+
+  const runGeneration = useCallback(async (sources: string[]) => {
     const ordered = [activeTab, ...ALL_TARGETS.filter((t) => t !== activeTab)];
     for (const target of ordered) {
-      const result = await generate(src, target);
+      const result = await generate(sources, target);
       setResults((prev) => ({ ...prev, [target]: result }));
     }
   }, [activeTab]);
@@ -63,13 +85,64 @@ export default function App() {
   useEffect(() => {
     setResults({});
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    const allSources = Object.values(models).filter(Boolean);
     debounceRef.current = setTimeout(() => {
-      runGeneration(source);
+      runGeneration(allSources);
     }, 500);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [source, runGeneration]);
+  }, [models, runGeneration]);
+
+  // Update a specific namespace's CTO. Empty string = delete.
+  function handleModelChange(ns: string, newCto: string) {
+    setModels((prev) => {
+      const next = { ...prev };
+      if (!newCto) {
+        delete next[ns];
+        // If active ns was deleted, switch to first remaining
+        if (ns === activeNamespace) {
+          const remaining = Object.keys(next);
+          if (remaining.length > 0) setActiveNamespace(remaining[0]);
+        }
+      } else {
+        // Detect if namespace changed (key migration)
+        const parsedNs = extractNamespace(newCto);
+        if (parsedNs !== ns && next[ns] !== undefined) {
+          delete next[ns];
+          next[parsedNs] = newCto;
+          if (ns === activeNamespace) setActiveNamespace(parsedNs);
+        } else {
+          next[ns] = newCto;
+        }
+      }
+      return next;
+    });
+  }
+
+  // Called by the graph editor / CTO text editor for the active model
+  function setSource(newCto: string) {
+    handleModelChange(activeNamespace, newCto);
+  }
+
+  function handleAddNamespace() {
+    const ns = `org.example.new${Date.now()}@1.0.0`;
+    const stub = `namespace ${ns}\n\nconcept Example {\n  o String name\n}\n`;
+    setModels((prev) => ({ ...prev, [ns]: stub }));
+    setActiveNamespace(ns);
+  }
+
+  function handleRemoveNamespace(ns: string) {
+    setModels((prev) => {
+      const next = { ...prev };
+      delete next[ns];
+      const remaining = Object.keys(next);
+      if (ns === activeNamespace && remaining.length > 0) {
+        setActiveNamespace(remaining[0]);
+      }
+      return next;
+    });
+  }
 
   function handleShare() {
     const compressed = LZString.compressToEncodedURIComponent(source);
@@ -78,7 +151,9 @@ export default function App() {
   }
 
   function handleLoadExample(src: string) {
-    setSource(src);
+    const ns = extractNamespace(src);
+    setModels({ [ns]: src });
+    setActiveNamespace(ns);
     window.location.hash = "";
   }
 
@@ -86,25 +161,60 @@ export default function App() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".cto";
+    input.multiple = true;
     input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => setSource(reader.result as string);
-      reader.readAsText(file);
+      const files = (e.target as HTMLInputElement).files;
+      if (!files || files.length === 0) return;
+      let firstNs: string | null = null;
+      let remaining = files.length;
+
+      Array.from(files).forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const cto = reader.result as string;
+          const ns = extractNamespace(cto);
+          if (firstNs === null) firstNs = ns;
+          setModels((prev) => ({ ...prev, [ns]: cto }));
+          remaining -= 1;
+          if (remaining === 0 && firstNs !== null) {
+            setActiveNamespace(firstNs);
+          }
+        };
+        reader.readAsText(file);
+      });
     };
     input.click();
   }
 
-  function handleExport() {
-    const blob = new Blob([source], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "model.cto";
-    a.click();
-    URL.revokeObjectURL(url);
+  async function handleExport() {
+    const entries = Object.entries(models).filter(([, cto]) => !!cto);
+    if (entries.length === 1) {
+      // Single file — download as .cto
+      const [, cto] = entries[0];
+      const blob = new Blob([cto], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "model.cto";
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      // Multiple files — zip them
+      const zip = new JSZip();
+      for (const [ns, cto] of entries) {
+        zip.file(`${ns}.cto`, cto);
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "concerto-models.zip";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   }
+
+  const nsList = Object.keys(models);
 
   return (
     <div className="flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden pt-16">
@@ -143,7 +253,7 @@ export default function App() {
 
         {/* Right-side controls */}
         <div className="ml-auto flex items-center gap-2">
-          {/* Graph / Code mode toggle */}
+          {/* Graph / Form / Code mode toggle */}
           <div className="flex rounded overflow-hidden" style={{ border: "1px solid #4a5568" }}>
             <button
               onClick={() => setViewMode("graph")}
@@ -158,12 +268,26 @@ export default function App() {
               Graph
             </button>
             <button
+              onClick={() => setViewMode("form")}
+              className="text-xs px-3 py-1 font-semibold transition-colors"
+              style={{
+                background: viewMode === "form" ? "#3182ce" : "#2d3748",
+                color: "#e2e8f0",
+                border: "none",
+                borderLeft: "1px solid #4a5568",
+                cursor: "pointer",
+              }}
+            >
+              Form
+            </button>
+            <button
               onClick={() => setViewMode("code")}
               className="text-xs px-3 py-1 font-semibold transition-colors"
               style={{
                 background: viewMode === "code" ? "#3182ce" : "#2d3748",
                 color: "#e2e8f0",
                 border: "none",
+                borderLeft: "1px solid #4a5568",
                 cursor: "pointer",
               }}
             >
@@ -196,12 +320,83 @@ export default function App() {
 
       {/* Split pane */}
       <div className="flex flex-1 min-h-0">
-        {/* Left: CTO editor (collapsible) */}
-        {showCto && (
+        {/* Left: CTO editor (collapsible) — hidden in form view */}
+        {showCto && viewMode !== "form" && (
           <div
             className="flex flex-col"
             style={{ width: "35%", borderRight: "1px solid #2d3748", flexShrink: 0 }}
           >
+            {/* Namespace tab strip */}
+            {nsList.length > 1 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  background: "#171d2b",
+                  borderBottom: "1px solid #2d3748",
+                  overflowX: "auto",
+                  flexShrink: 0,
+                }}
+              >
+                {nsList.map((ns) => (
+                  <div
+                    key={ns}
+                    onClick={() => setActiveNamespace(ns)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "4px 10px",
+                      cursor: "pointer",
+                      fontSize: 11,
+                      color: ns === activeNamespace ? "#e2e8f0" : "#718096",
+                      background: ns === activeNamespace ? "#3182ce20" : "transparent",
+                      borderBottom: ns === activeNamespace ? "2px solid #3182ce" : "2px solid transparent",
+                      whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}
+                    title={ns}
+                  >
+                    <span>{ns.length > 24 ? ns.slice(0, 24) + "…" : ns}</span>
+                    {nsList.length > 1 && (
+                      <span
+                        onClick={(e) => { e.stopPropagation(); handleRemoveNamespace(ns); }}
+                        style={{
+                          color: "#718096",
+                          fontSize: 13,
+                          lineHeight: 1,
+                          padding: "0 2px",
+                          borderRadius: 2,
+                          cursor: "pointer",
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLSpanElement).style.color = "#fc8181"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLSpanElement).style.color = "#718096"; }}
+                        title="Remove"
+                      >
+                        ×
+                      </span>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={handleAddNamespace}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#718096",
+                    cursor: "pointer",
+                    fontSize: 16,
+                    padding: "0 8px",
+                    lineHeight: 1,
+                    flexShrink: 0,
+                  }}
+                  title="Add namespace"
+                >
+                  +
+                </button>
+              </div>
+            )}
+
             <div
               className="flex items-center justify-between px-4 py-2 shrink-0"
               style={{ background: "#171d2b", borderBottom: "1px solid #2d3748" }}
@@ -216,6 +411,23 @@ export default function App() {
                   </span>
                 )}
                 <span className="text-xs" style={{ color: "#4a5568" }}>.cto</span>
+                {nsList.length === 1 && (
+                  <button
+                    onClick={handleAddNamespace}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid #4a5568",
+                      color: "#718096",
+                      cursor: "pointer",
+                      fontSize: 11,
+                      borderRadius: 4,
+                      padding: "1px 6px",
+                    }}
+                    title="Add namespace"
+                  >
+                    + ns
+                  </button>
+                )}
               </div>
             </div>
             <div className="flex-1 min-h-0">
@@ -224,9 +436,16 @@ export default function App() {
           </div>
         )}
 
-        {/* Right: Graph or Code output */}
+        {/* Right: Graph, Form, or Code output */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
-          {viewMode === "graph" ? (
+          {viewMode === "form" ? (
+            <FormView
+              models={models}
+              onModelChange={handleModelChange}
+              onAddNamespace={handleAddNamespace}
+              onRemoveNamespace={handleRemoveNamespace}
+            />
+          ) : viewMode === "graph" ? (
             <ConcertoGraphEditor
               cto={source}
               onModelChange={setSource}

@@ -16,9 +16,11 @@ export function parseCto(cto: string): ConcertoModel {
   return { namespace, imports, declarations };
 }
 
-export function validateCto(cto: string): string | null {
+export function validateCto(cto: string, peers: string[] = []): string | null {
   try {
     const mm = new ModelManager();
+    // Load peer models first (validation disabled) so cross-namespace imports resolve
+    peers.forEach((peer, i) => mm.addCTOModel(peer, `peer${i}.cto`, true));
     mm.addCTOModel(cto, 'model.cto');
     return null;
   } catch (e: any) {
