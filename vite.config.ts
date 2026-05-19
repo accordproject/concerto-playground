@@ -1,8 +1,9 @@
-import { defineConfig } from "vite";
+import { defineConfig as defineViteConfig, mergeConfig } from "vite";
+import { defineConfig as defineVitestConfig, configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 
-export default defineConfig({
+const viteConfig = defineViteConfig({
   plugins: [
     react(),
     nodePolyfills({
@@ -25,3 +26,19 @@ export default defineConfig({
     target: "es2020",
   },
 });
+
+const vitestConfig = defineVitestConfig({
+  test: {
+    globals: true,
+    environment: "node",
+    setupFiles: "./src/utils/testing/setup.ts",
+    exclude: [...configDefaults.exclude, "**/e2e/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text"],
+      include: ["src/**/*.{ts,tsx}"],
+    },
+  },
+});
+
+export default mergeConfig(viteConfig, vitestConfig);
