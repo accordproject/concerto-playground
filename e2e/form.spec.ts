@@ -22,7 +22,7 @@ test.describe('Form View', () => {
 
   test('should show declarations in the tree', async ({ page }) => {
     // NDA example has at least GoverningLaw and Party
-    await expect(page.getByText('GoverningLaw')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('GoverningLaw').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should open property sheet when clicking a declaration', async ({ page }) => {
@@ -35,7 +35,7 @@ test.describe('Form View', () => {
   test('should open property sheet when clicking a namespace', async ({ page }) => {
     await page.getByText(/org\.accordproject\.nda/).first().click();
     // Namespace form shows a "Namespace" label
-    await expect(page.getByText('Namespace', { exact: false })).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText('Namespace', { exact: false }).first()).toBeVisible({ timeout: 3000 });
   });
 
   test('should switch back to Graph view from Form view', async ({ page }) => {
