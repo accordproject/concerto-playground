@@ -5,7 +5,6 @@ import type { TargetLanguage, GenerationResult } from "../codegen/generator";
 const TABS: { id: TargetLanguage; label: string; lang: string }[] = [
   { id: "typescript", label: "TypeScript", lang: "typescript" },
   { id: "jsonschema", label: "JSON Schema", lang: "json" },
-  { id: "python", label: "Python", lang: "python" },
   { id: "java", label: "Java", lang: "java" },
   { id: "go", label: "Go", lang: "go" },
   { id: "openapi", label: "OpenAPI", lang: "yaml" },

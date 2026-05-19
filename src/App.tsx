@@ -15,7 +15,6 @@ import {
 const ALL_TARGETS: TargetLanguage[] = [
   "typescript",
   "jsonschema",
-  "python",
   "java",
   "go",
   "openapi",

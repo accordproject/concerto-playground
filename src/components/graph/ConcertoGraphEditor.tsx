@@ -315,6 +315,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           connectionLineStyle={{ stroke: '#63b3ed', strokeWidth: 2 }}
           minZoom={0.05}
           maxZoom={4}
+          panActivationKeyCode={null}
           proOptions={{ hideAttribution: true }}
         >
           <Background variant={BackgroundVariant.Dots} color="#4a5568" gap={20} size={1} />
