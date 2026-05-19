@@ -213,7 +213,7 @@ export default function App() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <Editor value={source} onChange={setSource} language="concerto" />
+              <Editor value={source} onChange={setSource} language="concerto" error={validationError} />
             </div>
           </div>
         )}
