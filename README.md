@@ -1,6 +1,6 @@
 # Concerto Playground
 
-Live browser playground for [Concerto](https://concerto.accordproject.org) — the schema definition language from Accord Project. Write one `.cto` schema and see generated TypeScript, JSON Schema, Python (Pydantic), Java, Go, and OpenAPI output instantly.
+Live browser playground for [Concerto](https://concerto.accordproject.org) — the schema definition language from Accord Project. Write one `.cto` schema and see generated output across a dozen target languages instantly.
 
 ## What is Concerto?
 
@@ -8,10 +8,16 @@ Concerto is an object-oriented schema language developed by the [Accord Project]
 
 - TypeScript interfaces
 - JSON Schema (draft-07)
-- Python Pydantic models
 - Java POJOs
 - Go structs
+- C# classes
+- Rust structs
+- GraphQL schema
+- Protobuf
+- Avro schema
 - OpenAPI component schemas
+- OData CSDL
+- XML Schema (XSD)
 
 ## Quick start
 
@@ -40,15 +46,24 @@ Target URL: `https://concerto-playground.accordproject.org`
 
 ## How it works
 
-1. The Monaco editor on the left accepts a Concerto `.cto` schema
-2. On change (debounced 500ms), the generator tries to run `@accordproject/concerto-codegen` in the browser via Vite + Node.js polyfills
+1. The Monaco editor on the left accepts one or more Concerto `.cto` schemas (one per namespace tab)
+2. On change (debounced 500ms), the generator runs `@accordproject/concerto-codegen` in the browser
 3. If live generation fails (e.g., unresolved external model imports), it falls back to pre-generated static output for the sample model — so the playground always shows meaningful content
-4. Tabs on the right show the generated output for each target language
-5. The "Share URL" button encodes the current schema in the URL using LZ-string compression
+4. Tabs on the right switch between output languages; a Copy button copies the current output
+5. Three view modes — **Graph** (class diagram), **Code** (raw CTO + generated output), and **Form** (point-and-click editor)
+6. The "Share URL" button encodes all open namespaces in the URL using LZ-string compression
 
 ## Shareable URLs
 
-The URL hash contains the lz-string-compressed schema. Paste any Concerto schema, click "Share URL", and the link opens the playground with that schema pre-loaded.
+The URL hash contains the lz-string-compressed model. Paste a Concerto schema, click "Share URL", and the link opens the playground with that schema pre-loaded. Multi-namespace models are encoded as a JSON array in the hash.
+
+## Testing
+
+```bash
+npm run test          # unit tests (Vitest)
+npm run test:e2e      # end-to-end tests (Playwright, Chromium)
+npm run test:e2e:ui   # Playwright UI mode
+```
 
 ## Links
 

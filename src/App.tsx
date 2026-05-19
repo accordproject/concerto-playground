@@ -35,35 +35,48 @@ const EXAMPLES = [
   { label: "Service Agreement", source: SERVICE_EXAMPLE },
 ];
 
-// Extract namespace from the first "namespace <name>" line
+// Strip comments before matching the namespace declaration to avoid false matches
+// inside block or line comments (e.g. `/* namespace org.foo */`).
 function extractNamespace(cto: string): string {
-  const m = cto.match(/^\s*namespace\s+(\S+)/m);
+  const stripped = cto
+    .replace(/\/\*[\s\S]*?\*\//g, '') // remove block comments
+    .replace(/\/\/.*/g, '');           // remove line comments
+  const m = stripped.match(/^\s*namespace\s+(\S+)/m);
   return m ? m[1] : `org.example.unknown@1.0.0`;
 }
 
-function loadInitialModels(): Record<string, string> {
+// Evaluated once at module load — avoids parsing the URL hash twice for the
+// two separate useState initialisers that need models and activeNamespace.
+const _initialModels = (() => {
   const hash = window.location.hash.slice(1);
   if (hash) {
     const decoded = LZString.decompressFromEncodedURIComponent(hash);
     if (decoded) {
+      // New format: JSON array of CTO strings (multi-namespace share)
+      try {
+        const sources: unknown = JSON.parse(decoded);
+        if (Array.isArray(sources) && sources.length > 0 && sources.every((s) => typeof s === 'string')) {
+          const result: Record<string, string> = {};
+          for (const src of sources as string[]) result[extractNamespace(src)] = src;
+          return result;
+        }
+      } catch { /* not JSON — fall through to legacy single-model format */ }
+      // Legacy format: plain CTO string
       const ns = extractNamespace(decoded);
       return { [ns]: decoded };
     }
   }
-  const ns = extractNamespace(NDA_EXAMPLE);
-  return { [ns]: NDA_EXAMPLE };
-}
+  return { [extractNamespace(NDA_EXAMPLE)]: NDA_EXAMPLE };
+})();
 
 export default function App() {
-  const [models, setModels] = useState<Record<string, string>>(loadInitialModels);
-  const [activeNamespace, setActiveNamespace] = useState<string>(() => {
-    const initial = loadInitialModels();
-    return Object.keys(initial)[0];
-  });
+  const [models, setModels] = useState<Record<string, string>>(_initialModels);
+  const [activeNamespace, setActiveNamespace] = useState<string>(() => Object.keys(_initialModels)[0]);
   const [viewMode, setViewMode] = useState<"graph" | "code" | "form">("graph");
   const [showCto, setShowCto] = useState(true);
   const [activeTab, setActiveTab] = useState<TargetLanguage>("typescript");
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
+  const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The "active" source for single-model views (graph editor, CTO editor)
@@ -144,10 +157,23 @@ export default function App() {
     });
   }
 
-  function handleShare() {
-    const compressed = LZString.compressToEncodedURIComponent(source);
-    window.location.hash = compressed;
-    navigator.clipboard.writeText(window.location.href);
+  async function handleShare() {
+    // Encode all open models so multi-namespace sessions survive the round-trip.
+    // Single-model sessions use the plain CTO string for backward compatibility
+    // with links shared before this change.
+    const sources = Object.values(models).filter(Boolean);
+    const payload = sources.length === 1 ? sources[0] : JSON.stringify(sources);
+    window.location.hash = LZString.compressToEncodedURIComponent(payload);
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setShareLabel("Copied!");
+    } catch {
+      // Clipboard write denied (e.g. Firefox without focus) — hash is updated
+      // so the user can copy the URL bar manually.
+      setShareLabel("Copy URL bar");
+    } finally {
+      setTimeout(() => setShareLabel("Share URL"), 2000);
+    }
   }
 
   function handleLoadExample(src: string) {
@@ -313,7 +339,7 @@ export default function App() {
               (e.currentTarget as HTMLButtonElement).style.color = "#a0aec0";
             }}
           >
-            Share URL
+            {shareLabel}
           </button>
         </div>
       </div>

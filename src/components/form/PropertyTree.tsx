@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { ConcertoModel } from '../../utils/graph/types';
 import type { FormSel } from './FormView';
+import { COLOR } from './theme';
 
 interface PropertyTreeProps {
   models: Record<string, ConcertoModel>;
@@ -14,17 +15,6 @@ interface PropertyTreeProps {
   onAddProperty: (ns: string, declName: string) => void;
   onAddEnumValue: (ns: string, declName: string) => void;
 }
-
-const COLOR = {
-  bg: '#1a202c',
-  panel: '#2d3748',
-  border: '#4a5568',
-  text: '#e2e8f0',
-  muted: '#718096',
-  accent: '#19C6C8',
-  blue: '#3182ce',
-  red: '#fc8181',
-} as const;
 
 const itemBase: React.CSSProperties = {
   display: 'flex',
@@ -41,19 +31,10 @@ const itemBase: React.CSSProperties = {
 
 function isSelected(sel: FormSel, kind: FormSel['kind'], ns: string, declName?: string, propName?: string): boolean {
   if (sel.kind !== kind) return false;
-  if (sel.kind === 'namespace' && kind === 'namespace') return (sel as { kind: 'namespace'; ns: string }).ns === ns;
-  if (sel.kind === 'decl' && kind === 'decl') {
-    const s = sel as { kind: 'decl'; ns: string; declName: string };
-    return s.ns === ns && s.declName === declName;
-  }
-  if (sel.kind === 'prop' && kind === 'prop') {
-    const s = sel as { kind: 'prop'; ns: string; declName: string; propName: string };
-    return s.ns === ns && s.declName === declName && s.propName === propName;
-  }
-  if (sel.kind === 'enumVal' && kind === 'enumVal') {
-    const s = sel as { kind: 'enumVal'; ns: string; declName: string; value: string };
-    return s.ns === ns && s.declName === declName && s.value === propName;
-  }
+  if (sel.kind === 'namespace') return sel.ns === ns;
+  if (sel.kind === 'decl') return sel.ns === ns && sel.declName === declName;
+  if (sel.kind === 'prop') return sel.ns === ns && sel.declName === declName && sel.propName === propName;
+  if (sel.kind === 'enumVal') return sel.ns === ns && sel.declName === declName && sel.value === propName;
   return false;
 }
 

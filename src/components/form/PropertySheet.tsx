@@ -1,21 +1,11 @@
 // Form view adapted from accordproject/lab-concerto-editor-web (Dan Selman <danscode@selman.org>, Ayman)
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import type { ConcertoModel, Declaration, Property } from '../../utils/graph/types';
 import { ALL_TYPES, PRIMITIVE_TYPES, getAvailableTypes, getExtendsCandidates } from '../../utils/graph/types';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { FormSel } from './FormView';
-
-const COLOR = {
-  bg: '#1a202c',
-  panel: '#2d3748',
-  border: '#4a5568',
-  text: '#e2e8f0',
-  muted: '#718096',
-  accent: '#19C6C8',
-  blue: '#3182ce',
-  red: '#fc8181',
-} as const;
+import { COLOR } from './theme';
 
 const cardStyle: React.CSSProperties = {
   background: COLOR.panel,
@@ -252,6 +242,7 @@ function ConceptForm({
   model: ConcertoModel;
   onModelChange: (ns: string, newCto: string) => void;
 }) {
+  const abstractId = useId();
   const [name, setName] = useState(decl.name);
   const [isAbstract, setIsAbstract] = useState(decl.isAbstract);
   const [superType, setSuperType] = useState(decl.superType ?? '');
@@ -326,12 +317,12 @@ function ConceptForm({
       <div style={{ ...checkboxRowStyle, marginBottom: 12 }}>
         <input
           type="checkbox"
-          id="abstract-check"
+          id={abstractId}
           checked={isAbstract}
           onChange={(e) => setIsAbstract(e.target.checked)}
           style={{ width: 14, height: 14, accentColor: COLOR.blue }}
         />
-        <label htmlFor="abstract-check" style={{ cursor: 'pointer' }}>Abstract</label>
+        <label htmlFor={abstractId} style={{ cursor: 'pointer' }}>Abstract</label>
       </div>
 
       <div style={{ display: 'flex', gap: 8 }}>
