@@ -362,5 +362,25 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
     }
   });
 
-  return { nodes, edges };
+  const edgesWithParallelMetadata = edges.map((edge) => ({ ...edge }));
+  const edgesByPath = new Map<string, Edge[]>();
+
+  for (const edge of edgesWithParallelMetadata) {
+    const key = `${edge.source}::${edge.target}`;
+    const siblings = edgesByPath.get(key) ?? [];
+    siblings.push(edge);
+    edgesByPath.set(key, siblings);
+  }
+
+  for (const siblings of edgesByPath.values()) {
+    siblings.forEach((edge, index) => {
+      edge.data = {
+        ...(edge.data ?? {}),
+        parallelEdgeCount: siblings.length,
+        parallelEdgeIndex: index,
+      };
+    });
+  }
+
+  return { nodes, edges: edgesWithParallelMetadata };
 }
