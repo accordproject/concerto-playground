@@ -8,9 +8,11 @@
 
 <p align="center">
   Live browser playground for <a href="https://concerto.accordproject.org">Concerto</a> —
-  the schema definition language from Accord Project.
+  the Accord Project data modeling language that makes
+  <em>schemas, for people too</em>.
   <br />
-  Write one <code>.cto</code> schema, see generated output across a dozen target languages instantly.
+  Sketch a domain model in one <code>.cto</code> file and watch it compile to
+  TypeScript, Java, Go, JSON Schema, GraphQL, Protobuf and a dozen more — instantly, in your browser.
 </p>
 
 <p align="center">
