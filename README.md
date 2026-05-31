@@ -1,6 +1,39 @@
-# Concerto Playground
+<p align="center">
+  <a href="https://concerto-playground.accordproject.org">
+    <img src="public/logo.png" alt="Concerto Playground" width="120" />
+  </a>
+</p>
 
-Live browser playground for [Concerto](https://concerto.accordproject.org) — the schema definition language from Accord Project. Write one `.cto` schema and see generated output across a dozen target languages instantly.
+<h1 align="center">Concerto Playground</h1>
+
+<p align="center">
+  Live browser playground for <a href="https://concerto.accordproject.org">Concerto</a> —
+  the schema definition language from Accord Project.
+  <br />
+  Write one <code>.cto</code> schema, see generated output across a dozen target languages instantly.
+</p>
+
+<p align="center">
+  <a href="https://concerto-playground.accordproject.org"><strong>Open the playground »</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/accordproject/strategy-plays/actions/workflows/test.yml"><img src="https://github.com/accordproject/strategy-plays/actions/workflows/test.yml/badge.svg" alt="Tests" /></a>
+  <a href="https://github.com/accordproject/strategy-plays/actions/workflows/e2e.yml"><img src="https://github.com/accordproject/strategy-plays/actions/workflows/e2e.yml/badge.svg" alt="E2E" /></a>
+  <a href="https://github.com/accordproject/strategy-plays/actions/workflows/build-and-publish.yml"><img src="https://github.com/accordproject/strategy-plays/actions/workflows/build-and-publish.yml/badge.svg" alt="Build and Publish" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/accordproject/strategy-plays?color=bright-green" alt="License" /></a>
+  <a href="https://www.npmjs.com/package/@accordproject/concerto-core"><img src="https://img.shields.io/npm/v/@accordproject/concerto-core?label=concerto-core" alt="concerto-core version" /></a>
+  <a href="https://www.npmjs.com/package/@accordproject/concerto-codegen"><img src="https://img.shields.io/npm/v/@accordproject/concerto-codegen?label=concerto-codegen" alt="concerto-codegen version" /></a>
+  <a href="https://discord.gg/Zm99SKhhtA"><img src="https://img.shields.io/badge/Accord%20Project-Join%20Discord-blue" alt="Join the Accord Project Discord" /></a>
+</p>
+
+<p align="center">
+  <a href="https://concerto-playground.accordproject.org">
+    <img src="docs/screenshot.png" alt="Concerto Playground screenshot" width="900" />
+  </a>
+</p>
+
+---
 
 ## What is Concerto?
 
