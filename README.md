@@ -18,10 +18,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/accordproject/strategy-plays/actions/workflows/test.yml"><img src="https://github.com/accordproject/strategy-plays/actions/workflows/test.yml/badge.svg" alt="Tests" /></a>
-  <a href="https://github.com/accordproject/strategy-plays/actions/workflows/e2e.yml"><img src="https://github.com/accordproject/strategy-plays/actions/workflows/e2e.yml/badge.svg" alt="E2E" /></a>
-  <a href="https://github.com/accordproject/strategy-plays/actions/workflows/build-and-publish.yml"><img src="https://github.com/accordproject/strategy-plays/actions/workflows/build-and-publish.yml/badge.svg" alt="Build and Publish" /></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/github/license/accordproject/strategy-plays?color=bright-green" alt="License" /></a>
+  <a href="https://github.com/accordproject/concerto-playground/actions/workflows/test.yml"><img src="https://github.com/accordproject/concerto-playground/actions/workflows/test.yml/badge.svg" alt="Tests" /></a>
+  <a href="https://github.com/accordproject/concerto-playground/actions/workflows/e2e.yml"><img src="https://github.com/accordproject/concerto-playground/actions/workflows/e2e.yml/badge.svg" alt="E2E" /></a>
+  <a href="https://github.com/accordproject/concerto-playground/actions/workflows/build-and-publish.yml"><img src="https://github.com/accordproject/concerto-playground/actions/workflows/build-and-publish.yml/badge.svg" alt="Build and Publish" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/accordproject/concerto-playground?color=bright-green" alt="License" /></a>
   <a href="https://www.npmjs.com/package/@accordproject/concerto-core"><img src="https://img.shields.io/npm/v/@accordproject/concerto-core?label=concerto-core" alt="concerto-core version" /></a>
   <a href="https://www.npmjs.com/package/@accordproject/concerto-codegen"><img src="https://img.shields.io/npm/v/@accordproject/concerto-codegen?label=concerto-codegen" alt="concerto-codegen version" /></a>
   <a href="https://discord.gg/Zm99SKhhtA"><img src="https://img.shields.io/badge/Accord%20Project-Join%20Discord-blue" alt="Join the Accord Project Discord" /></a>
