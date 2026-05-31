@@ -21,6 +21,7 @@ const DECL_COLORS: Record<string, { bg: string; accent: string }> = {
 interface ConceptNodeData {
   label: string;
   declaration: Declaration;
+  edgeProperties?: string[];
   onAddProperty?: (declName: string) => void;
   onDeleteProperty?: (declName: string, propName: string) => void;
   onDeleteDeclaration?: (declName: string) => void;
@@ -31,6 +32,7 @@ interface ConceptNodeData {
 export function ConceptNode({ data, selected }: { data: ConceptNodeData; selected?: boolean }) {
   const { declaration } = data;
   const colors = DECL_COLORS[declaration.type] || DECL_COLORS.concept;
+  const edgeProperties = new Set(data.edgeProperties ?? []);
 
   return (
     <div style={{
@@ -123,8 +125,16 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
         {declaration.properties.map((prop) => (
           <div key={prop.name} style={{
             display: 'flex', alignItems: 'center', padding: '5px 8px', margin: '2px 0',
-            background: '#161b27', borderRadius: 6, gap: 8, fontSize: 12,
+            background: '#161b27', borderRadius: 6, gap: 8, fontSize: 12, position: 'relative',
           }}>
+            {edgeProperties.has(prop.name) && (
+              <Handle
+                type="source"
+                position={Position.Right}
+                id={`prop:${prop.name}`}
+                style={{ ...rowHandleStyle, background: colors.accent }}
+              />
+            )}
             {prop.isRelationship && (
               <span style={{ color: '#fc8181', fontSize: 10, fontWeight: 700 }}>&#8594;</span>
             )}
@@ -175,4 +185,11 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
 
 const handleStyle: React.CSSProperties = {
   width: 10, height: 10, borderRadius: '50%', border: '2px solid #1e2533',
+};
+
+const rowHandleStyle: React.CSSProperties = {
+  ...handleStyle,
+  right: -6,
+  top: '50%',
+  transform: 'translateY(-50%)',
 };

@@ -213,6 +213,28 @@ concept Child extends Base {
     expect(extendsEdge).toBeDefined();
   });
 
+  it("uses distinct handles for duplicate edges that share the same source and target", () => {
+    const ndaCto = `namespace org.accordproject.nda@1.0.0
+concept Party {
+  o String name
+}
+concept NDAData {
+  o Party disclosingParty
+  o Party receivingParty
+}`;
+    const { declarations } = parseCto(ndaCto);
+    const { edges } = declarationsToGraph(declarations);
+    const partyEdges = edges.filter(
+      (edge) => edge.source === "NDAData" && edge.target === "Party"
+    );
+
+    expect(partyEdges).toHaveLength(2);
+    expect(new Set(partyEdges.map((edge) => edge.sourceHandle))).toEqual(
+      new Set(["prop:disclosingParty", "prop:receivingParty"])
+    );
+    expect(partyEdges.map((edge) => edge.targetHandle)).toEqual(["left", "left"]);
+  });
+
   it("assigns positions to all nodes", () => {
     const { declarations } = parseCto(SIMPLE_CTO);
     const { nodes } = declarationsToGraph(declarations);

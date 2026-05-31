@@ -4,12 +4,14 @@ import type { Declaration } from '../../utils/graph/types';
 interface MapNodeData {
   label: string;
   declaration: Declaration;
+  edgeProperties?: string[];
   onDeleteDeclaration?: (declName: string) => void;
 }
 
 export function MapNode({ data, selected }: { data: MapNodeData; selected?: boolean }) {
   const { declaration } = data;
   const map = declaration.mapDeclaration;
+  const hasValueEdge = (data.edgeProperties ?? []).includes('_value');
 
   return (
     <div style={{
@@ -58,8 +60,16 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
             </div>
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '5px 8px', margin: '2px 0', background: '#161b27', borderRadius: 6,
+              padding: '5px 8px', margin: '2px 0', background: '#161b27', borderRadius: 6, position: 'relative',
             }}>
+              {hasValueEdge && (
+                <Handle
+                  type="source"
+                  position={Position.Right}
+                  id="prop:_value"
+                  style={rowHandleStyle}
+                />
+              )}
               <span style={{ fontSize: 10, color: '#a0aec0', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Value</span>
               <span style={{ fontSize: 12, color: '#81e6d9', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{map.valueType}</span>
             </div>
@@ -74,4 +84,11 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
 
 const handleStyle: React.CSSProperties = {
   width: 10, height: 10, background: '#38b2ac', borderRadius: '50%', border: '2px solid #1e2533',
+};
+
+const rowHandleStyle: React.CSSProperties = {
+  ...handleStyle,
+  right: -6,
+  top: '50%',
+  transform: 'translateY(-50%)',
 };

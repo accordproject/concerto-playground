@@ -1,50 +1,29 @@
-import { getBezierPath, useInternalNode, EdgeLabelRenderer, BaseEdge, Position, type EdgeProps } from '@xyflow/react';
+import { getBezierPath, EdgeLabelRenderer, BaseEdge, Position, type EdgeProps } from '@xyflow/react';
 
-type XY = { x: number; y: number };
-type NodeLike = { internals: { positionAbsolute: XY }; measured: { width?: number; height?: number } };
-
-function getClosestPoint(source: NodeLike, target: NodeLike): { x: number; y: number; position: Position } {
-  const w = source.measured.width ?? 0;
-  const h = source.measured.height ?? 0;
-  const sx = source.internals.positionAbsolute.x;
-  const sy = source.internals.positionAbsolute.y;
-  const tx = target.internals.positionAbsolute.x + (target.measured.width ?? 0) / 2;
-  const ty = target.internals.positionAbsolute.y + (target.measured.height ?? 0) / 2;
-
-  const cx = sx + w / 2;
-  const cy = sy + h / 2;
-
-  const dx = tx - cx;
-  const dy = ty - cy;
-
-  const absDx = Math.abs(dx);
-  const absDy = Math.abs(dy);
-  const scale = absDx / (w / 2) > absDy / (h / 2) ? (w / 2) / absDx : (h / 2) / absDy;
-
-  const x = cx + dx * scale;
-  const y = cy + dy * scale;
-
-  let position: Position;
-  if (absDx / (w / 2) > absDy / (h / 2)) {
-    position = dx > 0 ? Position.Right : Position.Left;
-  } else {
-    position = dy > 0 ? Position.Bottom : Position.Top;
-  }
-
-  return { x, y, position };
-}
-
-export function FloatingEdge({ id, source, target, style, markerEnd, label, labelStyle, labelBgStyle, labelBgPadding, labelBgBorderRadius }: EdgeProps) {
-  const sourceNode = useInternalNode(source);
-  const targetNode = useInternalNode(target);
-  if (!sourceNode || !targetNode) return null;
-
-  const sp = getClosestPoint(sourceNode as unknown as NodeLike, targetNode as unknown as NodeLike);
-  const tp = getClosestPoint(targetNode as unknown as NodeLike, sourceNode as unknown as NodeLike);
+export function FloatingEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition = Position.Right,
+  targetPosition = Position.Left,
+  style,
+  markerEnd,
+  label,
+  labelStyle,
+  labelBgStyle,
+  labelBgPadding,
+  labelBgBorderRadius,
+}: EdgeProps) {
 
   const [path, labelX, labelY] = getBezierPath({
-    sourceX: sp.x, sourceY: sp.y, sourcePosition: sp.position,
-    targetX: tp.x, targetY: tp.y, targetPosition: tp.position,
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
   });
 
   return (
