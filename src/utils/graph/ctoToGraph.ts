@@ -313,18 +313,26 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
     else if (decl.type === 'scalar') nodeType = 'scalarNode';
 
     const pos = positions.get(decl.name) || { x: 0, y: 0 };
+    const propsToEdge = decl.type === 'map'
+      ? decl.properties.filter((p) => p.name === '_value')
+      : decl.properties;
+    const edgeProperties = propsToEdge
+      .filter((p) => declNames.has(p.type) && !PRIMITIVE_TYPES.has(p.type))
+      .map((p) => p.name);
 
     nodes.push({
       id: decl.name,
       type: nodeType,
       position: pos,
-      data: { label: decl.name, declaration: decl },
+      data: { label: decl.name, declaration: decl, edgeProperties },
     });
 
     if (decl.superType && declNames.has(decl.superType)) {
       edges.push({
         id: `${decl.name}-extends-${decl.superType}`,
         source: decl.name, target: decl.superType,
+        sourceHandle: 'bottom',
+        targetHandle: 'top',
         type: 'floating', animated: true,
         label: 'extends',
         style: { stroke: '#b794f4', strokeWidth: 1.5, opacity: 0.7 },
@@ -335,16 +343,14 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
       });
     }
 
-    const propsToEdge = decl.type === 'map'
-      ? decl.properties.filter((p) => p.name === '_value')
-      : decl.properties;
-
     for (const prop of propsToEdge) {
       if (declNames.has(prop.type) && !PRIMITIVE_TYPES.has(prop.type)) {
         const isRel = prop.isRelationship;
         edges.push({
           id: `${decl.name}-${prop.name}-${prop.type}`,
           source: decl.name, target: prop.type,
+          sourceHandle: `prop:${prop.name}`,
+          targetHandle: 'left',
           label: prop.name.startsWith('_') ? '' : prop.name + (prop.isArray ? '[]' : ''),
           type: 'floating',
           style: {
@@ -362,25 +368,5 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
     }
   });
 
-  const edgesWithParallelMetadata = edges.map((edge) => ({ ...edge }));
-  const edgesByPath = new Map<string, Edge[]>();
-
-  for (const edge of edgesWithParallelMetadata) {
-    const key = `${edge.source}::${edge.target}`;
-    const siblings = edgesByPath.get(key) ?? [];
-    siblings.push(edge);
-    edgesByPath.set(key, siblings);
-  }
-
-  for (const siblings of edgesByPath.values()) {
-    siblings.forEach((edge, index) => {
-      edge.data = {
-        ...(edge.data ?? {}),
-        parallelEdgeCount: siblings.length,
-        parallelEdgeIndex: index,
-      };
-    });
-  }
-
-  return { nodes, edges: edgesWithParallelMetadata };
+  return { nodes, edges };
 }
