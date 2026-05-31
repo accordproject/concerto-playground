@@ -39,20 +39,26 @@
 
 ## What is Concerto?
 
-Concerto is an object-oriented schema language developed by the [Accord Project](https://accordproject.org) (Linux Foundation, Apache-2.0). One `.cto` file compiles to multiple language targets:
+[Concerto](https://concerto.accordproject.org) is an open-source data modeling language from the [Accord Project](https://accordproject.org) (Linux Foundation, Apache-2.0). It gives you _just enough_ expressivity to capture real-world business concepts — inheritance, relationships, enums, constraints, decorators — while staying readable by engineers and domain experts alike.
 
-- TypeScript interfaces
-- JSON Schema (draft-07)
-- Java POJOs
-- Go structs
-- C# classes
-- Rust structs
-- GraphQL schema
-- Protobuf
-- Avro schema
-- OpenAPI component schemas
-- OData CSDL
-- XML Schema (XSD)
+Where JSON Schema or XSD tend to become implementation artifacts owned by developers, a Concerto model is designed to be a shared source of truth: precise enough to drive validation and code generation, human enough to be reviewed and understood by product, legal, or operations teams.
+
+At runtime the model is alive: instances are serialized and deserialized against it, validated, and introspectable via a rich API. At build time it compiles to whatever your stack needs:
+
+| Target | Output |
+|---|---|
+| TypeScript | interfaces |
+| Java | POJOs |
+| Go | structs |
+| C# | classes |
+| Rust | structs |
+| JSON Schema | draft-07 |
+| GraphQL | schema |
+| Protobuf | messages |
+| Avro | schema |
+| OpenAPI | component schemas |
+| OData | CSDL |
+| XML Schema | XSD |
 
 ## Quick start
 
