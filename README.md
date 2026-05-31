@@ -60,6 +60,18 @@ At runtime the model is alive: instances are serialized and deserialized against
 | OData | CSDL |
 | XML Schema | XSD |
 
+## Playground features
+
+| Feature | Description |
+|---|---|
+| **Monaco editor** | Syntax-highlighted `.cto` editor with multi-tab support for multi-namespace models |
+| **Live codegen** | Output regenerates on every keystroke (debounced 500 ms) across all 12 targets simultaneously |
+| **Graph view** | Interactive class diagram — pan, zoom, and explore the relationships in your model visually |
+| **Form view** | Point-and-click instance editor generated directly from your model; no hand-writing JSON |
+| **Code view** | Side-by-side raw CTO and generated output with a one-click copy button |
+| **Shareable URLs** | "Share URL" encodes your entire model in the URL hash (LZ-string compressed) — paste and go |
+| **Runs in the browser** | Zero server round-trips; the full Concerto toolchain runs client-side via WebAssembly |
+
 ## Quick start
 
 ```bash
