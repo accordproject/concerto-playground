@@ -9,23 +9,20 @@ test.describe('Code Generation Output', () => {
   });
 
   test('should display all output language tabs', async ({ page }) => {
-    const expectedTabs = [
-      'TypeScript',
-      'JSON Schema',
-      'Java',
-      'C#',
-      'Go',
-      'Rust',
-      'GraphQL',
-      'Protobuf',
-      'Avro',
-      'OpenAPI',
-      'OData',
-      'XML Schema',
-    ];
-
-    for (const tab of expectedTabs) {
+    // Primary tabs are always visible in the strip
+    const primaryTabs = ['TypeScript', 'JSON Schema', 'JSON AST', 'Concertino'];
+    for (const tab of primaryTabs) {
       await expect(page.getByRole('button', { name: tab })).toBeVisible();
+    }
+
+    // Overflow tabs live behind the More dropdown
+    const overflowTabs = [
+      'Java', 'C#', 'Go', 'Rust', 'GraphQL',
+      'Protobuf', 'Avro', 'OpenAPI', 'OData', 'XML Schema',
+    ];
+    await page.locator('button[aria-haspopup="menu"]').click();
+    for (const tab of overflowTabs) {
+      await expect(page.getByRole('menuitem', { name: tab })).toBeVisible();
     }
   });
 
@@ -38,11 +35,15 @@ test.describe('Code Generation Output', () => {
   });
 
   test('should switch between output tabs', async ({ page }) => {
+    // Primary tab — click directly
     await page.getByRole('button', { name: 'JSON Schema' }).click();
     await expect(page.getByRole('button', { name: 'JSON Schema' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Go' }).click();
-    await expect(page.getByRole('button', { name: 'Go' })).toBeVisible();
+    // Overflow tab — open More dropdown first, then select Go
+    await page.locator('button[aria-haspopup="menu"]').click();
+    await page.getByRole('menuitem', { name: 'Go' }).click();
+    // After selection the dropdown button reflects the active overflow tab
+    await expect(page.locator('button[aria-haspopup="menu"]')).toContainText('Go');
   });
 
   test('should display Copy button', async ({ page }) => {
