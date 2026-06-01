@@ -33,22 +33,6 @@ concept NDAData {
 }
 `;
 
-export const LOAN_EXAMPLE = `namespace org.accordproject.loan@1.0.0
-
-/**
- * Fixed-rate loan agreement data model
- */
-concept LoanData {
-  o String lenderName
-  o String borrowerName
-  o Double principalAmount
-  o Double annualInterestRate
-  o Integer termMonths
-  o DateTime commencementDate
-  o String governingLaw
-}
-`;
-
 export const SERVICE_EXAMPLE = `namespace org.accordproject.services@1.0.0
 
 enum BillingCycle {
