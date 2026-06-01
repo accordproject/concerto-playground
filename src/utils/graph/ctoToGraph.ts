@@ -286,8 +286,8 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
       edges.push({
         id: `${decl.name}-extends-${decl.superType}`,
         source: decl.name, target: decl.superType,
-        sourceHandle: 'bottom',
-        targetHandle: 'top',
+        sourceHandle: 'left-out',
+        targetHandle: 'right-in',
         type: 'floating', animated: true,
         label: 'extends',
         style: { stroke: '#b794f4', strokeWidth: 1.5, opacity: 0.7 },
