@@ -49,8 +49,6 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
       <Handle type="target" position={Position.Top} id="top" style={{ ...handleStyle, background: colors.accent }} />
       <Handle type="target" position={Position.Left} id="left" style={{ ...handleStyle, background: colors.accent }} />
       <Handle type="source" position={Position.Right} id="right" style={{ ...handleStyle, background: colors.accent }} />
-      <Handle type="source" position={Position.Left} id="left-out" style={{ ...handleStyle, background: colors.accent }} />
-      <Handle type="target" position={Position.Right} id="right-in" style={{ ...handleStyle, background: colors.accent }} />
 
       <div style={{
         padding: '12px 14px 10px',
