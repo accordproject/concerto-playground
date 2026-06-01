@@ -7,7 +7,7 @@ import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { validateCto } from "./utils/graph/ctoToGraph";
-import { NDA_EXAMPLE, LOAN_EXAMPLE, SERVICE_EXAMPLE } from "./examples/nda.cto";
+import { NDA_EXAMPLE, LOAN_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
   generate,
   type GenerationResult,
@@ -33,6 +33,7 @@ const EXAMPLES = [
   { label: "NDA", source: NDA_EXAMPLE },
   { label: "Loan", source: LOAN_EXAMPLE },
   { label: "Service Agreement", source: SERVICE_EXAMPLE },
+  { label: "Vehicles", source: VEHICLES_EXAMPLE },
 ];
 
 // Strip comments before matching the namespace declaration to avoid false matches
