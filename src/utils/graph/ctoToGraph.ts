@@ -1,4 +1,5 @@
 import type { Node, Edge } from '@xyflow/react';
+import dagre from '@dagrejs/dagre';
 import type { Declaration, ConcertoModel, ImportStatement, Property, PropertyValidator, Decorator, IdentifiedKind } from './types';
 import { PRIMITIVE_TYPES } from './types';
 
@@ -214,87 +215,41 @@ function estimateNodeHeight(decl: Declaration): number {
   return headerHeight + Math.max(decl.properties.length, 1) * rowHeight + buttonHeight + padding;
 }
 
+const NODE_WIDTH = 340;
+
 function computeTreeLayout(declarations: Declaration[]): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
   if (declarations.length === 0) return positions;
 
   const declNames = new Set(declarations.map((d) => d.name));
-
-  const refsFrom = new Map<string, Set<string>>();
-  const refsTo = new Map<string, Set<string>>();
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({ rankdir: 'LR', ranksep: 80, nodesep: 40, edgesep: 20 });
+  g.setDefaultEdgeLabel(() => ({}));
 
   for (const decl of declarations) {
-    if (!refsFrom.has(decl.name)) refsFrom.set(decl.name, new Set());
+    g.setNode(decl.name, { width: NODE_WIDTH, height: estimateNodeHeight(decl) });
 
-    if (decl.superType && declNames.has(decl.superType)) {
-      refsFrom.get(decl.name)!.add(decl.superType);
-      if (!refsTo.has(decl.superType)) refsTo.set(decl.superType, new Set());
-      refsTo.get(decl.superType)!.add(decl.name);
-    }
+    if (decl.superType && declNames.has(decl.superType))
+      g.setEdge(decl.superType, decl.name);
 
-    if (decl.scalarExtends && declNames.has(decl.scalarExtends)) {
-      refsFrom.get(decl.name)!.add(decl.scalarExtends);
-    }
+    if (decl.scalarExtends && declNames.has(decl.scalarExtends))
+      g.setEdge(decl.scalarExtends, decl.name);
 
     const props = decl.type === 'map'
       ? decl.properties.filter((p) => p.name === '_value')
       : decl.properties;
     for (const prop of props) {
-      if (declNames.has(prop.type) && !PRIMITIVE_TYPES.has(prop.type) && prop.type !== decl.name) {
-        refsFrom.get(decl.name)!.add(prop.type);
-        if (!refsTo.has(prop.type)) refsTo.set(prop.type, new Set());
-        refsTo.get(prop.type)!.add(decl.name);
-      }
+      if (declNames.has(prop.type) && !PRIMITIVE_TYPES.has(prop.type) && prop.type !== decl.name)
+        g.setEdge(decl.name, prop.type);
     }
   }
 
-  let root = declarations[0].name;
-  let maxScore = -Infinity;
+  dagre.layout(g);
+
   for (const decl of declarations) {
-    const outCount = refsFrom.get(decl.name)?.size || 0;
-    const inCount = refsTo.get(decl.name)?.size || 0;
-    const score = outCount * 2 - inCount;
-    if (score > maxScore) { maxScore = score; root = decl.name; }
-  }
-
-  const visited = new Set<string>();
-  const layers: string[][] = [];
-  let queue = [root];
-  visited.add(root);
-
-  while (queue.length > 0) {
-    layers.push([...queue]);
-    const nextQueue: string[] = [];
-    for (const name of queue) {
-      const outRefs = refsFrom.get(name) || new Set();
-      const inRefs = refsTo.get(name) || new Set();
-      for (const connected of new Set([...outRefs, ...inRefs])) {
-        if (!visited.has(connected)) { visited.add(connected); nextQueue.push(connected); }
-      }
-    }
-    queue = nextQueue;
-  }
-
-  const unvisited = declarations.filter((d) => !visited.has(d.name)).map((d) => d.name);
-  if (unvisited.length > 0) layers.push(unvisited);
-
-  const heights = new Map<string, number>();
-  for (const decl of declarations) heights.set(decl.name, estimateNodeHeight(decl));
-
-  const spacingX = 380;
-  const gapY = 40;
-
-  for (let depth = 0; depth < layers.length; depth++) {
-    const layer = layers[depth];
-    let totalHeight = 0;
-    for (const name of layer) totalHeight += heights.get(name) || 150;
-    totalHeight += (layer.length - 1) * gapY;
-    let currentY = -totalHeight / 2;
-    for (const name of layer) {
-      const h = heights.get(name) || 150;
-      positions.set(name, { x: depth * spacingX, y: currentY });
-      currentY += h + gapY;
-    }
+    const node = g.node(decl.name);
+    // Dagre returns the centre point; React Flow positions from the top-left corner.
+    positions.set(decl.name, { x: node.x - NODE_WIDTH / 2, y: node.y - node.height / 2 });
   }
 
   return positions;

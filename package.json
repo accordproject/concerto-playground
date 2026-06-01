@@ -17,6 +17,7 @@
     "@accordproject/concerto-core": "^4.1.0",
     "@accordproject/concerto-cto": "^4.1.0",
     "@accordproject/concerto-util": "^4.1.0",
+    "@dagrejs/dagre": "^3.0.0",
     "@monaco-editor/react": "^4.6.0",
     "@xyflow/react": "^12.10.2",
     "jszip": "^3.10.1",
