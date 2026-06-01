@@ -7,6 +7,8 @@
  */
 
 export type TargetLanguage =
+  | "ast"
+  | "concertino"
   | "typescript"
   | "jsonschema"
   | "java"
@@ -53,6 +55,21 @@ async function generateLive(
     clearTimeout(timeoutId);
   }
 
+  // The metamodel AST and Concertino are not codegen visitors — they're
+  // alternative serializations of the same model.
+  if (target === "ast") {
+    return JSON.stringify(modelManager.getAst(true), null, 2);
+  }
+  if (target === "concertino") {
+    // Import the serializer directly to avoid the fs.readFileSync call in
+    // index.js (which loads the JSON schema for AJV validation at module level
+    // and breaks in the browser).
+    const { convertToConcertino } = await import(
+      "@accordproject/concertino/dist/concertinoSerializer"
+    );
+    return JSON.stringify(convertToConcertino(modelManager.getAst(true)), null, 2);
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const visitorMap: Partial<Record<TargetLanguage, new () => any>> = {
     typescript: CodeGen.TypescriptVisitor,
@@ -86,6 +103,112 @@ async function generateLive(
 // ── Static fallbacks (always correct for the NDA example) ───────────────────
 
 const STATIC: Partial<Record<TargetLanguage, string>> = {
+  concertino: `{
+  "declarations": {
+    "org.accordproject.nda@1.0.0.GoverningLaw": {
+      "type": "EnumDeclaration",
+      "values": {
+        "NEW_YORK": {},
+        "CALIFORNIA": {},
+        "DELAWARE": {},
+        "ENGLAND_AND_WALES": {}
+      }
+    },
+    "org.accordproject.nda@1.0.0.Party": {
+      "type": "ConceptDeclaration",
+      "properties": {
+        "name": { "name": "name", "type": "String" },
+        "email": { "name": "email", "type": "String" },
+        "registeredAddress": { "name": "registeredAddress", "type": "String", "isOptional": true }
+      }
+    },
+    "org.accordproject.nda@1.0.0.NDAData": {
+      "type": "ConceptDeclaration",
+      "properties": {
+        "disclosingParty": { "name": "disclosingParty", "type": "org.accordproject.nda@1.0.0.Party" },
+        "receivingParty": { "name": "receivingParty", "type": "org.accordproject.nda@1.0.0.Party" },
+        "effectiveDate": { "name": "effectiveDate", "type": "DateTime" },
+        "termMonths": { "name": "termMonths", "type": "Integer" },
+        "governingLaw": { "name": "governingLaw", "type": "org.accordproject.nda@1.0.0.GoverningLaw" },
+        "permittedPurposes": { "name": "permittedPurposes", "type": "String", "isArray": true, "isOptional": true },
+        "includeNonSolicitation": { "name": "includeNonSolicitation", "type": "Boolean", "default": false }
+      }
+    }
+  },
+  "metadata": {
+    "concertinoVersion": "4.0.0-alpha.2",
+    "models": {
+      "org.accordproject.nda@1.0.0": { "imports": [], "decorators": [] }
+    }
+  }
+}`,
+
+  ast: `{
+  "$class": "concerto.metamodel@1.0.0.Models",
+  "models": [
+    {
+      "$class": "concerto.metamodel@1.0.0.Model",
+      "decorators": [],
+      "namespace": "org.accordproject.nda@1.0.0",
+      "imports": [],
+      "declarations": [
+        {
+          "$class": "concerto.metamodel@1.0.0.EnumDeclaration",
+          "name": "GoverningLaw",
+          "properties": [
+            { "$class": "concerto.metamodel@1.0.0.EnumProperty", "name": "NEW_YORK" },
+            { "$class": "concerto.metamodel@1.0.0.EnumProperty", "name": "CALIFORNIA" },
+            { "$class": "concerto.metamodel@1.0.0.EnumProperty", "name": "DELAWARE" },
+            { "$class": "concerto.metamodel@1.0.0.EnumProperty", "name": "ENGLAND_AND_WALES" }
+          ]
+        },
+        {
+          "$class": "concerto.metamodel@1.0.0.ConceptDeclaration",
+          "name": "Party",
+          "isAbstract": false,
+          "properties": [
+            { "$class": "concerto.metamodel@1.0.0.StringProperty", "name": "name", "isArray": false, "isOptional": false },
+            { "$class": "concerto.metamodel@1.0.0.StringProperty", "name": "email", "isArray": false, "isOptional": false },
+            { "$class": "concerto.metamodel@1.0.0.StringProperty", "name": "registeredAddress", "isArray": false, "isOptional": true }
+          ]
+        },
+        {
+          "$class": "concerto.metamodel@1.0.0.ConceptDeclaration",
+          "name": "NDAData",
+          "isAbstract": false,
+          "properties": [
+            {
+              "$class": "concerto.metamodel@1.0.0.ObjectProperty",
+              "name": "disclosingParty",
+              "type": { "$class": "concerto.metamodel@1.0.0.TypeIdentifier", "name": "Party", "namespace": "org.accordproject.nda@1.0.0" },
+              "isArray": false,
+              "isOptional": false
+            },
+            {
+              "$class": "concerto.metamodel@1.0.0.ObjectProperty",
+              "name": "receivingParty",
+              "type": { "$class": "concerto.metamodel@1.0.0.TypeIdentifier", "name": "Party", "namespace": "org.accordproject.nda@1.0.0" },
+              "isArray": false,
+              "isOptional": false
+            },
+            { "$class": "concerto.metamodel@1.0.0.DateTimeProperty", "name": "effectiveDate", "isArray": false, "isOptional": false },
+            { "$class": "concerto.metamodel@1.0.0.IntegerProperty", "name": "termMonths", "isArray": false, "isOptional": false },
+            {
+              "$class": "concerto.metamodel@1.0.0.ObjectProperty",
+              "name": "governingLaw",
+              "type": { "$class": "concerto.metamodel@1.0.0.TypeIdentifier", "name": "GoverningLaw", "namespace": "org.accordproject.nda@1.0.0" },
+              "isArray": false,
+              "isOptional": false
+            },
+            { "$class": "concerto.metamodel@1.0.0.StringProperty", "name": "permittedPurposes", "isArray": true, "isOptional": true },
+            { "$class": "concerto.metamodel@1.0.0.BooleanProperty", "name": "includeNonSolicitation", "isArray": false, "isOptional": false, "defaultValue": false }
+          ]
+        }
+      ]
+    }
+  ]
+}`,
+
   typescript: `// Generated by Concerto — org.accordproject.nda@1.0.0
 
 export enum GoverningLaw {

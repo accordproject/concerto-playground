@@ -17,6 +17,8 @@ import {
 const ALL_TARGETS: TargetLanguage[] = [
   "typescript",
   "jsonschema",
+  "ast",
+  "concertino",
   "java",
   "csharp",
   "go",
@@ -183,31 +185,57 @@ export default function App() {
     window.location.hash = "";
   }
 
+  // Convert a Concerto metamodel AST (single Model or a { models: [...] }
+  // container) into one or more CTO source strings via the metamodel printer.
+  async function astToCtoSources(json: string): Promise<string[]> {
+    const { Printer } = await import("@accordproject/concerto-cto");
+    const ast = JSON.parse(json);
+    const modelAsts = Array.isArray(ast?.models) ? ast.models : [ast];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return modelAsts.map((m: any) => Printer.toCTO(m));
+  }
+
   function handleImport() {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".cto";
+    input.accept = ".cto,.json";
     input.multiple = true;
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const files = (e.target as HTMLInputElement).files;
       if (!files || files.length === 0) return;
-      let firstNs: string | null = null;
-      let remaining = files.length;
 
-      Array.from(files).forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const cto = reader.result as string;
-          const ns = extractNamespace(cto);
-          if (firstNs === null) firstNs = ns;
-          setModels((prev) => ({ ...prev, [ns]: cto }));
-          remaining -= 1;
-          if (remaining === 0 && firstNs !== null) {
-            setActiveNamespace(firstNs);
+      const readAsText = (file: File) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsText(file);
+        });
+
+      // Read and convert every file in the order the user selected them, so the
+      // resulting namespace order — and the active tab — is deterministic.
+      const ctoSources: string[] = [];
+      for (const file of Array.from(files)) {
+        try {
+          const text = await readAsText(file);
+          const isJson =
+            file.name.toLowerCase().endsWith(".json") ||
+            /^\s*[{[]/.test(text);
+          if (isJson) {
+            ctoSources.push(...(await astToCtoSources(text)));
+          } else {
+            ctoSources.push(text);
           }
-        };
-        reader.readAsText(file);
-      });
+        } catch (err) {
+          console.error(`Failed to import ${file.name}:`, err);
+        }
+      }
+
+      if (ctoSources.length === 0) return;
+      const additions: Record<string, string> = {};
+      for (const cto of ctoSources) additions[extractNamespace(cto)] = cto;
+      setModels((prev) => ({ ...prev, ...additions }));
+      setActiveNamespace(extractNamespace(ctoSources[0]));
     };
     input.click();
   }

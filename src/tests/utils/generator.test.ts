@@ -82,4 +82,39 @@ describe("generate", () => {
     expect(result.output).toContain("Person");
     expect(result.error).toBeUndefined();
   });
+
+  it("generates live metamodel AST for a valid model", async () => {
+    const result = await generate([SIMPLE_CTO], "ast");
+    expect(result.isLive).toBe(true);
+    const ast = JSON.parse(result.output);
+    expect(ast.$class).toBe("concerto.metamodel@1.0.0.Models");
+    expect(ast.models[0].namespace).toBe("org.example@1.0.0");
+    expect(ast.models[0].declarations[0].name).toBe("Person");
+  });
+
+  it("falls back to static AST when CTO is invalid", async () => {
+    const result = await generate([INVALID_CTO], "ast");
+    expect(result.isLive).toBe(false);
+    expect(() => JSON.parse(result.output)).not.toThrow();
+    expect(result.output).toContain("NDAData");
+  });
+
+  it("generates live Concertino output for a valid model", async () => {
+    const result = await generate([SIMPLE_CTO], "concertino");
+    expect(result.isLive).toBe(true);
+    const concertino = JSON.parse(result.output);
+    expect(concertino.declarations["org.example@1.0.0.Person"].type).toBe(
+      "ConceptDeclaration",
+    );
+    expect(
+      concertino.declarations["org.example@1.0.0.Person"].properties.name.type,
+    ).toBe("String");
+  });
+
+  it("falls back to static Concertino when CTO is invalid", async () => {
+    const result = await generate([INVALID_CTO], "concertino");
+    expect(result.isLive).toBe(false);
+    expect(() => JSON.parse(result.output)).not.toThrow();
+    expect(result.output).toContain("NDAData");
+  });
 });
