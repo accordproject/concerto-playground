@@ -69,8 +69,8 @@ test.describe('Loading Examples', () => {
     await expect(page.getByRole('button', { name: 'NDA' })).toBeVisible({ timeout: 15000 });
   });
 
-  test('should load Loan example', async ({ page }) => {
-    await page.getByRole('button', { name: 'Loan' }).click();
+  test('should load Vehicles example', async ({ page }) => {
+    await page.getByRole('button', { name: 'Vehicles' }).click();
     await expect(page.getByText('Concerto Schema')).toBeVisible();
   });
 
@@ -80,16 +80,16 @@ test.describe('Loading Examples', () => {
   });
 
   test('should load NDA example after switching away', async ({ page }) => {
-    await page.getByRole('button', { name: 'Loan' }).click();
+    await page.getByRole('button', { name: 'Vehicles' }).click();
     await page.getByRole('button', { name: 'NDA' }).click();
     await expect(page.getByText('Concerto Schema')).toBeVisible();
   });
 
   test('example buttons persist across view mode switches', async ({ page }) => {
     await page.getByRole('button', { name: 'Code' }).click();
-    await expect(page.getByRole('button', { name: 'Loan' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Vehicles' })).toBeVisible({ timeout: 5000 });
 
-    await page.getByRole('button', { name: 'Loan' }).click();
+    await page.getByRole('button', { name: 'Vehicles' }).click();
     await expect(page.getByRole('button', { name: 'TypeScript' })).toBeVisible();
   });
 });

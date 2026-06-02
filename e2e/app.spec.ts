@@ -16,7 +16,7 @@ test.describe('App Loading', () => {
 
     // Example buttons
     await expect(page.getByRole('button', { name: 'NDA' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Loan' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Vehicles' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Service Agreement' })).toBeVisible();
   });
 

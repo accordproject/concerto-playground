@@ -71,7 +71,7 @@ test.describe('Code Generation Output', () => {
   });
 
   test('should reflect example change in output', async ({ page }) => {
-    await page.getByRole('button', { name: 'Loan' }).click();
+    await page.getByRole('button', { name: 'Vehicles' }).click();
 
     // Code view is still active; tabs remain visible
     await expect(page.getByRole('button', { name: 'TypeScript' })).toBeVisible();
