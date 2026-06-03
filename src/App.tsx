@@ -79,6 +79,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TargetLanguage>("typescript");
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
+  const [importError, setImportError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The "active" source for single-model views (graph editor, CTO editor)
@@ -189,10 +190,19 @@ export default function App() {
   // container) into one or more CTO source strings via the metamodel printer.
   async function astToCtoSources(json: string): Promise<string[]> {
     const { Printer } = await import("@accordproject/concerto-cto");
-    const ast = JSON.parse(json);
+    const ast = JSON.parse(json); // throws SyntaxError for non-JSON
     const modelAsts = Array.isArray(ast?.models) ? ast.models : [ast];
+    // Validate each entry looks like a Concerto model before converting.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return modelAsts.map((m: any) => Printer.toCTO(m));
+    for (const m of modelAsts as any[]) {
+      if (!m || typeof m.namespace !== "string") {
+        throw new Error(
+          "Not a Concerto metamodel — expected an object with a \"namespace\" field.",
+        );
+      }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (modelAsts as any[]).map((m) => Printer.toCTO(m));
   }
 
   function handleImport() {
@@ -214,7 +224,9 @@ export default function App() {
 
       // Read and convert every file in the order the user selected them, so the
       // resulting namespace order — and the active tab — is deterministic.
+      setImportError(null);
       const ctoSources: string[] = [];
+      const errors: string[] = [];
       for (const file of Array.from(files)) {
         try {
           const text = await readAsText(file);
@@ -227,9 +239,11 @@ export default function App() {
             ctoSources.push(text);
           }
         } catch (err) {
-          console.error(`Failed to import ${file.name}:`, err);
+          const msg = err instanceof Error ? err.message : String(err);
+          errors.push(`${file.name}: ${msg}`);
         }
       }
+      if (errors.length > 0) setImportError(errors.join("\n"));
 
       if (ctoSources.length === 0) return;
       const additions: Record<string, string> = {};
@@ -273,6 +287,20 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden pt-16">
       <Header />
+
+      {/* Import error banner */}
+      {importError && (
+        <div className="flex items-start gap-2 px-4 py-2 bg-red-900 bg-opacity-60 border-b border-red-700 text-xs text-red-200 shrink-0">
+          <span className="flex-1 whitespace-pre-wrap">{importError}</span>
+          <button
+            onClick={() => setImportError(null)}
+            className="shrink-0 text-red-300 hover:text-white leading-none"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 bg-[#171d2b] border-b border-[#2d3748] shrink-0 flex-wrap">
