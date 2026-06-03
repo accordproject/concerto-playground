@@ -24,6 +24,7 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
       transition: 'border-color 0.2s, box-shadow 0.2s',
     }}>
       <Handle type="target" position={Position.Top} style={handleStyle} />
+      <Handle type="target" position={Position.Left} id="left" style={handleStyle} />
 
       <div style={{
         padding: '10px 14px',

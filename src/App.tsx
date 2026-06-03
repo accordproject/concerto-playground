@@ -7,7 +7,7 @@ import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { validateCto } from "./utils/graph/ctoToGraph";
-import { NDA_EXAMPLE, LOAN_EXAMPLE, SERVICE_EXAMPLE } from "./examples/nda.cto";
+import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
   generate,
   type GenerationResult,
@@ -31,7 +31,7 @@ const ALL_TARGETS: TargetLanguage[] = [
 
 const EXAMPLES = [
   { label: "NDA", source: NDA_EXAMPLE },
-  { label: "Loan", source: LOAN_EXAMPLE },
+  { label: "Vehicles", source: VEHICLES_EXAMPLE },
   { label: "Service Agreement", source: SERVICE_EXAMPLE },
 ];
 

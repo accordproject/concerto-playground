@@ -335,7 +335,7 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
         targetHandle: 'top',
         type: 'floating', animated: true,
         label: 'extends',
-        style: { stroke: '#b794f4', strokeWidth: 1.5, opacity: 0.7 },
+        style: { stroke: '#b794f4', strokeWidth: 1.5, opacity: 0.7, animationDirection: 'reverse' },
         labelStyle: { fill: '#b794f4', fontSize: 10, fontWeight: 600 },
         labelBgStyle: { fill: '#1a202c', fillOpacity: 0.8 },
         labelBgPadding: [6, 3] as [number, number],
