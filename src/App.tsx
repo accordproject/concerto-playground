@@ -190,19 +190,24 @@ export default function App() {
   // container) into one or more CTO source strings via the metamodel printer.
   async function astToCtoSources(json: string): Promise<string[]> {
     const { Printer } = await import("@accordproject/concerto-cto");
-    const ast = JSON.parse(json); // throws SyntaxError for non-JSON
-    const modelAsts = Array.isArray(ast?.models) ? ast.models : [ast];
-    // Validate each entry looks like a Concerto model before converting.
+    const { MetaModel } = await import("@accordproject/concerto-core");
+
+    const ast = JSON.parse(json); // SyntaxError for non-JSON
+
+    // Normalise to a Models container so validateMetaModel can check the
+    // full structure. A single Model object is wrapped; a container is used
+    // as-is.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const m of modelAsts as any[]) {
-      if (!m || typeof m.namespace !== "string") {
-        throw new Error(
-          "Not a Concerto metamodel — expected an object with a \"namespace\" field.",
-        );
-      }
-    }
+    const modelsAst: any = Array.isArray(ast?.models)
+      ? ast
+      : { $class: "concerto.metamodel@1.0.0.Models", models: [ast] };
+
+    // Full metamodel validation via Concerto's own validator.
+    // Requires proper $class identifiers and rejects unexpected properties.
+    MetaModel.validateMetaModel(modelsAst);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (modelAsts as any[]).map((m) => Printer.toCTO(m));
+    return modelsAst.models.map((m: any) => Printer.toCTO(m));
   }
 
   function handleImport() {
