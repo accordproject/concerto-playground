@@ -194,6 +194,18 @@ export default function App() {
 
     const ast = JSON.parse(json); // SyntaxError for non-JSON
 
+    // Quick pre-check: the top-level object (or the first item in models[])
+    // must carry a concerto.metamodel $class. This catches common cases like
+    // JSON Schema or OpenAPI files being uploaded accidentally and gives a
+    // clearer message than the metamodel validator's property-level errors.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const topClass: unknown = (ast as any)?.["$class"] ?? (ast as any)?.models?.[0]?.["$class"];
+    if (typeof topClass !== "string" || !topClass.startsWith("concerto.metamodel@")) {
+      throw new Error(
+        "Not a Concerto metamodel file. Only JSON AST files (exported from the JSON AST tab) can be imported as .json.",
+      );
+    }
+
     // Normalise to a Models container so validateMetaModel can check the
     // full structure. A single Model object is wrapped; a container is used
     // as-is.
