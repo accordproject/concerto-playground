@@ -10,3 +10,6 @@ html, body, #root {
   height: 100%;
   overflow: hidden;
 }
+.react-flow__controls-button {
+  color: #000000 !important;
+}
