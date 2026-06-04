@@ -6,11 +6,11 @@ test.describe("Import Dialog", () => {
     await expect(page.getByText("Concerto Schema")).toBeVisible({ timeout: 15000 });
   });
 
-  test("should import CTO inferred from a JSON object and switch back to graph view", async ({ page }) => {
-    await page.getByRole("button", { name: "Form" }).click();
+  test("should import CTO inferred from a JSON object and reveal the CTO panel after import", async ({ page }) => {
+    await page.locator('button[title="Hide CTO panel"]').click();
     await expect(page.getByText("Concerto Schema")).toBeHidden({ timeout: 5000 });
 
-    await page.getByRole("button", { name: "Import" }).first().click();
+    await page.getByRole("button", { name: "Import" }).click();
     await page.getByRole("button", { name: "JSON / JSON Schema" }).click();
     await page.locator("#json-import-source").fill(
       JSON.stringify(
@@ -32,7 +32,7 @@ test.describe("Import Dialog", () => {
   });
 
   test("should import CTO inferred from a JSON Schema document", async ({ page }) => {
-    await page.getByRole("button", { name: "Import" }).first().click();
+    await page.getByRole("button", { name: "Import" }).click();
     await page.getByRole("button", { name: "JSON / JSON Schema" }).click();
     await page.locator("#json-import-source").fill(
       JSON.stringify(
@@ -59,7 +59,7 @@ test.describe("Import Dialog", () => {
   test("should show an inline error for invalid JSON and keep the current model unchanged", async ({ page }) => {
     await expect(page.getByText("NDAData").first()).toBeVisible();
 
-    await page.getByRole("button", { name: "Import" }).first().click();
+    await page.getByRole("button", { name: "Import" }).click();
     await page.getByRole("button", { name: "JSON / JSON Schema" }).click();
     await page.locator("#json-import-source").fill("{ this is not json }");
     await page.getByRole("button", { name: "Import JSON" }).click();
