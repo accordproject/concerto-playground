@@ -3,10 +3,17 @@ import LZString from "lz-string";
 import JSZip from "jszip";
 import { Header } from "./components/Header";
 import { Editor } from "./components/Editor";
+import { ImportDialog } from "./components/ImportDialog";
 import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { validateCto } from "./utils/graph/ctoToGraph";
+import {
+  DEFAULT_IMPORT_NAMESPACE,
+  DEFAULT_ROOT_TYPE_NAME,
+  extractNamespace,
+  inferCtoFromJsonText,
+} from "./utils/import/importInference";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
   generate,
@@ -36,16 +43,6 @@ const EXAMPLES = [
   { label: "Vehicles", source: VEHICLES_EXAMPLE },
   { label: "Service Agreement", source: SERVICE_EXAMPLE },
 ];
-
-// Strip comments before matching the namespace declaration to avoid false matches
-// inside block or line comments (e.g. `/* namespace org.foo */`).
-function extractNamespace(cto: string): string {
-  const stripped = cto
-    .replace(/\/\*[\s\S]*?\*\//g, '') // remove block comments
-    .replace(/\/\/.*/g, '');           // remove line comments
-  const m = stripped.match(/^\s*namespace\s+(\S+)/m);
-  return m ? m[1] : `org.example.unknown@1.0.0`;
-}
 
 // Evaluated once at module load — avoids parsing the URL hash twice for the
 // two separate useState initialisers that need models and activeNamespace.
@@ -79,7 +76,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TargetLanguage>("typescript");
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
-  const [importError, setImportError] = useState<string | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The "active" source for single-model views (graph editor, CTO editor)
@@ -186,6 +183,13 @@ export default function App() {
     window.location.hash = "";
   }
 
+  function revealImportedCto() {
+    setShowCto(true);
+    if (viewMode === "form") {
+      setViewMode("graph");
+    }
+  }
+
   // Convert a Concerto metamodel AST (single Model or a { models: [...] }
   // container) into one or more CTO source strings via the metamodel printer.
   async function astToCtoSources(json: string): Promise<string[]> {
@@ -222,53 +226,45 @@ export default function App() {
     return modelsAst.models.map((m: any) => Printer.toCTO(m));
   }
 
-  function handleImport() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".cto,.json";
-    input.multiple = true;
-    input.onchange = async (e) => {
-      const files = (e.target as HTMLInputElement).files;
-      if (!files || files.length === 0) return;
-
-      const readAsText = (file: File) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(reader.error);
-          reader.readAsText(file);
-        });
-
-      // Read and convert every file in the order the user selected them, so the
-      // resulting namespace order — and the active tab — is deterministic.
-      setImportError(null);
-      const ctoSources: string[] = [];
-      const errors: string[] = [];
-      for (const file of Array.from(files)) {
-        try {
-          const text = await readAsText(file);
-          const isJson =
-            file.name.toLowerCase().endsWith(".json") ||
-            /^\s*[{[]/.test(text);
-          if (isJson) {
-            ctoSources.push(...(await astToCtoSources(text)));
-          } else {
-            ctoSources.push(text);
-          }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          errors.push(`${file.name}: ${msg}`);
-        }
+  async function handleImportFiles(files: FileList) {
+    const ctoSources: string[] = [];
+    for (const file of Array.from(files)) {
+      const text = await file.text();
+      const isJson =
+        file.name.toLowerCase().endsWith(".json") ||
+        /^\s*[{[]/.test(text);
+      if (isJson) {
+        ctoSources.push(...(await astToCtoSources(text)));
+      } else {
+        ctoSources.push(text);
       }
-      if (errors.length > 0) setImportError(errors.join("\n"));
+    }
 
-      if (ctoSources.length === 0) return;
-      const additions: Record<string, string> = {};
-      for (const cto of ctoSources) additions[extractNamespace(cto)] = cto;
-      setModels((prev) => ({ ...prev, ...additions }));
-      setActiveNamespace(extractNamespace(ctoSources[0]));
-    };
-    input.click();
+    if (ctoSources.length === 0) {
+      return;
+    }
+
+    const additions: Record<string, string> = {};
+    for (const cto of ctoSources) {
+      additions[extractNamespace(cto)] = cto;
+    }
+
+    setModels((prev) => ({ ...prev, ...additions }));
+    setActiveNamespace(extractNamespace(ctoSources[0]));
+    revealImportedCto();
+    setIsImportDialogOpen(false);
+  }
+
+  async function handleImportJson(sourceText: string) {
+    const { cto } = await inferCtoFromJsonText(sourceText, {
+      fallbackNamespace: activeNamespace,
+      defaultNamespace: DEFAULT_IMPORT_NAMESPACE,
+      rootTypeName: DEFAULT_ROOT_TYPE_NAME,
+    });
+
+    revealImportedCto();
+    handleModelChange(activeNamespace, cto);
+    setIsImportDialogOpen(false);
   }
 
   async function handleExport() {
@@ -305,19 +301,12 @@ export default function App() {
     <div className="flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden pt-16">
       <Header />
 
-      {/* Import error banner */}
-      {importError && (
-        <div className="flex items-start gap-2 px-4 py-2 bg-red-900 bg-opacity-60 border-b border-red-700 text-xs text-red-200 shrink-0">
-          <span className="flex-1 whitespace-pre-wrap">{importError}</span>
-          <button
-            onClick={() => setImportError(null)}
-            className="shrink-0 text-red-300 hover:text-white leading-none"
-            aria-label="Dismiss"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      <ImportDialog
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        onImportFiles={handleImportFiles}
+        onImportJson={handleImportJson}
+      />
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 bg-[#171d2b] border-b border-[#2d3748] shrink-0 flex-wrap">
@@ -550,7 +539,7 @@ export default function App() {
               onModelChange={setSource}
               showText={showCto}
               onToggleText={() => setShowCto((v) => !v)}
-              onImport={handleImport}
+              onImport={() => setIsImportDialogOpen(true)}
               onExport={handleExport}
             />
           ) : (
