@@ -5,6 +5,7 @@ import {
   useNodesState,
   useEdgesState,
   BackgroundVariant,
+  Controls,
   type NodeTypes,
   type EdgeTypes,
   type Connection,
@@ -318,6 +319,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           panActivationKeyCode={null}
           proOptions={{ hideAttribution: true }}
         >
+           <Controls />
           <Background variant={BackgroundVariant.Dots} color="#4a5568" gap={20} size={1} />
         </ReactFlow>
 
