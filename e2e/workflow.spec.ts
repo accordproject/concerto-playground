@@ -38,7 +38,7 @@ test.describe('View Mode Switching', () => {
 
     await expect(page.getByRole('button', { name: 'TypeScript' })).toBeVisible({ timeout: 5000 });
     await expect(page.getByRole('button', { name: 'JSON Schema' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Java' })).toBeVisible();
+    await expect(page.locator('button[aria-haspopup="menu"]')).toBeVisible();
   });
 
   test('should switch to Form view', async ({ page }) => {

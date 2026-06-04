@@ -5,6 +5,8 @@ import type { TargetLanguage, GenerationResult } from "../codegen/generator";
 const TABS: { id: TargetLanguage; label: string; lang: string }[] = [
   { id: "typescript", label: "TypeScript", lang: "typescript" },
   { id: "jsonschema", label: "JSON Schema", lang: "json" },
+  { id: "ast", label: "JSON AST", lang: "json" },
+  { id: "concertino", label: "Concertino", lang: "json" },
   { id: "java", label: "Java", lang: "java" },
   { id: "csharp", label: "C#", lang: "csharp" },
   { id: "go", label: "Go", lang: "go" },
@@ -17,6 +19,32 @@ const TABS: { id: TargetLanguage; label: string; lang: string }[] = [
   { id: "xmlschema", label: "XML Schema", lang: "xml" },
 ];
 
+// The Concerto-native formats stay as visible tabs; the long tail of language
+// targets lives behind a "More" dropdown so the strip never scrolls sideways.
+const FORMAT_INFO: Partial<Record<TargetLanguage, { description: string; docsUrl: string }>> = {
+  ast: {
+    description:
+      "The resolved Concerto metamodel — a JSON representation of every declaration and property, with type references fully qualified. Consumed by tooling that processes models programmatically.",
+    docsUrl:
+      "https://concerto.accordproject.org/docs/reference/api/api-js-models-as-json",
+  },
+  concertino: {
+    description:
+      "An object-centric serialization of a Concerto model: declarations are keyed by their fully-qualified name and properties are inlined, making the structure easy to traverse without walking the metamodel tree.",
+    docsUrl:
+      "https://concerto.accordproject.org/docs/reference/migration/ref-migrate-concerto-3.0-4.0/#accordprojectconcertino",
+  },
+};
+
+const PRIMARY_IDS: TargetLanguage[] = [
+  "typescript",
+  "jsonschema",
+  "ast",
+  "concertino",
+];
+const PRIMARY_TABS = TABS.filter((t) => PRIMARY_IDS.includes(t.id));
+const OVERFLOW_TABS = TABS.filter((t) => !PRIMARY_IDS.includes(t.id));
+
 interface OutputTabsProps {
   results: Partial<Record<TargetLanguage, GenerationResult>>;
   activeTab: TargetLanguage;
@@ -25,9 +53,11 @@ interface OutputTabsProps {
 
 export function OutputTabs({ results, activeTab, onTabChange }: OutputTabsProps) {
   const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const current = results[activeTab];
   const currentTabDef = TABS.find((t) => t.id === activeTab)!;
+  const activeOverflow = OVERFLOW_TABS.find((t) => t.id === activeTab);
 
   async function handleCopy() {
     if (!current?.output) return;
@@ -39,8 +69,8 @@ export function OutputTabs({ results, activeTab, onTabChange }: OutputTabsProps)
   return (
     <div className="flex flex-col h-full">
       {/* Tab bar */}
-      <div className="flex items-center border-b border-gray-700 bg-[#1e1e1e] shrink-0 overflow-x-auto">
-        {TABS.map((tab) => {
+      <div className="flex items-center border-b border-gray-700 bg-[#1e1e1e] shrink-0">
+        {PRIMARY_TABS.map((tab) => {
           const res = results[tab.id];
           const isActive = tab.id === activeTab;
           return (
@@ -61,6 +91,72 @@ export function OutputTabs({ results, activeTab, onTabChange }: OutputTabsProps)
             </button>
           );
         })}
+
+        {/* Overflow ("More") dropdown for the remaining language targets */}
+        <div className="relative">
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            className={[
+              "px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors relative",
+              activeOverflow
+                ? "text-[#19C6C8] border-b-2 border-[#19C6C8] bg-[#252526]"
+                : "text-gray-400 hover:text-gray-200 border-b-2 border-transparent",
+            ].join(" ")}
+          >
+            {activeOverflow ? activeOverflow.label : "More"}
+            {activeOverflow &&
+              results[activeOverflow.id] &&
+              !results[activeOverflow.id]!.isLive && (
+                <span className="ml-1 text-[10px] text-yellow-500">*</span>
+              )}
+            <span className="ml-1 text-[10px] align-middle" aria-hidden="true">
+              ▾
+            </span>
+          </button>
+          {menuOpen && (
+            <>
+              <button
+                className="fixed inset-0 z-10 cursor-default"
+                aria-hidden="true"
+                tabIndex={-1}
+                onClick={() => setMenuOpen(false)}
+              />
+              <div
+                role="menu"
+                className="absolute left-0 top-full z-20 mt-px min-w-[10rem] py-1 bg-[#252526] border border-gray-700 rounded-b shadow-lg"
+              >
+                {OVERFLOW_TABS.map((tab) => {
+                  const res = results[tab.id];
+                  const isActive = tab.id === activeTab;
+                  return (
+                    <button
+                      key={tab.id}
+                      role="menuitem"
+                      onClick={() => {
+                        onTabChange(tab.id);
+                        setMenuOpen(false);
+                      }}
+                      className={[
+                        "w-full text-left px-4 py-1.5 text-sm whitespace-nowrap transition-colors",
+                        isActive
+                          ? "text-[#19C6C8] bg-white bg-opacity-5"
+                          : "text-gray-300 hover:text-gray-100 hover:bg-white hover:bg-opacity-5",
+                      ].join(" ")}
+                    >
+                      {tab.label}
+                      {res && !res.isLive && (
+                        <span className="ml-1 text-[10px] text-yellow-500">*</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="ml-auto px-3 flex items-center gap-2">
           {current && !current.isLive && (
             <span className="text-xs text-yellow-500" title={current.error}>
@@ -76,6 +172,21 @@ export function OutputTabs({ results, activeTab, onTabChange }: OutputTabsProps)
           </button>
         </div>
       </div>
+
+      {/* Format info banner — shown only for formats that have explanatory text */}
+      {FORMAT_INFO[activeTab] && (
+        <div className="flex items-baseline gap-2 px-4 py-2 bg-[#1a1a2e] border-b border-gray-700 text-xs text-gray-400 shrink-0">
+          <span>{FORMAT_INFO[activeTab]!.description}</span>
+          <a
+            href={FORMAT_INFO[activeTab]!.docsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="whitespace-nowrap text-[#19C6C8] hover:underline shrink-0"
+          >
+            Docs ↗
+          </a>
+        </div>
+      )}
 
       {/* Output editor */}
       <div className="flex-1 min-h-0">
