@@ -7,6 +7,7 @@ import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { validateCto } from "./utils/graph/ctoToGraph";
+import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
   generate,
@@ -71,12 +72,14 @@ const _initialModels = (() => {
   return { [extractNamespace(NDA_EXAMPLE)]: NDA_EXAMPLE };
 })();
 
+const _initialUrlOptions = parsePlaygroundUrlOptions(window.location.search);
+
 export default function App() {
   const [models, setModels] = useState<Record<string, string>>(_initialModels);
   const [activeNamespace, setActiveNamespace] = useState<string>(() => Object.keys(_initialModels)[0]);
-  const [viewMode, setViewMode] = useState<"graph" | "code" | "form">("graph");
+  const [viewMode, setViewMode] = useState<"graph" | "code" | "form">(_initialUrlOptions.viewMode);
   const [showCto, setShowCto] = useState(true);
-  const [activeTab, setActiveTab] = useState<TargetLanguage>("typescript");
+  const [activeTab, setActiveTab] = useState<TargetLanguage>(_initialUrlOptions.activeTab);
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
   const [importError, setImportError] = useState<string | null>(null);
@@ -302,8 +305,8 @@ export default function App() {
   const nsList = Object.keys(models);
 
   return (
-    <div className="flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden pt-16">
-      <Header />
+    <div className={`flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden ${_initialUrlOptions.headless ? "" : "pt-16"}`}>
+      {!_initialUrlOptions.headless && <Header />}
 
       {/* Import error banner */}
       {importError && (
