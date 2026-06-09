@@ -10,9 +10,25 @@ describe("parsePlaygroundUrlOptions", () => {
   });
 
   it("enables headless mode only for headless=true", () => {
-    expect(parsePlaygroundUrlOptions("?headless=true").headless).toBe(true);
+    expect(parsePlaygroundUrlOptions("?headless=true")).toMatchObject({
+      headless: true,
+      showToolbar: false,
+    });
     expect(parsePlaygroundUrlOptions("?headless=false").headless).toBe(false);
     expect(parsePlaygroundUrlOptions("?headless=1").headless).toBe(false);
+  });
+
+  it("hides the CTO pane only when cto=false", () => {
+    expect(parsePlaygroundUrlOptions("?cto=false").showCto).toBe(false);
+    expect(parsePlaygroundUrlOptions("?cto=true").showCto).toBe(true);
+    expect(parsePlaygroundUrlOptions("?cto=0").showCto).toBe(true);
+  });
+
+  it("hides the toolbar for headless mode or toolbar=false", () => {
+    expect(parsePlaygroundUrlOptions("?headless=true").showToolbar).toBe(false);
+    expect(parsePlaygroundUrlOptions("?toolbar=false").showToolbar).toBe(false);
+    expect(parsePlaygroundUrlOptions("?headless=true&toolbar=true").showToolbar).toBe(false);
+    expect(parsePlaygroundUrlOptions("?toolbar=true").showToolbar).toBe(true);
   });
 
   it("maps diagram and graph views to graph mode", () => {

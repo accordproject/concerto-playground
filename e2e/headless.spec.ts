@@ -17,7 +17,9 @@ test.describe("Headless embedded mode", () => {
     await page.goto("/?headless=true");
 
     await expect(page.locator("header")).toBeHidden({ timeout: 15000 });
-    await expect(page.locator('button[title="Hide CTO panel"]')).toBeVisible();
+    await expect(page.locator('button[title="Hide CTO panel"]')).toBeHidden();
+    await expect(page.locator('button[title="Hide CTO text"]')).toBeVisible();
+    await expect(page.getByRole("button", { name: "NDA" })).toBeHidden();
 
     const appPaddingTop = await page
       .locator("#root > div")
@@ -30,6 +32,21 @@ test.describe("Headless embedded mode", () => {
 
     await expect(page.locator("header")).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole("img", { name: "Accord Project" }).first()).toBeVisible();
+  });
+
+  test("hides the toolbar without headless mode when toolbar=false", async ({ page }) => {
+    await page.goto("/?toolbar=false");
+
+    await expect(page.locator("header")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('button[title="Hide CTO panel"]')).toBeHidden();
+    await expect(page.locator('button[title="Hide CTO text"]')).toBeVisible();
+  });
+
+  test("hides the CTO pane on load when cto=false", async ({ page }) => {
+    await page.goto("/?headless=true&view=diagram&cto=false");
+
+    await expect(page.getByText("Concerto Schema")).toBeHidden({ timeout: 15000 });
+    await expect(page.locator('button[title="Show CTO text"]')).toBeVisible();
   });
 
   test("opens JSON AST in code mode without hiding the header", async ({ page }) => {
