@@ -6,21 +6,24 @@
  * if bundling or parsing fails, so the playground always shows meaningful output.
  */
 
-export type TargetLanguage =
-  | "ast"
-  | "concertino"
-  | "typescript"
-  | "jsonschema"
-  | "java"
-  | "go"
-  | "openapi"
-  | "csharp"
-  | "rust"
-  | "graphql"
-  | "protobuf"
-  | "avro"
-  | "odata"
-  | "xmlschema";
+export const TARGET_LANGUAGES = [
+  "typescript",
+  "jsonschema",
+  "ast",
+  "concertino",
+  "java",
+  "csharp",
+  "go",
+  "rust",
+  "graphql",
+  "protobuf",
+  "avro",
+  "openapi",
+  "odata",
+  "xmlschema",
+] as const;
+
+export type TargetLanguage = (typeof TARGET_LANGUAGES)[number];
 
 export interface GenerationResult {
   output: string;

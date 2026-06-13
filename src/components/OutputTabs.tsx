@@ -1,23 +1,32 @@
 import { useState } from "react";
 import { Editor } from "./Editor";
-import type { TargetLanguage, GenerationResult } from "../codegen/generator";
+import {
+  TARGET_LANGUAGES,
+  type TargetLanguage,
+  type GenerationResult,
+} from "../codegen/generator";
 
-const TABS: { id: TargetLanguage; label: string; lang: string }[] = [
-  { id: "typescript", label: "TypeScript", lang: "typescript" },
-  { id: "jsonschema", label: "JSON Schema", lang: "json" },
-  { id: "ast", label: "JSON AST", lang: "json" },
-  { id: "concertino", label: "Concertino", lang: "json" },
-  { id: "java", label: "Java", lang: "java" },
-  { id: "csharp", label: "C#", lang: "csharp" },
-  { id: "go", label: "Go", lang: "go" },
-  { id: "rust", label: "Rust", lang: "rust" },
-  { id: "graphql", label: "GraphQL", lang: "graphql" },
-  { id: "protobuf", label: "Protobuf", lang: "proto" },
-  { id: "avro", label: "Avro", lang: "json" },
-  { id: "openapi", label: "OpenAPI", lang: "yaml" },
-  { id: "odata", label: "OData", lang: "xml" },
-  { id: "xmlschema", label: "XML Schema", lang: "xml" },
-];
+const TAB_METADATA = {
+  typescript: { label: "TypeScript", lang: "typescript" },
+  jsonschema: { label: "JSON Schema", lang: "json" },
+  ast: { label: "JSON AST", lang: "json" },
+  concertino: { label: "Concertino", lang: "json" },
+  java: { label: "Java", lang: "java" },
+  csharp: { label: "C#", lang: "csharp" },
+  go: { label: "Go", lang: "go" },
+  rust: { label: "Rust", lang: "rust" },
+  graphql: { label: "GraphQL", lang: "graphql" },
+  protobuf: { label: "Protobuf", lang: "proto" },
+  avro: { label: "Avro", lang: "json" },
+  openapi: { label: "OpenAPI", lang: "yaml" },
+  odata: { label: "OData", lang: "xml" },
+  xmlschema: { label: "XML Schema", lang: "xml" },
+} satisfies Record<TargetLanguage, { label: string; lang: string }>;
+
+export const OUTPUT_TABS = TARGET_LANGUAGES.map((id) => ({
+  id,
+  ...TAB_METADATA[id],
+}));
 
 // The Concerto-native formats stay as visible tabs; the long tail of language
 // targets lives behind a "More" dropdown so the strip never scrolls sideways.
@@ -42,8 +51,8 @@ const PRIMARY_IDS: TargetLanguage[] = [
   "ast",
   "concertino",
 ];
-const PRIMARY_TABS = TABS.filter((t) => PRIMARY_IDS.includes(t.id));
-const OVERFLOW_TABS = TABS.filter((t) => !PRIMARY_IDS.includes(t.id));
+const PRIMARY_TABS = OUTPUT_TABS.filter((t) => PRIMARY_IDS.includes(t.id));
+const OVERFLOW_TABS = OUTPUT_TABS.filter((t) => !PRIMARY_IDS.includes(t.id));
 
 interface OutputTabsProps {
   results: Partial<Record<TargetLanguage, GenerationResult>>;
@@ -56,7 +65,7 @@ export function OutputTabs({ results, activeTab, onTabChange }: OutputTabsProps)
   const [menuOpen, setMenuOpen] = useState(false);
 
   const current = results[activeTab];
-  const currentTabDef = TABS.find((t) => t.id === activeTab)!;
+  const currentTabDef = OUTPUT_TABS.find((t) => t.id === activeTab)!;
   const activeOverflow = OVERFLOW_TABS.find((t) => t.id === activeTab);
 
   async function handleCopy() {
