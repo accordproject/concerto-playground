@@ -49,6 +49,14 @@ test.describe("Headless embedded mode", () => {
     await expect(page.locator('button[title="Show CTO text"]')).toBeVisible();
   });
 
+  test("keeps the CTO pane hidden in form view even when cto=true", async ({ page }) => {
+    await page.goto("/?cto=true&view=form");
+
+    await expect(page.locator("header")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("button", { name: "Form" })).toBeVisible();
+    await expect(page.getByText("Concerto Schema")).toBeHidden();
+  });
+
   test("opens JSON AST in code mode without hiding the header", async ({ page }) => {
     await page.goto("/?view=json-ast");
 

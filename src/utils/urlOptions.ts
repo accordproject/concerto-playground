@@ -1,4 +1,4 @@
-import type { TargetLanguage } from "../codegen/generator";
+import { TARGET_LANGUAGES, type TargetLanguage } from "../codegen/generator";
 
 export type ViewMode = "graph" | "code" | "form";
 
@@ -18,23 +18,6 @@ export const DEFAULT_URL_OPTIONS: PlaygroundUrlOptions = {
   activeTab: "typescript",
 };
 
-const TARGETS: readonly TargetLanguage[] = [
-  "typescript",
-  "jsonschema",
-  "ast",
-  "concertino",
-  "java",
-  "csharp",
-  "go",
-  "rust",
-  "graphql",
-  "protobuf",
-  "avro",
-  "openapi",
-  "odata",
-  "xmlschema",
-];
-
 const VIEW_ALIASES: Record<string, Pick<PlaygroundUrlOptions, "viewMode"> | Pick<PlaygroundUrlOptions, "viewMode" | "activeTab">> = {
   diagram: { viewMode: "graph" },
   graph: { viewMode: "graph" },
@@ -47,7 +30,11 @@ const VIEW_ALIASES: Record<string, Pick<PlaygroundUrlOptions, "viewMode"> | Pick
 };
 
 function isTargetLanguage(value: string): value is TargetLanguage {
-  return TARGETS.includes(value as TargetLanguage);
+  return TARGET_LANGUAGES.includes(value as TargetLanguage);
+}
+
+function isTrue(value: string | null): boolean {
+  return value?.trim().toLowerCase() === "true";
 }
 
 function isFalse(value: string | null): boolean {
@@ -58,7 +45,7 @@ export function parsePlaygroundUrlOptions(search: string): PlaygroundUrlOptions 
   const params = new URLSearchParams(search);
   const options = { ...DEFAULT_URL_OPTIONS };
 
-  options.headless = params.get("headless") === "true";
+  options.headless = isTrue(params.get("headless"));
   options.showCto = !isFalse(params.get("cto"));
   options.showToolbar = !options.headless && !isFalse(params.get("toolbar"));
 

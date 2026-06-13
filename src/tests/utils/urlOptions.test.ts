@@ -3,6 +3,7 @@ import {
   DEFAULT_URL_OPTIONS,
   parsePlaygroundUrlOptions,
 } from "../../utils/urlOptions";
+import { TARGET_LANGUAGES } from "../../codegen/generator";
 
 describe("parsePlaygroundUrlOptions", () => {
   it("returns defaults when no query parameters are present", () => {
@@ -14,6 +15,8 @@ describe("parsePlaygroundUrlOptions", () => {
       headless: true,
       showToolbar: false,
     });
+    expect(parsePlaygroundUrlOptions("?headless=TRUE").headless).toBe(true);
+    expect(parsePlaygroundUrlOptions("?headless=%20true%20").headless).toBe(true);
     expect(parsePlaygroundUrlOptions("?headless=false").headless).toBe(false);
     expect(parsePlaygroundUrlOptions("?headless=1").headless).toBe(false);
   });
@@ -73,6 +76,15 @@ describe("parsePlaygroundUrlOptions", () => {
       viewMode: "code",
       activeTab: "openapi",
     });
+  });
+
+  it("maps every canonical output target id to a code tab", () => {
+    for (const target of TARGET_LANGUAGES) {
+      expect(parsePlaygroundUrlOptions(`?view=${target}`)).toMatchObject({
+        viewMode: "code",
+        activeTab: target,
+      });
+    }
   });
 
   it("ignores unknown and empty view values", () => {

@@ -11,26 +11,10 @@ import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
   generate,
+  TARGET_LANGUAGES,
   type GenerationResult,
   type TargetLanguage,
 } from "./codegen/generator";
-
-const ALL_TARGETS: TargetLanguage[] = [
-  "typescript",
-  "jsonschema",
-  "ast",
-  "concertino",
-  "java",
-  "csharp",
-  "go",
-  "rust",
-  "graphql",
-  "protobuf",
-  "avro",
-  "openapi",
-  "odata",
-  "xmlschema",
-];
 
 const EXAMPLES = [
   { label: "NDA", source: NDA_EXAMPLE },
@@ -94,7 +78,7 @@ export default function App() {
   }, [source, models]);
 
   const runGeneration = useCallback(async (sources: string[]) => {
-    const ordered = [activeTab, ...ALL_TARGETS.filter((t) => t !== activeTab)];
+    const ordered = [activeTab, ...TARGET_LANGUAGES.filter((t) => t !== activeTab)];
     for (const target of ordered) {
       const result = await generate(sources, target);
       setResults((prev) => ({ ...prev, [target]: result }));
