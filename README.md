@@ -110,6 +110,29 @@ Target URL: `https://concerto-playground.accordproject.org`
 
 The URL hash contains the lz-string-compressed model. Paste a Concerto schema, click "Share URL", and the link opens the playground with that schema pre-loaded. Multi-namespace models are encoded as a JSON array in the hash.
 
+## Embedded URLs
+
+The playground can be embedded in documentation by combining query parameters with the existing share URL hash.
+
+| Parameter | Behavior |
+| --- | --- |
+| `headless=true` | Hides the fixed header and samples / mode switcher toolbar. The workspace remains interactive. |
+| `view=diagram` or `view=graph` | Opens the Graph view. |
+| `view=form` | Opens the Form view. The CTO pane is hidden in Form view, so `cto=true&view=form` has no visible effect. |
+| `view=code` | Opens Code view with the TypeScript output tab. |
+| `view=json-ast`, `view=ast`, `view=json-schema`, or `view=jsonschema` | Opens Code view on the selected JSON output tab. |
+| `view=<target>` | Opens Code view on an output target such as `openapi`, `graphql`, `concertino`, `java`, or `protobuf`. |
+| `cto=false` | Hides the CTO pane on load. |
+| `toolbar=false` | Hides the samples / mode switcher toolbar without enabling full headless mode. |
+
+Examples:
+
+```text
+/?headless=true&view=diagram#<lz-string-model>
+/?headless=true&view=json-ast&cto=false#<lz-string-model>
+/?toolbar=false&view=openapi#<lz-string-model>
+```
+
 ## Testing
 
 ```bash

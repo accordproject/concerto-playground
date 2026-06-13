@@ -14,29 +14,14 @@ import {
   extractNamespace,
   inferCtoFromJsonText,
 } from "./utils/import/importInference";
+import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
   generate,
+  TARGET_LANGUAGES,
   type GenerationResult,
   type TargetLanguage,
 } from "./codegen/generator";
-
-const ALL_TARGETS: TargetLanguage[] = [
-  "typescript",
-  "jsonschema",
-  "ast",
-  "concertino",
-  "java",
-  "csharp",
-  "go",
-  "rust",
-  "graphql",
-  "protobuf",
-  "avro",
-  "openapi",
-  "odata",
-  "xmlschema",
-];
 
 const EXAMPLES = [
   { label: "NDA", source: NDA_EXAMPLE },
@@ -68,12 +53,14 @@ const _initialModels = (() => {
   return { [extractNamespace(NDA_EXAMPLE)]: NDA_EXAMPLE };
 })();
 
+const _initialUrlOptions = parsePlaygroundUrlOptions(window.location.search);
+
 export default function App() {
   const [models, setModels] = useState<Record<string, string>>(_initialModels);
   const [activeNamespace, setActiveNamespace] = useState<string>(() => Object.keys(_initialModels)[0]);
-  const [viewMode, setViewMode] = useState<"graph" | "code" | "form">("graph");
-  const [showCto, setShowCto] = useState(true);
-  const [activeTab, setActiveTab] = useState<TargetLanguage>("typescript");
+  const [viewMode, setViewMode] = useState<"graph" | "code" | "form">(_initialUrlOptions.viewMode);
+  const [showCto, setShowCto] = useState(_initialUrlOptions.showCto);
+  const [activeTab, setActiveTab] = useState<TargetLanguage>(_initialUrlOptions.activeTab);
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -88,7 +75,7 @@ export default function App() {
   }, [source, models]);
 
   const runGeneration = useCallback(async (sources: string[]) => {
-    const ordered = [activeTab, ...ALL_TARGETS.filter((t) => t !== activeTab)];
+    const ordered = [activeTab, ...TARGET_LANGUAGES.filter((t) => t !== activeTab)];
     for (const target of ordered) {
       const result = await generate(sources, target);
       setResults((prev) => ({ ...prev, [target]: result }));
@@ -298,8 +285,8 @@ export default function App() {
   const nsList = Object.keys(models);
 
   return (
-    <div className="flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden pt-16">
-      <Header />
+    <div className={`flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden ${_initialUrlOptions.headless ? "" : "pt-16"}`}>
+      {!_initialUrlOptions.headless && <Header />}
 
       <ImportDialog
         isOpen={isImportDialogOpen}
@@ -309,102 +296,104 @@ export default function App() {
       />
 
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-[#171d2b] border-b border-[#2d3748] shrink-0 flex-wrap">
-        {/* CTO panel toggle */}
-        <button
-          onClick={() => setShowCto((v) => !v)}
-          className="text-xs px-2.5 py-1 rounded font-semibold transition-colors"
-          style={{
-            background: showCto ? "#3182ce" : "#4a5568",
-            color: "#e2e8f0",
-            border: "none",
-            cursor: "pointer",
-          }}
-          title={showCto ? "Hide CTO panel" : "Show CTO panel"}
-        >
-          {showCto ? "◀ CTO" : "▶ CTO"}
-        </button>
-
-        <div style={{ width: 1, height: 20, background: "#4a5568", flexShrink: 0 }} />
-
-        <span className="text-xs text-gray-500 font-medium">Examples:</span>
-        {EXAMPLES.map((ex) => (
+      {_initialUrlOptions.showToolbar && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-[#171d2b] border-b border-[#2d3748] shrink-0 flex-wrap">
+          {/* CTO panel toggle */}
           <button
-            key={ex.label}
-            onClick={() => handleLoadExample(ex.source)}
+            onClick={() => setShowCto((v) => !v)}
             className="text-xs px-2.5 py-1 rounded font-semibold transition-colors"
-            style={{ background: "#4a5568", color: "#e2e8f0", border: "none", cursor: "pointer" }}
-          >
-            {ex.label}
-          </button>
-        ))}
-
-        {/* Right-side controls */}
-        <div className="ml-auto flex items-center gap-2">
-          {/* Graph / Form / Code mode toggle */}
-          <div className="flex rounded overflow-hidden" style={{ border: "1px solid #4a5568" }}>
-            <button
-              onClick={() => setViewMode("graph")}
-              className="text-xs px-3 py-1 font-semibold transition-colors"
-              style={{
-                background: viewMode === "graph" ? "#3182ce" : "#2d3748",
-                color: "#e2e8f0",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              Graph
-            </button>
-            <button
-              onClick={() => setViewMode("form")}
-              className="text-xs px-3 py-1 font-semibold transition-colors"
-              style={{
-                background: viewMode === "form" ? "#3182ce" : "#2d3748",
-                color: "#e2e8f0",
-                border: "none",
-                borderLeft: "1px solid #4a5568",
-                cursor: "pointer",
-              }}
-            >
-              Form
-            </button>
-            <button
-              onClick={() => setViewMode("code")}
-              className="text-xs px-3 py-1 font-semibold transition-colors"
-              style={{
-                background: viewMode === "code" ? "#3182ce" : "#2d3748",
-                color: "#e2e8f0",
-                border: "none",
-                borderLeft: "1px solid #4a5568",
-                cursor: "pointer",
-              }}
-            >
-              Code
-            </button>
-          </div>
-
-          <button
-            onClick={handleShare}
-            className="text-xs px-3 py-1 rounded border transition-colors"
             style={{
-              background: "transparent",
-              borderColor: "#4a5568",
-              color: "#a0aec0",
+              background: showCto ? "#3182ce" : "#4a5568",
+              color: "#e2e8f0",
+              border: "none",
               cursor: "pointer",
             }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "#19C6C8";
-              (e.currentTarget as HTMLButtonElement).style.color = "#19C6C8";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "#4a5568";
-              (e.currentTarget as HTMLButtonElement).style.color = "#a0aec0";
-            }}
+            title={showCto ? "Hide CTO panel" : "Show CTO panel"}
           >
-            {shareLabel}
+            {showCto ? "◀ CTO" : "▶ CTO"}
           </button>
+
+          <div style={{ width: 1, height: 20, background: "#4a5568", flexShrink: 0 }} />
+
+          <span className="text-xs text-gray-500 font-medium">Examples:</span>
+          {EXAMPLES.map((ex) => (
+            <button
+              key={ex.label}
+              onClick={() => handleLoadExample(ex.source)}
+              className="text-xs px-2.5 py-1 rounded font-semibold transition-colors"
+              style={{ background: "#4a5568", color: "#e2e8f0", border: "none", cursor: "pointer" }}
+            >
+              {ex.label}
+            </button>
+          ))}
+
+          {/* Right-side controls */}
+          <div className="ml-auto flex items-center gap-2">
+            {/* Graph / Form / Code mode toggle */}
+            <div className="flex rounded overflow-hidden" style={{ border: "1px solid #4a5568" }}>
+              <button
+                onClick={() => setViewMode("graph")}
+                className="text-xs px-3 py-1 font-semibold transition-colors"
+                style={{
+                  background: viewMode === "graph" ? "#3182ce" : "#2d3748",
+                  color: "#e2e8f0",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Graph
+              </button>
+              <button
+                onClick={() => setViewMode("form")}
+                className="text-xs px-3 py-1 font-semibold transition-colors"
+                style={{
+                  background: viewMode === "form" ? "#3182ce" : "#2d3748",
+                  color: "#e2e8f0",
+                  border: "none",
+                  borderLeft: "1px solid #4a5568",
+                  cursor: "pointer",
+                }}
+              >
+                Form
+              </button>
+              <button
+                onClick={() => setViewMode("code")}
+                className="text-xs px-3 py-1 font-semibold transition-colors"
+                style={{
+                  background: viewMode === "code" ? "#3182ce" : "#2d3748",
+                  color: "#e2e8f0",
+                  border: "none",
+                  borderLeft: "1px solid #4a5568",
+                  cursor: "pointer",
+                }}
+              >
+                Code
+              </button>
+            </div>
+
+            <button
+              onClick={handleShare}
+              className="text-xs px-3 py-1 rounded border transition-colors"
+              style={{
+                background: "transparent",
+                borderColor: "#4a5568",
+                color: "#a0aec0",
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "#19C6C8";
+                (e.currentTarget as HTMLButtonElement).style.color = "#19C6C8";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "#4a5568";
+                (e.currentTarget as HTMLButtonElement).style.color = "#a0aec0";
+              }}
+            >
+              {shareLabel}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Split pane */}
       <div className="flex flex-1 min-h-0">
