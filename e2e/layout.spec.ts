@@ -21,21 +21,27 @@ test.describe('Graph layout actions', () => {
     await expect
       .poll(async () => JSON.stringify(await getNodeTransforms(page)))
       .not.toBe(JSON.stringify(before));
+    await page.waitForTimeout(250);
 
-    const firstNode = page.locator('.react-flow__node').first();
-    const beforeDrag = await firstNode.getAttribute('style');
-    const box = await firstNode.boundingBox();
+    const ownerNode = page.locator('.react-flow__node[data-id="Owner"]');
+    const beforeDrag = await ownerNode.getAttribute('style');
+    const box = await ownerNode.boundingBox();
     if (!box) {
       throw new Error('Expected a graph node bounding box');
     }
 
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const startX = box.x + box.width / 2;
+    const startY = box.y + Math.min(48, box.height / 3);
+    const endX = startX + 120;
+    const endY = startY + 80;
+
+    await page.mouse.move(startX, startY);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 30);
+    await page.mouse.move(endX, endY, { steps: 12 });
     await page.mouse.up();
 
     await expect
-      .poll(async () => await firstNode.getAttribute('style'))
+      .poll(async () => await ownerNode.getAttribute('style'))
       .not.toBe(beforeDrag);
   });
 

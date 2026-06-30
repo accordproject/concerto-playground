@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parseCto } from "../../utils/graph/ctoToGraph";
 import { declarationsToCto } from "../../utils/graph/graphToCto";
 import { Parser } from "@accordproject/concerto-cto";
+import { VEHICLES_EXAMPLE } from "../../examples/nda.cto";
 
 const ROUNDTRIP_CTO = `namespace org.test@1.0.0
 
@@ -68,6 +69,14 @@ describe("declarationsToCto", () => {
     const output = declarationsToCto(model);
     const error = validateCto(output);
     expect(error).toBeNull();
+  });
+
+  it("roundtrips the vehicles example without breaking enum defaults", async () => {
+    const { validateCto } = await import("../../utils/graph/ctoToGraph");
+    const model = parseCto(VEHICLES_EXAMPLE);
+    const output = declarationsToCto(model);
+
+    expect(validateCto(output)).toBeNull();
   });
 
   it("handles a concept with superType", () => {

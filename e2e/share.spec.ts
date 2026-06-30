@@ -10,18 +10,18 @@ test.describe('Share URL', () => {
     await expect(page.getByRole('button', { name: 'Share URL' })).toBeVisible();
   });
 
-  test('should update URL hash when Share URL is clicked', async ({ page, context }) => {
+  test('should keep a shareable URL hash when Share URL is clicked', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
     const initialHash = await page.evaluate(() => window.location.hash);
+    expect(initialHash.length).toBeGreaterThan(1);
 
     await page.getByRole('button', { name: 'Share URL' }).click();
 
-    // Hash should be set after sharing
     await page.waitForFunction(() => window.location.hash.length > 0, { timeout: 5000 });
     const newHash = await page.evaluate(() => window.location.hash);
     expect(newHash.length).toBeGreaterThan(1); // "#" + compressed payload
-    expect(newHash).not.toBe(initialHash);
+    expect(newHash).toBe(initialHash);
   });
 
   test('should copy URL to clipboard when Share URL is clicked', async ({ page, context }) => {
