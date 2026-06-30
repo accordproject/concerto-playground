@@ -14,13 +14,16 @@ interface GraphToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onAutoLayout: () => void;
+  isAutoLayouting: boolean;
+  onSaveLayout: () => void;
   showText: boolean;
   onToggleText: () => void;
   onImport: () => void;
   onExport: () => void;
 }
 
-export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
+export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, onAutoLayout, isAutoLayouting, onSaveLayout, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
   const [showAddDecl, setShowAddDecl] = useState(false);
 
   return (
@@ -32,6 +35,10 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
       </button>
       <button onClick={onImport} style={pillBtn}>Import</button>
       <button onClick={onExport} style={pillBtn}>Export</button>
+      <button onClick={onAutoLayout} disabled={isAutoLayouting} style={{ ...pillBtn, opacity: isAutoLayouting ? 0.6 : 1 }}>
+        {isAutoLayouting ? 'Layout...' : 'Auto layout'}
+      </button>
+      <button onClick={onSaveLayout} style={pillBtn}>Save layout</button>
 
       <div style={sep} />
 

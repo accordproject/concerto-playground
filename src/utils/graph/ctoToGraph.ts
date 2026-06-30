@@ -195,6 +195,41 @@ function extractMapType(mapEntry: any): string {
   return $class.replace(`${META}.`, '').replace(/Map(Key|Value)Type$/, '');
 }
 
+function getNodeWidth(decl: Declaration): number {
+  if (decl.type === 'map') return 210;
+  if (decl.type === 'enum' || decl.type === 'scalar') return 200;
+  return 250;
+}
+
+export function getDeclarationPosition(decl: Declaration): { x: number; y: number } | null {
+  const decorator = decl.decorators.find((item) => item.name === 'Position');
+  if (!decorator || decorator.args.length < 2) return null;
+
+  const x = Number(decorator.args[0]);
+  const y = Number(decorator.args[1]);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+
+  return { x, y };
+}
+
+export function withDeclarationPositions(
+  declarations: Declaration[],
+  positions: Map<string, { x: number; y: number }>,
+): Declaration[] {
+  return declarations.map((decl) => {
+    const position = positions.get(decl.name);
+    if (!position) return decl;
+
+    const decorators = decl.decorators.filter((item) => item.name !== 'Position');
+    decorators.push({
+      name: 'Position',
+      args: [String(Math.round(position.x)), String(Math.round(position.y))],
+    });
+
+    return { ...decl, decorators };
+  });
+}
+
 function estimateNodeHeight(decl: Declaration): number {
   let headerHeight = 70;
   const rowHeight = 30;
@@ -300,11 +335,139 @@ function computeTreeLayout(declarations: Declaration[]): Map<string, { x: number
   return positions;
 }
 
+type GraphRefs = {
+  refsFrom: Map<string, Set<string>>;
+  refsTo: Map<string, Set<string>>;
+};
+
+function buildGraphRefs(declarations: Declaration[]): GraphRefs {
+  const declNames = new Set(declarations.map((decl) => decl.name));
+  const refsFrom = new Map<string, Set<string>>();
+  const refsTo = new Map<string, Set<string>>();
+
+  for (const decl of declarations) {
+    if (!refsFrom.has(decl.name)) refsFrom.set(decl.name, new Set());
+
+    if (decl.superType && declNames.has(decl.superType)) {
+      refsFrom.get(decl.name)!.add(decl.superType);
+      if (!refsTo.has(decl.superType)) refsTo.set(decl.superType, new Set());
+      refsTo.get(decl.superType)!.add(decl.name);
+    }
+
+    if (decl.scalarExtends && declNames.has(decl.scalarExtends)) {
+      refsFrom.get(decl.name)!.add(decl.scalarExtends);
+      if (!refsTo.has(decl.scalarExtends)) refsTo.set(decl.scalarExtends, new Set());
+      refsTo.get(decl.scalarExtends)!.add(decl.name);
+    }
+
+    const props = decl.type === 'map'
+      ? decl.properties.filter((prop) => prop.name === '_value')
+      : decl.properties;
+    for (const prop of props) {
+      if (!declNames.has(prop.type) || PRIMITIVE_TYPES.has(prop.type) || prop.type === decl.name) continue;
+      refsFrom.get(decl.name)!.add(prop.type);
+      if (!refsTo.has(prop.type)) refsTo.set(prop.type, new Set());
+      refsTo.get(prop.type)!.add(decl.name);
+    }
+  }
+
+  return { refsFrom, refsTo };
+}
+
+export async function computeAutoLayoutPositions(
+  declarations: Declaration[],
+  layoutFn: (declarations: Declaration[]) => Map<string, { x: number; y: number }> = computeLayeredLayout,
+): Promise<Map<string, { x: number; y: number }>> {
+  const fallback = computeTreeLayout(declarations);
+  if (declarations.length === 0) return fallback;
+
+  try {
+    const positions = layoutFn(declarations);
+    return positions.size > 0 ? positions : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function computeLayeredLayout(declarations: Declaration[]): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>();
+  const { refsFrom, refsTo } = buildGraphRefs(declarations);
+  const declMap = new Map(declarations.map((decl) => [decl.name, decl]));
+  const roots = declarations
+    .filter((decl) => (refsFrom.get(decl.name)?.size || 0) === 0)
+    .map((decl) => decl.name);
+  const queue = roots.length > 0 ? [...roots] : [declarations[0].name];
+  const depthByName = new Map<string, number>(queue.map((name) => [name, 0]));
+  const visited = new Set(queue);
+
+  while (queue.length > 0) {
+    const name = queue.shift()!;
+    const depth = depthByName.get(name) || 0;
+
+    for (const child of refsTo.get(name) || []) {
+      const nextDepth = depth + 1;
+      const currentDepth = depthByName.get(child);
+      if (currentDepth == null || nextDepth > currentDepth) {
+        depthByName.set(child, nextDepth);
+      }
+      if (!visited.has(child)) {
+        visited.add(child);
+        queue.push(child);
+      }
+    }
+  }
+
+  declarations.forEach((decl) => {
+    if (!depthByName.has(decl.name)) depthByName.set(decl.name, 0);
+  });
+
+  const layers = new Map<number, string[]>();
+  declarations.forEach((decl) => {
+    const depth = depthByName.get(decl.name) || 0;
+    const layer = layers.get(depth) || [];
+    layer.push(decl.name);
+    layers.set(depth, layer);
+  });
+
+  const orderedDepths = [...layers.keys()].sort((left, right) => left - right);
+  const orderByName = new Map<string, number>();
+  const spacingX = 320;
+  const gapY = 72;
+
+  orderedDepths.forEach((depth) => {
+    const layer = layers.get(depth)!;
+    layer.sort((left, right) => {
+      const leftRefs = [...(refsFrom.get(left) || [])].filter((name) => orderByName.has(name));
+      const rightRefs = [...(refsFrom.get(right) || [])].filter((name) => orderByName.has(name));
+      const leftScore = leftRefs.length > 0
+        ? leftRefs.reduce((sum, name) => sum + (orderByName.get(name) || 0), 0) / leftRefs.length
+        : Number.MAX_SAFE_INTEGER;
+      const rightScore = rightRefs.length > 0
+        ? rightRefs.reduce((sum, name) => sum + (orderByName.get(name) || 0), 0) / rightRefs.length
+        : Number.MAX_SAFE_INTEGER;
+
+      if (leftScore !== rightScore) return leftScore - rightScore;
+      return left.localeCompare(right);
+    });
+
+    let currentY = 0;
+    layer.forEach((name, index) => {
+      orderByName.set(name, index);
+      const decl = declMap.get(name);
+      if (!decl) return;
+      positions.set(name, { x: depth * spacingX, y: currentY });
+      currentY += estimateNodeHeight(decl) + gapY;
+    });
+  });
+
+  return positions;
+}
+
 export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   const declNames = new Set(declarations.map((d) => d.name));
-  const positions = computeTreeLayout(declarations);
+  const treePositions = computeTreeLayout(declarations);
 
   declarations.forEach((decl) => {
     let nodeType = 'conceptNode';
@@ -312,7 +475,7 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
     else if (decl.type === 'map') nodeType = 'mapNode';
     else if (decl.type === 'scalar') nodeType = 'scalarNode';
 
-    const pos = positions.get(decl.name) || { x: 0, y: 0 };
+    const pos = getDeclarationPosition(decl) || treePositions.get(decl.name) || { x: 0, y: 0 };
     const propsToEdge = decl.type === 'map'
       ? decl.properties.filter((p) => p.name === '_value')
       : decl.properties;

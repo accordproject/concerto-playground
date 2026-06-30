@@ -20,7 +20,7 @@ import { MapNode } from './MapNode';
 import { ScalarNode } from './ScalarNode';
 import { FloatingEdge } from './FloatingEdge';
 import { GraphToolbar } from './GraphToolbar';
-import { parseCto, declarationsToGraph } from '../../utils/graph/ctoToGraph';
+import { computeAutoLayoutPositions, declarationsToGraph, parseCto, withDeclarationPositions } from '../../utils/graph/ctoToGraph';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel } from '../../utils/graph/types';
 
@@ -65,8 +65,10 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const isUndoRedo = useRef(false);
+  const [isAutoLayouting, setIsAutoLayouting] = useState(false);
 
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const fitViewRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     for (const node of nodes) {
@@ -95,7 +97,10 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
       const graph = declarationsToGraph(parsed.declarations);
       const nodesWithPositions = graph.nodes.map((node) => {
         const savedPos = nodePositionsRef.current.get(node.id);
-        return savedPos ? { ...node, position: savedPos } : node;
+        const declaration = node.data.declaration as Declaration;
+        return declaration.decorators.some((decorator) => decorator.name === 'Position') || !savedPos
+          ? node
+          : { ...node, position: savedPos };
       });
       setNodes(nodesWithPositions);
       setEdges(graph.edges);
@@ -116,7 +121,10 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     const graph = declarationsToGraph(newDeclarations);
     const nodesWithPositions = graph.nodes.map((node) => {
       const savedPos = nodePositionsRef.current.get(node.id);
-      return savedPos ? { ...node, position: savedPos } : node;
+      const declaration = node.data.declaration as Declaration;
+      return declaration.decorators.some((decorator) => decorator.name === 'Position') || !savedPos
+        ? node
+        : { ...node, position: savedPos };
     });
     setNodes(nodesWithPositions);
     setEdges(graph.edges);
@@ -250,6 +258,33 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     pushHistory({ model: modelRef.current, nodes: currentNodes, edges });
   }, [nodes, edges, pushHistory]);
 
+  const handleAutoLayout = useCallback(async () => {
+    setIsAutoLayouting(true);
+    try {
+      const positions = await computeAutoLayoutPositions(modelRef.current.declarations);
+      const nextNodes = nodes.map((node) => ({
+        ...node,
+        position: positions.get(node.id) || node.position,
+      }));
+
+      setNodes(nextNodes);
+      for (const node of nextNodes) {
+        nodePositionsRef.current.set(node.id, { ...node.position });
+      }
+      pushHistory({ model: modelRef.current, nodes: nextNodes, edges });
+      requestAnimationFrame(() => fitViewRef.current?.());
+    } finally {
+      setIsAutoLayouting(false);
+    }
+  }, [edges, nodes, pushHistory, setNodes]);
+
+  const handleSaveLayout = useCallback(() => {
+    const positions = new Map<string, { x: number; y: number }>(
+      nodes.map((node) => [node.id, { ...node.position }]),
+    );
+    updateModelAndSync(withDeclarationPositions(modelRef.current.declarations, positions));
+  }, [nodes, updateModelAndSync]);
+
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source && connection.target && connection.source !== connection.target) {
       setConnectDialog({ sourceId: connection.source, targetId: connection.target });
@@ -295,6 +330,9 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         onRedo={handleRedo}
         canUndo={canUndo}
         canRedo={canRedo}
+        onAutoLayout={() => { void handleAutoLayout(); }}
+        isAutoLayouting={isAutoLayouting}
+        onSaveLayout={handleSaveLayout}
         showText={showText}
         onToggleText={onToggleText}
         onImport={onImport}
@@ -308,6 +346,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeDragStop={onNodeDragStop}
+          onInit={(instance) => { fitViewRef.current = () => { void instance.fitView({ padding: 0.3 }); }; }}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView

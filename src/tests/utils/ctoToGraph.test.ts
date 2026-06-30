@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { parseCto, validateCto, declarationsToGraph } from "../../utils/graph/ctoToGraph";
+import { declarationsToCto } from "../../utils/graph/graphToCto";
+import { computeAutoLayoutPositions, declarationsToGraph, getDeclarationPosition, parseCto, validateCto, withDeclarationPositions } from "../../utils/graph/ctoToGraph";
 
 const SIMPLE_CTO = `namespace org.test@1.0.0
 
@@ -257,5 +258,96 @@ concept NDAData {
       expect(node.data).toBeDefined();
       expect(node.data.declaration).toBeDefined();
     }
+  });
+
+  it("uses saved Position decorators when present", () => {
+    const cto = `namespace org.test@1.0.0
+
+@Position(120, 340)
+concept Person {
+  o String name
+}`;
+    const { declarations } = parseCto(cto);
+    const { nodes } = declarationsToGraph(declarations);
+
+    expect(nodes[0].position).toEqual({ x: 120, y: 340 });
+    expect(getDeclarationPosition(declarations[0])).toEqual({ x: 120, y: 340 });
+  });
+});
+
+describe("auto layout helpers", () => {
+  it("returns numeric positions for larger models", async () => {
+    const declarations = Array.from({ length: 24 }, (_, index) => ({
+      name: `Concept${index}`,
+      type: "concept" as const,
+      isAbstract: false,
+      superType: undefined,
+      properties: index === 23
+        ? []
+        : [{ name: `next${index}`, type: `Concept${index + 1}`, isOptional: false, isArray: false, isRelationship: false, validators: {} }],
+      enumValues: [],
+      identified: "none" as const,
+      decorators: [],
+    }));
+
+    const positions = await computeAutoLayoutPositions(declarations);
+
+    expect(positions.size).toBe(24);
+    for (const position of positions.values()) {
+      expect(typeof position.x).toBe("number");
+      expect(typeof position.y).toBe("number");
+    }
+  });
+
+  it("falls back to tree layout when auto layout throws", async () => {
+    const { declarations } = parseCto(SIMPLE_CTO);
+    const positions = await computeAutoLayoutPositions(declarations, () => {
+      throw new Error("boom");
+    });
+
+    expect(positions.size).toBe(declarations.length);
+    expect(positions.get("Person")).toBeDefined();
+  });
+});
+
+describe("position decorator persistence", () => {
+  it("writes Position decorators into CTO", () => {
+    const { declarations, namespace, imports } = parseCto(SIMPLE_CTO);
+    const updated = withDeclarationPositions(
+      declarations,
+      new Map([
+        ["Status", { x: 10, y: 20 }],
+        ["Address", { x: 30, y: 40 }],
+        ["Person", { x: 50, y: 60 }],
+      ]),
+    );
+
+    const output = declarationsToCto({ namespace, imports, declarations: updated });
+    expect(output).toMatch(/@Position\(10,\s*20\)/);
+    expect(output).toMatch(/@Position\(30,\s*40\)/);
+    expect(output).toMatch(/@Position\(50,\s*60\)/);
+  });
+
+  it("replaces an existing Position decorator and preserves others", () => {
+    const cto = `namespace org.test@1.0.0
+
+@Audited
+@Position(1, 2)
+concept Person {
+  o String name
+}`;
+    const model = parseCto(cto);
+    const updated = withDeclarationPositions(
+      model.declarations,
+      new Map([["Person", { x: 120, y: 340 }]]),
+    );
+    const person = updated[0];
+
+    expect(person.decorators.filter((decorator) => decorator.name === "Position")).toHaveLength(1);
+    expect(person.decorators.find((decorator) => decorator.name === "Audited")).toBeDefined();
+
+    const roundTrip = parseCto(declarationsToCto({ ...model, declarations: updated }));
+    expect(getDeclarationPosition(roundTrip.declarations[0])).toEqual({ x: 120, y: 340 });
+    expect(roundTrip.declarations[0].decorators.find((decorator) => decorator.name === "Audited")).toBeDefined();
   });
 });
