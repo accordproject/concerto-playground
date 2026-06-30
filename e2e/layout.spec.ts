@@ -1,6 +1,4 @@
 import { test, expect, type Page } from '@playwright/test';
-import LZString from 'lz-string';
-
 async function getNodeTransforms(page: Page): Promise<string[]> {
   return page.locator('.react-flow__node').evaluateAll((elements) =>
     elements.map((element) => element.getAttribute('style') || ''),
@@ -48,15 +46,10 @@ test.describe('Graph layout actions', () => {
     await page.getByRole('button', { name: 'Save layout' }).click();
 
     const savedTransforms = await getNodeTransforms(page);
-
-    await page.getByRole('button', { name: 'Share URL' }).click();
     await expect.poll(() => page.url()).toContain('#');
+    await expect(page.locator('.monaco-editor')).toContainText('@Position(');
 
-    const url = page.url();
-    const decoded = LZString.decompressFromEncodedURIComponent(url.split('#')[1] || '');
-    expect(decoded).toContain('@Position(');
-
-    await page.goto(url);
+    await page.reload();
     await expect(page.locator('.react-flow__node')).toHaveCount(8, { timeout: 15000 });
     expect(await getNodeTransforms(page)).toEqual(savedTransforms);
   });

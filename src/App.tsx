@@ -58,6 +58,14 @@ const _initialModels = (() => {
 
 const _initialUrlOptions = parsePlaygroundUrlOptions(window.location.search);
 
+function encodeModelsHash(models: Record<string, string>): string {
+  const sources = Object.values(models).filter(Boolean);
+  if (sources.length === 0) return "";
+
+  const payload = sources.length === 1 ? sources[0] : JSON.stringify(sources);
+  return LZString.compressToEncodedURIComponent(payload);
+}
+
 export default function App() {
   const [models, setModels] = useState<Record<string, string>>(_initialModels);
   const [activeNamespace, setActiveNamespace] = useState<string>(() => Object.keys(_initialModels)[0]);
@@ -96,6 +104,13 @@ export default function App() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [models, runGeneration]);
+
+  useEffect(() => {
+    const nextHash = encodeModelsHash(models);
+    if (window.location.hash.slice(1) !== nextHash) {
+      window.location.hash = nextHash;
+    }
+  }, [models]);
 
   // Update a specific namespace's CTO. Empty string = delete.
   function handleModelChange(ns: string, newCto: string) {
@@ -148,12 +163,7 @@ export default function App() {
   }
 
   async function handleShare() {
-    // Encode all open models so multi-namespace sessions survive the round-trip.
-    // Single-model sessions use the plain CTO string for backward compatibility
-    // with links shared before this change.
-    const sources = Object.values(models).filter(Boolean);
-    const payload = sources.length === 1 ? sources[0] : JSON.stringify(sources);
-    window.location.hash = LZString.compressToEncodedURIComponent(payload);
+    window.location.hash = encodeModelsHash(models);
     try {
       await navigator.clipboard.writeText(window.location.href);
       setShareLabel("Copied!");
@@ -170,7 +180,6 @@ export default function App() {
     const ns = extractNamespace(src);
     setModels({ [ns]: src });
     setActiveNamespace(ns);
-    window.location.hash = "";
   }
 
   // Convert a Concerto metamodel AST (single Model or a { models: [...] }
