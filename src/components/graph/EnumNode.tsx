@@ -1,5 +1,6 @@
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import { SEMANTIC_ZOOM_THRESHOLD } from './semanticZoom';
 
 interface EnumNodeData {
   label: string;
@@ -11,6 +12,8 @@ interface EnumNodeData {
 
 export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: boolean }) {
   const { declaration } = data;
+  const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
+  const valueCount = declaration.enumValues.length;
 
   return (
     <div style={{
@@ -47,6 +50,13 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
         </div>
       </div>
 
+      {!showFull && (
+        <div style={{ padding: '11px 14px', fontSize: 12, color: '#8a97ad' }}>
+          {valueCount} {valueCount === 1 ? 'value' : 'values'}
+        </div>
+      )}
+
+      {showFull && (
       <div style={{ padding: '6px 6px 8px' }}>
         {declaration.enumValues.map((val) => (
           <div key={val} style={{
@@ -68,6 +78,7 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
           + Add Value
         </button>
       </div>
+      )}
 
       <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
     </div>

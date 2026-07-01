@@ -14,13 +14,14 @@ interface GraphToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onOpenSearch: () => void;
   showText: boolean;
   onToggleText: () => void;
   onImport: () => void;
   onExport: () => void;
 }
 
-export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
+export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, onOpenSearch, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
   const [showAddDecl, setShowAddDecl] = useState(false);
 
   return (
@@ -48,6 +49,14 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
         style={{ ...arrowBtn, opacity: canRedo ? 1 : 0.25 }}
         title="Redo (Ctrl+Shift+Z)">
         {'↪'}
+      </button>
+
+      <div style={sep} />
+
+      <button onClick={onOpenSearch} style={searchBtn} title="Search nodes (Ctrl+K)">
+        <span style={{ color: '#38b2ac' }}>⌕</span>
+        Search nodes
+        <span style={kbdHint}>⌘K</span>
       </button>
 
       <div style={legendStyle}>
@@ -295,6 +304,17 @@ const arrowBtn: React.CSSProperties = {
 
 const sep: React.CSSProperties = {
   width: 1, height: 20, background: '#4a5568', flexShrink: 0,
+};
+
+const searchBtn: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 7,
+  background: '#2d3748', color: '#a0aec0', border: '1px solid #4a5568',
+  borderRadius: 6, padding: '4px 11px', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+};
+
+const kbdHint: React.CSSProperties = {
+  fontSize: 10, border: '1px solid #4a5568', borderRadius: 4,
+  padding: '0px 5px', marginLeft: 2, color: '#718096',
 };
 
 const legendStyle: React.CSSProperties = {

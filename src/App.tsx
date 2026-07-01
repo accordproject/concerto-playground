@@ -6,7 +6,7 @@ import { Editor } from "./components/Editor";
 import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
-import { validateCto } from "./utils/graph/ctoToGraph";
+import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
@@ -67,10 +67,27 @@ export default function App() {
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
   const [importError, setImportError] = useState<string | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ name: string; ts: number } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The "active" source for single-model views (graph editor, CTO editor)
   const source = models[activeNamespace] ?? "";
+
+  // Declared type names in the active model — used to render clickable
+  // references in the CTO editor.
+  const declaredTypes = useMemo(() => {
+    try {
+      return parseCto(source).declarations.map((d) => d.name);
+    } catch {
+      return [];
+    }
+  }, [source]);
+
+  // Jump to a declaration's node in the graph (from a CTO reference click).
+  const handleFocusNode = useCallback((name: string) => {
+    setViewMode("graph");
+    setFocusRequest({ name, ts: Date.now() });
+  }, []);
 
   const validationError = useMemo(() => {
     const peers = Object.values(models).filter((s) => s && s !== source);
@@ -519,7 +536,7 @@ export default function App() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <Editor value={source} onChange={setSource} language="concerto" error={validationError} />
+              <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={declaredTypes} onNavigate={handleFocusNode} />
             </div>
           </div>
         )}
@@ -541,6 +558,7 @@ export default function App() {
               onToggleText={() => setShowCto((v) => !v)}
               onImport={handleImport}
               onExport={handleExport}
+              focusRequest={focusRequest}
             />
           ) : (
             <OutputTabs

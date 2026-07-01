@@ -1,5 +1,6 @@
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import { SEMANTIC_ZOOM_THRESHOLD } from './semanticZoom';
 
 const TYPE_COLORS: Record<string, string> = {
   String: '#68d391',
@@ -33,6 +34,8 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
   const { declaration } = data;
   const colors = DECL_COLORS[declaration.type] || DECL_COLORS.concept;
   const edgeProperties = new Set(data.edgeProperties ?? []);
+  const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
+  const propCount = declaration.properties.length;
 
   return (
     <div style={{
@@ -121,6 +124,29 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
         )}
       </div>
 
+      {!showFull && (
+        <div style={{ padding: '11px 14px', fontSize: 12, color: '#8a97ad' }}>
+          {propCount} {propCount === 1 ? 'property' : 'properties'}
+          {/* Keep one source handle per edge property alive when zoomed out, spread
+              along the node's right edge so every edge keeps its own anchor. */}
+          {(data.edgeProperties ?? []).map((p, i, arr) => (
+            <Handle
+              key={`compact:${p}`}
+              type="source"
+              position={Position.Right}
+              id={`prop:${p}`}
+              style={{
+                ...rowHandleStyle,
+                background: colors.accent,
+                top: `${Math.round(((i + 1) / (arr.length + 1)) * 100)}%`,
+                opacity: 0,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {showFull && (
       <div style={{ padding: '6px 6px 8px' }}>
         {declaration.properties.map((prop) => (
           <div key={prop.name} style={{
@@ -177,6 +203,7 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
           + Add Property
         </button>
       </div>
+      )}
 
       <Handle type="source" position={Position.Bottom} id="bottom" style={{ ...handleStyle, background: colors.accent }} />
     </div>

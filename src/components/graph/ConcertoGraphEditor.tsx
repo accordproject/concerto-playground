@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   useNodesState,
   useEdgesState,
@@ -20,6 +21,8 @@ import { MapNode } from './MapNode';
 import { ScalarNode } from './ScalarNode';
 import { FloatingEdge } from './FloatingEdge';
 import { GraphToolbar } from './GraphToolbar';
+import { NodeSearch } from './NodeSearch';
+import { useFocusNode } from './useFocusNode';
 import { parseCto, declarationsToGraph } from '../../utils/graph/ctoToGraph';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel } from '../../utils/graph/types';
@@ -42,6 +45,8 @@ interface ConcertoGraphEditorProps {
   onToggleText: () => void;
   onImport: () => void;
   onExport: () => void;
+  /** When this changes, the graph centers on and highlights the named node. */
+  focusRequest?: { name: string; ts: number } | null;
 }
 
 interface HistoryEntry {
@@ -52,7 +57,8 @@ interface HistoryEntry {
 
 const MAX_HISTORY = 50;
 
-export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onExport }: ConcertoGraphEditorProps) {
+export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onExport, focusRequest }: ConcertoGraphEditorProps) {
+  const [searchOpen, setSearchOpen] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [model, setModelState] = useState<ConcertoModel>({ namespace: 'org.example@1.0.0', imports: [], declarations: [] });
@@ -234,6 +240,13 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         e.preventDefault();
         handleRedo();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -282,6 +295,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   }));
 
   return (
+    <ReactFlowProvider>
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <GraphToolbar
         declarations={model.declarations}
@@ -295,6 +309,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         onRedo={handleRedo}
         canUndo={canUndo}
         canRedo={canRedo}
+        onOpenSearch={() => setSearchOpen(true)}
         showText={showText}
         onToggleText={onToggleText}
         onImport={onImport}
@@ -323,6 +338,15 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           <Background variant={BackgroundVariant.Dots} color="#4a5568" gap={20} size={1} />
         </ReactFlow>
 
+        <FocusController focusRequest={focusRequest} />
+
+        {searchOpen && (
+          <NodeSearch
+            declarations={model.declarations}
+            onClose={() => setSearchOpen(false)}
+          />
+        )}
+
         {connectDialog && (
           <ConnectEdgeDialog
             sourceId={connectDialog.sourceId}
@@ -333,7 +357,21 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         )}
       </div>
     </div>
+    </ReactFlowProvider>
   );
+}
+
+/** Centers/highlights a node whenever focusRequest changes (e.g. a CTO link click). */
+function FocusController({ focusRequest }: { focusRequest?: { name: string; ts: number } | null }) {
+  const focusNode = useFocusNode();
+  const lastTs = useRef<number>(0);
+  useEffect(() => {
+    if (!focusRequest || focusRequest.ts === lastTs.current) return;
+    lastTs.current = focusRequest.ts;
+    const id = requestAnimationFrame(() => focusNode(focusRequest.name));
+    return () => cancelAnimationFrame(id);
+  }, [focusRequest, focusNode]);
+  return null;
 }
 
 function ConnectEdgeDialog({ sourceId, targetId, onSubmit, onClose }: {

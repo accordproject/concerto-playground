@@ -1,5 +1,6 @@
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import { SEMANTIC_ZOOM_THRESHOLD } from './semanticZoom';
 
 interface MapNodeData {
   label: string;
@@ -12,6 +13,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
   const { declaration } = data;
   const map = declaration.mapDeclaration;
   const hasValueEdge = (data.edgeProperties ?? []).includes('_value');
+  const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
 
   return (
     <div style={{
@@ -48,6 +50,21 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
         </div>
       </div>
 
+      {!showFull && (
+        <div style={{ padding: '11px 14px', fontSize: 12, color: '#8a97ad' }}>
+          {map ? `${map.keyType} → ${map.valueType}` : 'map entry'}
+          {hasValueEdge && (
+            <Handle
+              type="source"
+              position={Position.Right}
+              id="prop:_value"
+              style={{ ...rowHandleStyle, top: '50%', opacity: 0 }}
+            />
+          )}
+        </div>
+      )}
+
+      {showFull && (
       <div style={{ padding: '6px 6px 8px' }}>
         {map && (
           <>
@@ -76,6 +93,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
           </>
         )}
       </div>
+      )}
 
       <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
     </div>

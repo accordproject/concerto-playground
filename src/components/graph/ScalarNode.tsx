@@ -1,5 +1,6 @@
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import { SEMANTIC_ZOOM_THRESHOLD } from './semanticZoom';
 
 interface ScalarNodeData {
   label: string;
@@ -10,6 +11,8 @@ interface ScalarNodeData {
 export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?: boolean }) {
   const { declaration } = data;
   const v = declaration.scalarValidators || {};
+  const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
+  const constraintCount = [v.default, v.regex, v.range, v.length].filter(Boolean).length;
 
   return (
     <div style={{
@@ -48,6 +51,15 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
         </div>
       </div>
 
+      {!showFull && (
+        <div style={{ padding: '11px 14px', fontSize: 12, color: '#8a97ad' }}>
+          {constraintCount === 0
+            ? 'no constraints'
+            : `${constraintCount} ${constraintCount === 1 ? 'constraint' : 'constraints'}`}
+        </div>
+      )}
+
+      {showFull && (
       <div style={{ padding: '6px 12px 8px' }}>
         {v.default && (
           <div style={detailRow}>
@@ -79,6 +91,7 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
           </div>
         )}
       </div>
+      )}
 
       <Handle type="source" position={Position.Bottom} style={handleStyle} />
     </div>
