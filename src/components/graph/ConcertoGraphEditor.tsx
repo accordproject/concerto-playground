@@ -263,7 +263,15 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   const handleAutoLayout = useCallback(async () => {
     setIsAutoLayouting(true);
     try {
-      const positions = await computeAutoLayoutPositions(modelRef.current.declarations);
+      const nodeDimensions = new Map<string, { width: number; height: number }>();
+      for (const node of nodes) {
+        const width = node.measured?.width ?? node.width;
+        const height = node.measured?.height ?? node.height;
+        if (width == null || height == null || !Number.isFinite(width) || !Number.isFinite(height)) continue;
+        nodeDimensions.set(node.id, { width, height });
+      }
+
+      const positions = await computeAutoLayoutPositions(modelRef.current.declarations, nodeDimensions);
       const nextNodes = nodes.map((node) => ({
         ...node,
         position: positions.get(node.id) || node.position,

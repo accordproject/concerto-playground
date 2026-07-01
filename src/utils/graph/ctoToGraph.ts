@@ -21,7 +21,12 @@ const elk = new ELK();
 
 type LayoutPositions = Map<string, { x: number; y: number }>;
 type GraphShape = { nodes: Node[]; edges: Edge[] };
-type AutoLayoutFn = (declarations: Declaration[], graph: GraphShape) => LayoutPositions | Promise<LayoutPositions>;
+type NodeDimensions = Map<string, { width: number; height: number }>;
+type AutoLayoutFn = (
+  declarations: Declaration[],
+  graph: GraphShape,
+  nodeDimensions: NodeDimensions,
+) => LayoutPositions | Promise<LayoutPositions>;
 type GraphNodeData = {
   declaration: Declaration;
 };
@@ -371,15 +376,22 @@ function buildGraphRefs(declarations: Declaration[]): GraphRefs {
 
 export async function computeAutoLayoutPositions(
   declarations: Declaration[],
+  nodeDimensionsOrLayoutFn: NodeDimensions | AutoLayoutFn = computeElkLayout,
   layoutFn: AutoLayoutFn = computeElkLayout,
 ): Promise<LayoutPositions> {
   const treeFallback = computeTreeLayout(declarations);
   if (declarations.length === 0) return treeFallback;
 
   const graph = declarationsToGraph(declarations);
+  const nodeDimensions = typeof nodeDimensionsOrLayoutFn === 'function'
+    ? new Map<string, { width: number; height: number }>()
+    : nodeDimensionsOrLayoutFn;
+  const resolvedLayoutFn = typeof nodeDimensionsOrLayoutFn === 'function'
+    ? nodeDimensionsOrLayoutFn
+    : layoutFn;
 
   try {
-    const positions = await layoutFn(declarations, graph);
+    const positions = await resolvedLayoutFn(declarations, graph, nodeDimensions);
     if (hasUsablePositions(positions, declarations.length)) return positions;
   } catch {
     // Fall back to the current layered layout when ELK is unavailable or unstable.
@@ -480,10 +492,27 @@ function getPortRef(nodeId: string, handleId: string): string {
   return `${nodeId}:${handleId}`;
 }
 
-function buildElkLayoutOptions(graph: GraphShape): Record<string, string> {
+function getNodeDimension(
+  declaration: Declaration,
+  nodeDimensions: NodeDimensions,
+): { width: number; height: number } {
+  const measured = nodeDimensions.get(declaration.name);
+  return measured ?? {
+    width: getNodeWidth(declaration),
+    height: estimateNodeHeight(declaration),
+  };
+}
+
+function buildElkLayoutOptions(graph: GraphShape, nodeDimensions: NodeDimensions): Record<string, string> {
   const declarations = graph.nodes.map((node) => ((node.data as GraphNodeData).declaration));
-  const maxNodeWidth = declarations.reduce((maxWidth, declaration) => Math.max(maxWidth, getNodeWidth(declaration)), 0);
-  const maxNodeHeight = declarations.reduce((maxHeight, declaration) => Math.max(maxHeight, estimateNodeHeight(declaration)), 0);
+  const maxNodeWidth = declarations.reduce(
+    (maxWidth, declaration) => Math.max(maxWidth, getNodeDimension(declaration, nodeDimensions).width),
+    0,
+  );
+  const maxNodeHeight = declarations.reduce(
+    (maxHeight, declaration) => Math.max(maxHeight, getNodeDimension(declaration, nodeDimensions).height),
+    0,
+  );
   const paddingX = Math.max(40, Math.floor(maxNodeWidth * 0.2));
   const paddingY = Math.max(40, Math.floor(maxNodeHeight * 0.2));
 
@@ -526,9 +555,9 @@ function buildElkPorts(
   decl: Declaration,
   edgeProperties: string[],
   incomingHandles: GraphTargetHandle[],
+  nodeDimensions: NodeDimensions,
 ): ElkPort[] {
-  const nodeWidth = getNodeWidth(decl);
-  const nodeHeight = estimateNodeHeight(decl);
+  const { width: nodeWidth, height: nodeHeight } = getNodeDimension(decl, nodeDimensions);
   const ports: ElkPort[] = [
     createPort(decl.name, 'top', nodeWidth / 2 - HANDLE_RADIUS, -HANDLE_RADIUS, 'NORTH'),
     createPort(decl.name, 'bottom', nodeWidth / 2 - HANDLE_RADIUS, nodeHeight - HANDLE_RADIUS, 'SOUTH'),
@@ -573,27 +602,29 @@ function buildElkPorts(
 async function computeElkLayout(
   declarations: Declaration[],
   graph: GraphShape,
+  nodeDimensions: NodeDimensions,
 ): Promise<LayoutPositions> {
   const graphNodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const elkNodeNames = new Set(graph.nodes.map((node) => node.id));
   const elkGraph: ElkNode = {
     id: 'root',
-    layoutOptions: buildElkLayoutOptions(graph),
+    layoutOptions: buildElkLayoutOptions(graph, nodeDimensions),
     children: declarations.map((decl) => {
       const node = graphNodeById.get(decl.name);
       const incomingHandles = (node?.data as { incomingHandles?: GraphTargetHandle[] } | undefined)?.incomingHandles ?? [];
       const edgeProperties = getEdgeableProperties(decl)
         .filter((prop) => elkNodeNames.has(prop.type) && !PRIMITIVE_TYPES.has(prop.type))
         .map((prop) => prop.name);
+      const { width, height } = getNodeDimension(decl, nodeDimensions);
 
       return {
         id: decl.name,
-        width: getNodeWidth(decl),
-        height: estimateNodeHeight(decl),
+        width,
+        height,
         layoutOptions: {
           'org.eclipse.elk.portConstraints': 'FIXED_POS',
         },
-        ports: buildElkPorts(decl, edgeProperties, incomingHandles),
+        ports: buildElkPorts(decl, edgeProperties, incomingHandles, nodeDimensions),
       };
     }),
     edges: graph.edges.map((edge) => ({

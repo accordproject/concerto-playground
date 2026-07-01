@@ -450,6 +450,18 @@ concept Warranty {
       && left.y + left.height > right.y;
   }
 
+  function getDefaultNodeDimensions(declarations: ReturnType<typeof createMixedSizeDeclarations>) {
+    return new Map(
+      declarations.map((declaration) => [
+        declaration.name,
+        {
+          width: getNodeWidth(declaration),
+          height: estimateNodeHeight(declaration),
+        },
+      ]),
+    );
+  }
+
   it("returns numeric positions for larger models", async () => {
     const declarations = createDenseDeclarations(24);
 
@@ -473,13 +485,27 @@ concept Warranty {
 
   it("keeps mixed-size node bounds from overlapping", async () => {
     const declarations = createMixedSizeDeclarations();
-    const positions = await computeAutoLayoutPositions(declarations);
+    const nodeDimensions = getDefaultNodeDimensions(declarations);
+    nodeDimensions.set("Vehicle", {
+      width: nodeDimensions.get("Vehicle")!.width + 90,
+      height: nodeDimensions.get("Vehicle")!.height + 120,
+    });
+    nodeDimensions.set("Truck", {
+      width: nodeDimensions.get("Truck")!.width + 60,
+      height: nodeDimensions.get("Truck")!.height + 80,
+    });
+    nodeDimensions.set("Status", {
+      width: nodeDimensions.get("Status")!.width + 40,
+      height: nodeDimensions.get("Status")!.height + 40,
+    });
+
+    const positions = await computeAutoLayoutPositions(declarations, nodeDimensions);
     const boxes = declarations.map((declaration) => ({
       name: declaration.name,
       x: positions.get(declaration.name)!.x,
       y: positions.get(declaration.name)!.y,
-      width: getNodeWidth(declaration),
-      height: estimateNodeHeight(declaration),
+      width: nodeDimensions.get(declaration.name)?.width ?? getNodeWidth(declaration),
+      height: nodeDimensions.get(declaration.name)?.height ?? estimateNodeHeight(declaration),
     }));
 
     for (let index = 0; index < boxes.length; index += 1) {
