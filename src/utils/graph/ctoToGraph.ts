@@ -1,6 +1,12 @@
 import type { Node, Edge } from '@xyflow/react';
 import type { Declaration, ConcertoModel, ImportStatement, Property, PropertyValidator, Decorator, IdentifiedKind } from './types';
 import { PRIMITIVE_TYPES } from './types';
+import {
+  estimateNodeHeight,
+  getIncomingHandleTop,
+  getNodeWidth,
+  type GraphTargetHandle,
+} from './nodeLayout';
 
 import { Parser as ParserModule } from '@accordproject/concerto-cto';
 import { ModelManager } from '@accordproject/concerto-core';
@@ -195,12 +201,6 @@ function extractMapType(mapEntry: any): string {
   return $class.replace(`${META}.`, '').replace(/Map(Key|Value)Type$/, '');
 }
 
-function getNodeWidth(decl: Declaration): number {
-  if (decl.type === 'map') return 210;
-  if (decl.type === 'enum' || decl.type === 'scalar') return 200;
-  return 250;
-}
-
 export function getDeclarationPosition(decl: Declaration): { x: number; y: number } | null {
   const decorator = decl.decorators.find((item) => item.name === 'Position');
   if (!decorator || decorator.args.length < 2) return null;
@@ -228,25 +228,6 @@ export function withDeclarationPositions(
 
     return { ...decl, decorators };
   });
-}
-
-function estimateNodeHeight(decl: Declaration): number {
-  let headerHeight = 70;
-  const rowHeight = 30;
-  const buttonHeight = 36;
-  const padding = 16;
-
-  if (decl.decorators?.length > 0) headerHeight += 20;
-  if (decl.identified !== 'none') headerHeight += 16;
-  if (decl.superType) headerHeight += 16;
-
-  if (decl.type === 'scalar') {
-    const constraintRows = [decl.scalarValidators?.default, decl.scalarValidators?.regex, decl.scalarValidators?.range, decl.scalarValidators?.length].filter(Boolean).length;
-    return 80 + Math.max(constraintRows, 1) * rowHeight;
-  }
-  if (decl.type === 'enum') return headerHeight + Math.max(decl.enumValues.length, 1) * rowHeight + buttonHeight + padding;
-  if (decl.type === 'map') return headerHeight + 2 * rowHeight + padding;
-  return headerHeight + Math.max(decl.properties.length, 1) * rowHeight + buttonHeight + padding;
 }
 
 function computeTreeLayout(declarations: Declaration[]): Map<string, { x: number; y: number }> {
@@ -467,7 +448,40 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   const declNames = new Set(declarations.map((d) => d.name));
+  const declByName = new Map(declarations.map((decl) => [decl.name, decl]));
   const treePositions = computeTreeLayout(declarations);
+  const incomingHandlesByDecl = new Map<string, GraphTargetHandle[]>();
+
+  declarations.forEach((decl) => {
+    const propsToEdge = decl.type === 'map'
+      ? decl.properties.filter((prop) => prop.name === '_value')
+      : decl.properties;
+
+    propsToEdge.forEach((prop) => {
+      if (!declNames.has(prop.type) || PRIMITIVE_TYPES.has(prop.type)) return;
+      if (!declByName.has(prop.type)) return;
+
+      const targetHandles = incomingHandlesByDecl.get(prop.type) ?? [];
+      targetHandles.push({
+        id: getIncomingTargetHandleId(decl.name, prop.name),
+        top: 0,
+      });
+      incomingHandlesByDecl.set(prop.type, targetHandles);
+    });
+  });
+
+  declarations.forEach((decl) => {
+    const incomingHandles = incomingHandlesByDecl.get(decl.name);
+    if (!incomingHandles?.length) return;
+
+    incomingHandlesByDecl.set(
+      decl.name,
+      incomingHandles.map((handle, index) => ({
+        ...handle,
+        top: getIncomingHandleTop(decl, index, incomingHandles.length),
+      })),
+    );
+  });
 
   declarations.forEach((decl) => {
     let nodeType = 'conceptNode';
@@ -487,7 +501,12 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
       id: decl.name,
       type: nodeType,
       position: pos,
-      data: { label: decl.name, declaration: decl, edgeProperties },
+      data: {
+        label: decl.name,
+        declaration: decl,
+        edgeProperties,
+        incomingHandles: incomingHandlesByDecl.get(decl.name) ?? [],
+      },
     });
 
     if (decl.superType && declNames.has(decl.superType)) {
@@ -513,7 +532,7 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
           id: `${decl.name}-${prop.name}-${prop.type}`,
           source: decl.name, target: prop.type,
           sourceHandle: `prop:${prop.name}`,
-          targetHandle: 'left',
+          targetHandle: getIncomingTargetHandleId(decl.name, prop.name),
           label: prop.name.startsWith('_') ? '' : prop.name + (prop.isArray ? '[]' : ''),
           type: 'floating',
           style: {
@@ -532,4 +551,8 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
   });
 
   return { nodes, edges };
+}
+
+function getIncomingTargetHandleId(sourceDeclaration: string, propertyName: string): string {
+  return `in:${sourceDeclaration}:${propertyName}`;
 }

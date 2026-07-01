@@ -1,5 +1,7 @@
 import { Handle, Position } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
+import { HANDLE_SIZE, PROPERTY_ROW_GAP, PROPERTY_ROW_HEIGHT } from '../../utils/graph/nodeLayout';
 
 const TYPE_COLORS: Record<string, string> = {
   String: '#68d391',
@@ -22,6 +24,7 @@ interface ConceptNodeData {
   label: string;
   declaration: Declaration;
   edgeProperties?: string[];
+  incomingHandles?: GraphTargetHandle[];
   onAddProperty?: (declName: string) => void;
   onDeleteProperty?: (declName: string, propName: string) => void;
   onDeleteDeclaration?: (declName: string) => void;
@@ -33,6 +36,7 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
   const { declaration } = data;
   const colors = DECL_COLORS[declaration.type] || DECL_COLORS.concept;
   const edgeProperties = new Set(data.edgeProperties ?? []);
+  const incomingHandles = data.incomingHandles ?? [];
 
   return (
     <div style={{
@@ -49,6 +53,15 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
       <Handle type="target" position={Position.Top} id="top" style={{ ...handleStyle, background: colors.accent }} />
       <Handle type="target" position={Position.Left} id="left" style={{ ...handleStyle, background: colors.accent }} />
       <Handle type="source" position={Position.Right} id="right" style={{ ...handleStyle, background: colors.accent }} />
+      {incomingHandles.map((handle) => (
+        <Handle
+          key={handle.id}
+          type="target"
+          position={Position.Left}
+          id={handle.id}
+          style={{ ...incomingHandleStyle, top: handle.top, background: colors.accent }}
+        />
+      ))}
 
       <div style={{
         padding: '12px 14px 10px',
@@ -124,7 +137,8 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
       <div style={{ padding: '6px 6px 8px' }}>
         {declaration.properties.map((prop) => (
           <div key={prop.name} style={{
-            display: 'flex', alignItems: 'center', padding: '5px 8px', margin: '2px 0',
+            display: 'flex', alignItems: 'center', padding: '5px 8px', marginBottom: PROPERTY_ROW_GAP,
+            minHeight: PROPERTY_ROW_HEIGHT, boxSizing: 'border-box',
             background: '#161b27', borderRadius: 6, gap: 8, fontSize: 12, position: 'relative',
           }}>
             {edgeProperties.has(prop.name) && (
@@ -184,12 +198,18 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
 }
 
 const handleStyle: React.CSSProperties = {
-  width: 10, height: 10, borderRadius: '50%', border: '2px solid #1e2533',
+  width: HANDLE_SIZE, height: HANDLE_SIZE, borderRadius: '50%', border: '2px solid #1e2533',
 };
 
 const rowHandleStyle: React.CSSProperties = {
   ...handleStyle,
   right: -6,
   top: '50%',
+  transform: 'translateY(-50%)',
+};
+
+const incomingHandleStyle: React.CSSProperties = {
+  ...handleStyle,
+  left: -6,
   transform: 'translateY(-50%)',
 };

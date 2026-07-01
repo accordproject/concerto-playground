@@ -1,15 +1,19 @@
 import { Handle, Position } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
+import { DETAIL_ROW_HEIGHT, HANDLE_SIZE, PROPERTY_ROW_GAP } from '../../utils/graph/nodeLayout';
 
 interface ScalarNodeData {
   label: string;
   declaration: Declaration;
+  incomingHandles?: GraphTargetHandle[];
   onDeleteDeclaration?: (declName: string) => void;
 }
 
 export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?: boolean }) {
   const { declaration } = data;
   const v = declaration.scalarValidators || {};
+  const incomingHandles = data.incomingHandles ?? [];
 
   return (
     <div style={{
@@ -23,8 +27,17 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
       overflow: 'hidden',
       transition: 'border-color 0.2s, box-shadow 0.2s',
     }}>
-      <Handle type="target" position={Position.Top} style={handleStyle} />
+      <Handle type="target" position={Position.Top} id="top" style={handleStyle} />
       <Handle type="target" position={Position.Left} id="left" style={handleStyle} />
+      {incomingHandles.map((handle) => (
+        <Handle
+          key={handle.id}
+          type="target"
+          position={Position.Left}
+          id={handle.id}
+          style={{ ...incomingHandleStyle, top: handle.top }}
+        />
+      ))}
 
       <div style={{
         padding: '10px 14px',
@@ -80,18 +93,19 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
         )}
       </div>
 
-      <Handle type="source" position={Position.Bottom} style={handleStyle} />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
     </div>
   );
 }
 
 const handleStyle: React.CSSProperties = {
-  width: 10, height: 10, background: '#ed64a6', borderRadius: '50%', border: '2px solid #1e2533',
+  width: HANDLE_SIZE, height: HANDLE_SIZE, background: '#ed64a6', borderRadius: '50%', border: '2px solid #1e2533',
 };
 
 const detailRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '4px 8px', margin: '2px 0', background: '#161b27', borderRadius: 6,
+  padding: '4px 8px', marginBottom: PROPERTY_ROW_GAP, minHeight: DETAIL_ROW_HEIGHT,
+  boxSizing: 'border-box', background: '#161b27', borderRadius: 6,
 };
 
 const detailLabel: React.CSSProperties = {
@@ -100,4 +114,10 @@ const detailLabel: React.CSSProperties = {
 
 const detailValue: React.CSSProperties = {
   fontSize: 11, color: '#fbb6ce', fontFamily: 'monospace',
+};
+
+const incomingHandleStyle: React.CSSProperties = {
+  ...handleStyle,
+  left: -6,
+  transform: 'translateY(-50%)',
 };

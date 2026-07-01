@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -23,6 +23,7 @@ import { GraphToolbar } from './GraphToolbar';
 import { computeAutoLayoutPositions, declarationsToGraph, parseCto, withDeclarationPositions } from '../../utils/graph/ctoToGraph';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel } from '../../utils/graph/types';
+import { routeGraphEdges } from '../../utils/graph/routeGraphEdges';
 
 const nodeTypes: NodeTypes = {
   conceptNode: ConceptNode,
@@ -69,6 +70,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
 
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const fitViewRef = useRef<(() => void) | null>(null);
+  const renderedEdges = useMemo(() => routeGraphEdges(nodes, edges), [nodes, edges]);
 
   useEffect(() => {
     for (const node of nodes) {
@@ -341,7 +343,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
       <div style={{ flex: 1, position: 'relative' }}>
         <ReactFlow
           nodes={nodesWithCallbacks}
-          edges={edges}
+          edges={renderedEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}

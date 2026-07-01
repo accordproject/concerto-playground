@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { declarationsToCto } from "../../utils/graph/graphToCto";
 import { computeAutoLayoutPositions, declarationsToGraph, getDeclarationPosition, parseCto, validateCto, withDeclarationPositions } from "../../utils/graph/ctoToGraph";
+import { routeGraphEdges } from "../../utils/graph/routeGraphEdges";
 
 const SIMPLE_CTO = `namespace org.test@1.0.0
 
@@ -233,7 +234,84 @@ concept NDAData {
     expect(new Set(partyEdges.map((edge) => edge.sourceHandle))).toEqual(
       new Set(["prop:disclosingParty", "prop:receivingParty"])
     );
-    expect(partyEdges.map((edge) => edge.targetHandle)).toEqual(["left", "left"]);
+    expect(new Set(partyEdges.map((edge) => edge.targetHandle))).toEqual(
+      new Set(["in:NDAData:disclosingParty", "in:NDAData:receivingParty"])
+    );
+  });
+
+  it("assigns unique incoming handles to dense shared targets", () => {
+    const denseCto = `namespace org.accordproject.nda@1.0.0
+concept Party {
+  o String name
+}
+concept NDAData {
+  o Party disclosingParty
+  o Party receivingParty
+  o Party addressParty
+  o Party witnessParty
+}`;
+    const { declarations } = parseCto(denseCto);
+    const { nodes, edges } = declarationsToGraph(declarations);
+    const partyNode = nodes.find((node) => node.id === "Party");
+    const partyEdges = edges.filter(
+      (edge) => edge.source === "NDAData" && edge.target === "Party"
+    );
+
+    expect(new Set(partyEdges.map((edge) => edge.targetHandle))).toEqual(
+      new Set([
+        "in:NDAData:disclosingParty",
+        "in:NDAData:receivingParty",
+        "in:NDAData:addressParty",
+        "in:NDAData:witnessParty",
+      ])
+    );
+    expect(partyNode?.data.incomingHandles).toHaveLength(4);
+  });
+
+  it("does not store route points on base graph edges", () => {
+    const denseCto = `namespace org.accordproject.nda@1.0.0
+concept Party {
+  o String name
+}
+concept NDAData {
+  o Party disclosingParty
+  o Party receivingParty
+  o Party addressParty
+}`;
+    const { declarations } = parseCto(denseCto);
+    const { edges } = declarationsToGraph(declarations);
+    const partyEdges = edges.filter(
+      (edge) => edge.source === "NDAData" && edge.target === "Party"
+    );
+
+    for (const edge of partyEdges) {
+      expect((edge.data as { routePoints?: Array<{ x: number; y: number }> } | undefined)?.routePoints).toBeUndefined();
+    }
+  });
+
+  it("routes dense property fan-in through distinct lane columns", () => {
+    const denseCto = `namespace org.accordproject.nda@1.0.0
+concept Party {
+  o String name
+}
+concept NDAData {
+  o Party disclosingParty
+  o Party receivingParty
+  o Party addressParty
+  o Party witnessParty
+}`;
+    const { declarations } = parseCto(denseCto);
+    const { nodes, edges } = declarationsToGraph(declarations);
+    const routedEdges = routeGraphEdges(nodes, edges).filter(
+      (edge) => edge.source === "NDAData" && edge.target === "Party"
+    );
+
+    const laneColumns = routedEdges.map((edge) => {
+      const points = (edge.data as { routePoints?: Array<{ x: number; y: number }> }).routePoints!;
+      return points[1].x;
+    });
+
+    expect(new Set(laneColumns).size).toBe(4);
   });
 
   it("assigns positions to all nodes", () => {

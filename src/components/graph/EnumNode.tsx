@@ -1,9 +1,12 @@
 import { Handle, Position } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
+import { ENUM_ROW_HEIGHT, HANDLE_SIZE, PROPERTY_ROW_GAP } from '../../utils/graph/nodeLayout';
 
 interface EnumNodeData {
   label: string;
   declaration: Declaration;
+  incomingHandles?: GraphTargetHandle[];
   onAddEnumValue?: (declName: string) => void;
   onDeleteEnumValue?: (declName: string, value: string) => void;
   onDeleteDeclaration?: (declName: string) => void;
@@ -11,6 +14,7 @@ interface EnumNodeData {
 
 export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: boolean }) {
   const { declaration } = data;
+  const incomingHandles = data.incomingHandles ?? [];
 
   return (
     <div style={{
@@ -27,6 +31,15 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
       <Handle type="target" position={Position.Top} id="top" style={handleStyle} />
       <Handle type="target" position={Position.Left} id="left" style={handleStyle} />
       <Handle type="source" position={Position.Right} id="right" style={handleStyle} />
+      {incomingHandles.map((handle) => (
+        <Handle
+          key={handle.id}
+          type="target"
+          position={Position.Left}
+          id={handle.id}
+          style={{ ...incomingHandleStyle, top: handle.top }}
+        />
+      ))}
 
       <div style={{
         padding: '12px 14px 10px',
@@ -51,7 +64,8 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
         {declaration.enumValues.map((val) => (
           <div key={val} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '5px 8px', margin: '2px 0', background: '#161b27', borderRadius: 6,
+            padding: '5px 8px', marginBottom: PROPERTY_ROW_GAP, minHeight: ENUM_ROW_HEIGHT,
+            boxSizing: 'border-box', background: '#161b27', borderRadius: 6,
           }}>
             <span style={{ color: '#fbd38d', fontSize: 12 }}>{val}</span>
             <button onClick={() => data.onDeleteEnumValue?.(declaration.name, val)}
@@ -75,5 +89,11 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
 }
 
 const handleStyle: React.CSSProperties = {
-  width: 10, height: 10, background: '#ecc94b', borderRadius: '50%', border: '2px solid #1e2533',
+  width: HANDLE_SIZE, height: HANDLE_SIZE, background: '#ecc94b', borderRadius: '50%', border: '2px solid #1e2533',
+};
+
+const incomingHandleStyle: React.CSSProperties = {
+  ...handleStyle,
+  left: -6,
+  transform: 'translateY(-50%)',
 };
