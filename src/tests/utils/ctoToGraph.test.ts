@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { declarationsToCto } from "../../utils/graph/graphToCto";
 import { computeAutoLayoutPositions, declarationsToGraph, getDeclarationPosition, parseCto, validateCto, withDeclarationPositions } from "../../utils/graph/ctoToGraph";
+import { estimateNodeHeight, getNodeWidth } from "../../utils/graph/nodeLayout";
 import { routeGraphEdges } from "../../utils/graph/routeGraphEdges";
 
 const SIMPLE_CTO = `namespace org.test@1.0.0
@@ -384,6 +385,71 @@ describe("auto layout helpers", () => {
     ];
   }
 
+  function createMixedSizeDeclarations() {
+    return parseCto(`namespace org.example.layout@1.0.0
+
+@Note("wide")
+enum Status {
+  o NEW
+  o IN_PROGRESS
+  o BLOCKED
+  o DONE
+}
+
+scalar VIN extends String regex=/[A-HJ-NPR-Z0-9]{17}/
+
+abstract concept Vehicle {
+  o String make
+  o String model
+  o VIN vin
+  o Status status
+  o String serialNumber
+  o String registrationNumber
+  o String ownerName optional
+}
+
+concept Owner {
+  o String firstName
+  o String lastName
+  o String email optional
+}
+
+concept Fleet {
+  o String name
+  o Vehicle[] vehicles
+  o Owner manager
+}
+
+concept Car extends Vehicle {
+  o Integer seatCount
+  o Boolean hasAirConditioning
+}
+
+concept Truck extends Vehicle {
+  o Double payloadTonnage
+  o Boolean hasRefrigeration
+  o String axleConfiguration
+  o String regionCode
+}
+
+concept Warranty {
+  o String provider
+  o String policyNumber
+  o Truck coveredTruck
+}
+`).declarations;
+  }
+
+  function boxesOverlap(
+    left: { x: number; y: number; width: number; height: number },
+    right: { x: number; y: number; width: number; height: number },
+  ) {
+    return left.x < right.x + right.width
+      && left.x + left.width > right.x
+      && left.y < right.y + right.height
+      && left.y + left.height > right.y;
+  }
+
   it("returns numeric positions for larger models", async () => {
     const declarations = createDenseDeclarations(24);
 
@@ -403,6 +469,27 @@ describe("auto layout helpers", () => {
     expect(positions.size).toBe(21);
     expect(new Set(Array.from(positions.values(), (position) => position.x)).size).toBeGreaterThan(1);
     expect(Array.from(positions.values()).some((position) => position.x !== 0 || position.y !== 0)).toBe(true);
+  });
+
+  it("keeps mixed-size node bounds from overlapping", async () => {
+    const declarations = createMixedSizeDeclarations();
+    const positions = await computeAutoLayoutPositions(declarations);
+    const boxes = declarations.map((declaration) => ({
+      name: declaration.name,
+      x: positions.get(declaration.name)!.x,
+      y: positions.get(declaration.name)!.y,
+      width: getNodeWidth(declaration),
+      height: estimateNodeHeight(declaration),
+    }));
+
+    for (let index = 0; index < boxes.length; index += 1) {
+      for (let otherIndex = index + 1; otherIndex < boxes.length; otherIndex += 1) {
+        expect(
+          boxesOverlap(boxes[index], boxes[otherIndex]),
+          `${boxes[index].name} overlaps ${boxes[otherIndex].name}`,
+        ).toBe(false);
+      }
+    }
   });
 
   it("falls back to tree layout when auto layout throws", async () => {

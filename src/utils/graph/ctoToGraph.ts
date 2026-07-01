@@ -19,23 +19,12 @@ const META = 'concerto.metamodel@1.0.0';
 const HANDLE_RADIUS = HANDLE_SIZE / 2;
 const elk = new ELK();
 
-const ELK_LAYOUT_OPTIONS = {
-  'elk.algorithm': 'layered',
-  'elk.direction': 'RIGHT',
-  'elk.edgeRouting': 'ORTHOGONAL',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '220',
-  'elk.spacing.nodeNode': '110',
-  'elk.spacing.edgeNode': '40',
-  'org.eclipse.elk.layered.considerModelOrder.portModelOrder': 'true',
-  'org.eclipse.elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
-  'org.eclipse.elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
-  'org.eclipse.elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
-  'org.eclipse.elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
-} as const;
-
 type LayoutPositions = Map<string, { x: number; y: number }>;
 type GraphShape = { nodes: Node[]; edges: Edge[] };
 type AutoLayoutFn = (declarations: Declaration[], graph: GraphShape) => LayoutPositions | Promise<LayoutPositions>;
+type GraphNodeData = {
+  declaration: Declaration;
+};
 
 export function parseCto(cto: string): ConcertoModel {
   const ast = ParserModule.parse(cto) as any;
@@ -491,6 +480,29 @@ function getPortRef(nodeId: string, handleId: string): string {
   return `${nodeId}:${handleId}`;
 }
 
+function buildElkLayoutOptions(graph: GraphShape): Record<string, string> {
+  const declarations = graph.nodes.map((node) => ((node.data as GraphNodeData).declaration));
+  const maxNodeWidth = declarations.reduce((maxWidth, declaration) => Math.max(maxWidth, getNodeWidth(declaration)), 0);
+  const maxNodeHeight = declarations.reduce((maxHeight, declaration) => Math.max(maxHeight, estimateNodeHeight(declaration)), 0);
+  const paddingX = Math.max(40, Math.floor(maxNodeWidth * 0.2));
+  const paddingY = Math.max(40, Math.floor(maxNodeHeight * 0.2));
+
+  return {
+    'elk.algorithm': 'layered',
+    'elk.direction': 'RIGHT',
+    'elk.edgeRouting': 'ORTHOGONAL',
+    'elk.layered.spacing.nodeNodeBetweenLayers': String(Math.max(220, maxNodeWidth + 80)),
+    'elk.spacing.nodeNode': String(Math.max(110, Math.floor(maxNodeHeight * 0.45))),
+    'elk.spacing.edgeNode': '40',
+    'elk.padding': `[top=${paddingY},left=${paddingX},bottom=${paddingY},right=${paddingX}]`,
+    'org.eclipse.elk.layered.considerModelOrder.portModelOrder': 'true',
+    'org.eclipse.elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+    'org.eclipse.elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
+    'org.eclipse.elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+    'org.eclipse.elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
+  };
+}
+
 function createPort(
   nodeId: string,
   handleId: string,
@@ -566,7 +578,7 @@ async function computeElkLayout(
   const elkNodeNames = new Set(graph.nodes.map((node) => node.id));
   const elkGraph: ElkNode = {
     id: 'root',
-    layoutOptions: ELK_LAYOUT_OPTIONS,
+    layoutOptions: buildElkLayoutOptions(graph),
     children: declarations.map((decl) => {
       const node = graphNodeById.get(decl.name);
       const incomingHandles = (node?.data as { incomingHandles?: GraphTargetHandle[] } | undefined)?.incomingHandles ?? [];
