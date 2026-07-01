@@ -18,6 +18,7 @@ test.describe('Graph layout actions', () => {
 
     const autoLayoutButton = page.getByRole('button', { name: 'Auto layout' });
     await autoLayoutButton.click();
+    await expect(autoLayoutButton).toBeEnabled();
     await expect
       .poll(async () => JSON.stringify(await getNodeTransforms(page)))
       .not.toBe(JSON.stringify(before));

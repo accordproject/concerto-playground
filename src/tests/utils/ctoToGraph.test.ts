@@ -354,27 +354,55 @@ concept Person {
 });
 
 describe("auto layout helpers", () => {
+  function createDenseDeclarations(count: number) {
+    return [
+      {
+        name: "Hub",
+        type: "concept" as const,
+        isAbstract: false,
+        superType: undefined,
+        properties: [],
+        enumValues: [],
+        identified: "none" as const,
+        decorators: [],
+      },
+      ...Array.from({ length: count }, (_, index) => ({
+        name: `Concept${index}`,
+        type: "concept" as const,
+        isAbstract: false,
+        superType: undefined,
+        properties: [
+          { name: "hub", type: "Hub", isOptional: false, isArray: false, isRelationship: false, validators: {} },
+          ...(index < count - 1
+            ? [{ name: `next${index}`, type: `Concept${index + 1}`, isOptional: false, isArray: false, isRelationship: false, validators: {} }]
+            : []),
+        ],
+        enumValues: [],
+        identified: "none" as const,
+        decorators: [],
+      })),
+    ];
+  }
+
   it("returns numeric positions for larger models", async () => {
-    const declarations = Array.from({ length: 24 }, (_, index) => ({
-      name: `Concept${index}`,
-      type: "concept" as const,
-      isAbstract: false,
-      superType: undefined,
-      properties: index === 23
-        ? []
-        : [{ name: `next${index}`, type: `Concept${index + 1}`, isOptional: false, isArray: false, isRelationship: false, validators: {} }],
-      enumValues: [],
-      identified: "none" as const,
-      decorators: [],
-    }));
+    const declarations = createDenseDeclarations(24);
 
     const positions = await computeAutoLayoutPositions(declarations);
 
-    expect(positions.size).toBe(24);
+    expect(positions.size).toBe(25);
     for (const position of positions.values()) {
       expect(typeof position.x).toBe("number");
       expect(typeof position.y).toBe("number");
     }
+  });
+
+  it("uses the default ELK path for a dense 20+ node model", async () => {
+    const declarations = createDenseDeclarations(20);
+    const positions = await computeAutoLayoutPositions(declarations);
+
+    expect(positions.size).toBe(21);
+    expect(new Set(Array.from(positions.values(), (position) => position.x)).size).toBeGreaterThan(1);
+    expect(Array.from(positions.values()).some((position) => position.x !== 0 || position.y !== 0)).toBe(true);
   });
 
   it("falls back to tree layout when auto layout throws", async () => {
@@ -385,6 +413,18 @@ describe("auto layout helpers", () => {
 
     expect(positions.size).toBe(declarations.length);
     expect(positions.get("Person")).toBeDefined();
+  });
+
+  it("supports async injected layout callbacks", async () => {
+    const { declarations } = parseCto(SIMPLE_CTO);
+    const positions = await computeAutoLayoutPositions(
+      declarations,
+      async () => new Map([["Person", { x: 10, y: 20 }], ["Address", { x: 30, y: 40 }], ["Status", { x: 50, y: 60 }]]),
+    );
+
+    expect(positions.get("Person")).toEqual({ x: 10, y: 20 });
+    expect(positions.get("Address")).toEqual({ x: 30, y: 40 });
+    expect(positions.get("Status")).toEqual({ x: 50, y: 60 });
   });
 });
 

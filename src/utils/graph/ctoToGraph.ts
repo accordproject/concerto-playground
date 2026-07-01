@@ -1,16 +1,41 @@
 import type { Node, Edge } from '@xyflow/react';
 import type { Declaration, ConcertoModel, ImportStatement, Property, PropertyValidator, Decorator, IdentifiedKind } from './types';
 import { PRIMITIVE_TYPES } from './types';
+import ELK from 'elkjs/lib/elk.bundled.js';
+import type { ElkNode, ElkPort } from 'elkjs/lib/elk-api';
 import {
+  HANDLE_SIZE,
   estimateNodeHeight,
   getIncomingHandleTop,
+  getMapValueHandleTop,
   getNodeWidth,
+  getPropertyHandleTop,
   type GraphTargetHandle,
 } from './nodeLayout';
 
 import { Parser as ParserModule } from '@accordproject/concerto-cto';
 import { ModelManager } from '@accordproject/concerto-core';
 const META = 'concerto.metamodel@1.0.0';
+const HANDLE_RADIUS = HANDLE_SIZE / 2;
+const elk = new ELK();
+
+const ELK_LAYOUT_OPTIONS = {
+  'elk.algorithm': 'layered',
+  'elk.direction': 'RIGHT',
+  'elk.edgeRouting': 'ORTHOGONAL',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '220',
+  'elk.spacing.nodeNode': '110',
+  'elk.spacing.edgeNode': '40',
+  'org.eclipse.elk.layered.considerModelOrder.portModelOrder': 'true',
+  'org.eclipse.elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+  'org.eclipse.elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
+  'org.eclipse.elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+  'org.eclipse.elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
+} as const;
+
+type LayoutPositions = Map<string, { x: number; y: number }>;
+type GraphShape = { nodes: Node[]; edges: Edge[] };
+type AutoLayoutFn = (declarations: Declaration[], graph: GraphShape) => LayoutPositions | Promise<LayoutPositions>;
 
 export function parseCto(cto: string): ConcertoModel {
   const ast = ParserModule.parse(cto) as any;
@@ -357,17 +382,22 @@ function buildGraphRefs(declarations: Declaration[]): GraphRefs {
 
 export async function computeAutoLayoutPositions(
   declarations: Declaration[],
-  layoutFn: (declarations: Declaration[]) => Map<string, { x: number; y: number }> = computeLayeredLayout,
-): Promise<Map<string, { x: number; y: number }>> {
-  const fallback = computeTreeLayout(declarations);
-  if (declarations.length === 0) return fallback;
+  layoutFn: AutoLayoutFn = computeElkLayout,
+): Promise<LayoutPositions> {
+  const treeFallback = computeTreeLayout(declarations);
+  if (declarations.length === 0) return treeFallback;
+
+  const graph = declarationsToGraph(declarations);
 
   try {
-    const positions = layoutFn(declarations);
-    return positions.size > 0 ? positions : fallback;
+    const positions = await layoutFn(declarations, graph);
+    if (hasUsablePositions(positions, declarations.length)) return positions;
   } catch {
-    return fallback;
+    // Fall back to the current layered layout when ELK is unavailable or unstable.
   }
+
+  const layeredFallback = computeLayeredLayout(declarations);
+  return hasUsablePositions(layeredFallback, declarations.length) ? layeredFallback : treeFallback;
 }
 
 function computeLayeredLayout(declarations: Declaration[]): Map<string, { x: number; y: number }> {
@@ -444,6 +474,147 @@ function computeLayeredLayout(declarations: Declaration[]): Map<string, { x: num
   return positions;
 }
 
+function getNodeType(decl: Declaration): string {
+  if (decl.type === 'enum') return 'enumNode';
+  if (decl.type === 'map') return 'mapNode';
+  if (decl.type === 'scalar') return 'scalarNode';
+  return 'conceptNode';
+}
+
+function getEdgeableProperties(decl: Declaration): Property[] {
+  return decl.type === 'map'
+    ? decl.properties.filter((prop) => prop.name === '_value')
+    : decl.properties;
+}
+
+function getPortRef(nodeId: string, handleId: string): string {
+  return `${nodeId}:${handleId}`;
+}
+
+function createPort(
+  nodeId: string,
+  handleId: string,
+  x: number,
+  y: number,
+  side: 'NORTH' | 'SOUTH' | 'EAST' | 'WEST',
+): ElkPort {
+  return {
+    id: getPortRef(nodeId, handleId),
+    width: HANDLE_RADIUS * 2,
+    height: HANDLE_RADIUS * 2,
+    x,
+    y,
+    layoutOptions: {
+      'org.eclipse.elk.port.side': side,
+    },
+  };
+}
+
+function buildElkPorts(
+  decl: Declaration,
+  edgeProperties: string[],
+  incomingHandles: GraphTargetHandle[],
+): ElkPort[] {
+  const nodeWidth = getNodeWidth(decl);
+  const nodeHeight = estimateNodeHeight(decl);
+  const ports: ElkPort[] = [
+    createPort(decl.name, 'top', nodeWidth / 2 - HANDLE_RADIUS, -HANDLE_RADIUS, 'NORTH'),
+    createPort(decl.name, 'bottom', nodeWidth / 2 - HANDLE_RADIUS, nodeHeight - HANDLE_RADIUS, 'SOUTH'),
+  ];
+
+  incomingHandles.forEach((handle) => {
+    ports.push(createPort(decl.name, handle.id, -HANDLE_RADIUS, handle.top - HANDLE_RADIUS, 'WEST'));
+  });
+
+  if (decl.type === 'map') {
+    if (edgeProperties.includes('_value')) {
+      ports.push(
+        createPort(
+          decl.name,
+          'prop:_value',
+          nodeWidth - HANDLE_RADIUS,
+          getMapValueHandleTop(decl) - HANDLE_RADIUS,
+          'EAST',
+        ),
+      );
+    }
+    return ports;
+  }
+
+  decl.properties.forEach((prop, index) => {
+    if (!edgeProperties.includes(prop.name)) return;
+
+    ports.push(
+      createPort(
+        decl.name,
+        `prop:${prop.name}`,
+        nodeWidth - HANDLE_RADIUS,
+        getPropertyHandleTop(decl, index) - HANDLE_RADIUS,
+        'EAST',
+      ),
+    );
+  });
+
+  return ports;
+}
+
+async function computeElkLayout(
+  declarations: Declaration[],
+  graph: GraphShape,
+): Promise<LayoutPositions> {
+  const graphNodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const elkNodeNames = new Set(graph.nodes.map((node) => node.id));
+  const elkGraph: ElkNode = {
+    id: 'root',
+    layoutOptions: ELK_LAYOUT_OPTIONS,
+    children: declarations.map((decl) => {
+      const node = graphNodeById.get(decl.name);
+      const incomingHandles = (node?.data as { incomingHandles?: GraphTargetHandle[] } | undefined)?.incomingHandles ?? [];
+      const edgeProperties = getEdgeableProperties(decl)
+        .filter((prop) => elkNodeNames.has(prop.type) && !PRIMITIVE_TYPES.has(prop.type))
+        .map((prop) => prop.name);
+
+      return {
+        id: decl.name,
+        width: getNodeWidth(decl),
+        height: estimateNodeHeight(decl),
+        layoutOptions: {
+          'org.eclipse.elk.portConstraints': 'FIXED_POS',
+        },
+        ports: buildElkPorts(decl, edgeProperties, incomingHandles),
+      };
+    }),
+    edges: graph.edges.map((edge) => ({
+      id: edge.id,
+      sources: [getPortRef(edge.source, edge.sourceHandle || 'bottom')],
+      targets: [getPortRef(edge.target, edge.targetHandle || 'top')],
+    })),
+  };
+
+  const layoutedGraph = await elk.layout(elkGraph);
+  const positions: LayoutPositions = new Map();
+
+  for (const child of layoutedGraph.children ?? []) {
+    const { x, y } = child;
+    if (x == null || y == null || !Number.isFinite(x) || !Number.isFinite(y)) continue;
+    positions.set(child.id, { x, y });
+  }
+
+  return positions;
+}
+
+function hasUsablePositions(positions: LayoutPositions, expectedCount: number): boolean {
+  if (positions.size !== expectedCount) return false;
+
+  for (const position of positions.values()) {
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
@@ -453,9 +624,7 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
   const incomingHandlesByDecl = new Map<string, GraphTargetHandle[]>();
 
   declarations.forEach((decl) => {
-    const propsToEdge = decl.type === 'map'
-      ? decl.properties.filter((prop) => prop.name === '_value')
-      : decl.properties;
+    const propsToEdge = getEdgeableProperties(decl);
 
     propsToEdge.forEach((prop) => {
       if (!declNames.has(prop.type) || PRIMITIVE_TYPES.has(prop.type)) return;
@@ -484,22 +653,15 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
   });
 
   declarations.forEach((decl) => {
-    let nodeType = 'conceptNode';
-    if (decl.type === 'enum') nodeType = 'enumNode';
-    else if (decl.type === 'map') nodeType = 'mapNode';
-    else if (decl.type === 'scalar') nodeType = 'scalarNode';
-
     const pos = getDeclarationPosition(decl) || treePositions.get(decl.name) || { x: 0, y: 0 };
-    const propsToEdge = decl.type === 'map'
-      ? decl.properties.filter((p) => p.name === '_value')
-      : decl.properties;
+    const propsToEdge = getEdgeableProperties(decl);
     const edgeProperties = propsToEdge
       .filter((p) => declNames.has(p.type) && !PRIMITIVE_TYPES.has(p.type))
       .map((p) => p.name);
 
     nodes.push({
       id: decl.name,
-      type: nodeType,
+      type: getNodeType(decl),
       position: pos,
       data: {
         label: decl.name,
