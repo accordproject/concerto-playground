@@ -51,6 +51,25 @@ describe("declarationsToCto", () => {
     expect(output).toContain("priority");
   });
 
+  it("preserves defaults on enum-typed properties without double-quoting", () => {
+    const cto = `namespace org.test@1.0.0
+
+enum Condition {
+  o NEW
+  o USED
+}
+
+concept Vehicle {
+  o Condition condition default="USED"
+}
+`;
+    const model = parseCto(cto);
+    const output = declarationsToCto(model);
+    expect(output).toContain('default="USED"');
+    expect(output).not.toContain('""');
+    expect(() => parseCto(output)).not.toThrow();
+  });
+
   it("produces semantically equivalent AST in roundtrip", () => {
     const model = parseCto(ROUNDTRIP_CTO);
     const output = declarationsToCto(model);
