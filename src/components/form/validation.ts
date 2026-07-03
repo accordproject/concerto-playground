@@ -1,6 +1,6 @@
 // Name-format validation for the Form view. Saving an invalid name would
 // generate CTO that no longer parses, making the namespace vanish from the
-// tree — so every rename is checked here first and rejected with a message
+// tree, so every rename is checked here first and rejected with a message
 // explaining the expected format.
 
 const IDENTIFIER_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
@@ -14,7 +14,7 @@ const NAMESPACE_RE =
 export function identifierError(name: string): string | null {
   if (!name) return 'Name is required.';
   if (/\s/.test(name)) {
-    return `Names cannot contain spaces — write "${suggestIdentifier(name)}" instead of "${name}".`;
+    return `Names cannot contain spaces. Write "${suggestIdentifier(name)}" instead of "${name}".`;
   }
   if (!IDENTIFIER_RE.test(name)) {
     return 'Names must be a single word of letters, digits, "_" or "$", starting with a letter (e.g. "myCarName").';
@@ -29,7 +29,7 @@ export function identifierError(name: string): string | null {
 export function namespaceError(ns: string): string | null {
   if (!ns) return 'Namespace is required.';
   if (!NAMESPACE_RE.test(ns)) {
-    return 'Namespaces must be dot-separated words with no spaces, plus an optional version — e.g. "org.example@1.0.0".';
+    return 'Namespaces must be dot-separated words with no spaces, plus an optional version, e.g. "org.example@1.0.0".';
   }
   return null;
 }

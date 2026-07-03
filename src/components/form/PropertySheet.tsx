@@ -107,7 +107,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-// ─── Validated name field ───────────────────────────────────────────────────────
+// Validated name field
 
 interface ValidatedName {
   value: string;
