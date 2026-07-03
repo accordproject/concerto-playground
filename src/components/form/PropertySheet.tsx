@@ -5,6 +5,7 @@ import type { ConcertoModel, Declaration, Property } from '../../utils/graph/typ
 import { ALL_TYPES, PRIMITIVE_TYPES, getAvailableTypes, getExtendsCandidates } from '../../utils/graph/types';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { FormSel } from './FormView';
+import { identifierError, namespaceError } from './validation';
 import { COLOR } from './theme';
 
 const cardStyle: React.CSSProperties = {
@@ -106,6 +107,26 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// ─── SaveError ──────────────────────────────────────────────────────────────────
+
+function SaveError({ message }: { message: string | null }) {
+  if (!message) return null;
+  return (
+    <div
+      role="alert"
+      style={{
+        color: COLOR.red,
+        fontSize: 12,
+        lineHeight: 1.5,
+        marginTop: -6,
+        marginBottom: 12,
+      }}
+    >
+      {message}
+    </div>
+  );
+}
+
 // ─── Placeholder ────────────────────────────────────────────────────────────────
 
 function Placeholder() {
@@ -130,12 +151,15 @@ function NamespaceForm({
   onRemoveNamespace: (ns: string) => void;
 }) {
   const [name, setName] = useState(ns);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { setName(ns); }, [ns]);
+  useEffect(() => { setName(ns); setError(null); }, [ns]);
 
   function handleSave() {
     const trimmed = name.trim();
-    if (!trimmed || trimmed === ns) return;
+    if (trimmed === ns) return;
+    const err = namespaceError(trimmed);
+    if (err) { setError(err); return; }
     // Build new model with new namespace and regenerate CTO
     const newModel: ConcertoModel = { ...model, namespace: trimmed };
     const newCto = declarationsToCto(newModel);
@@ -150,10 +174,11 @@ function NamespaceForm({
         <input
           style={inputStyle}
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); setError(null); }}
           placeholder="org.example@1.0.0"
         />
       </Field>
+      <SaveError message={error} />
       <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
         <button style={btnPrimary} onClick={handleSave}>Save</button>
         <button style={btnDanger} onClick={() => onRemoveNamespace(ns)}>Delete</button>
@@ -176,12 +201,14 @@ function EnumForm({
   onModelChange: (ns: string, newCto: string) => void;
 }) {
   const [name, setName] = useState(decl.name);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { setName(decl.name); }, [decl.name]);
+  useEffect(() => { setName(decl.name); setError(null); }, [decl.name]);
 
   function handleSave() {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    const err = identifierError(trimmed);
+    if (err) { setError(err); return; }
     const cto = updateDecl(model, decl.name, (d) => ({ ...d, name: trimmed }));
     onModelChange(ns, cto);
   }
@@ -200,8 +227,9 @@ function EnumForm({
     <div>
       <div style={cardStyle}>
         <Field label="Name">
-          <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="EnumName" />
+          <input style={inputStyle} value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="EnumName" />
         </Field>
+        <SaveError message={error} />
         <div style={{ display: 'flex', gap: 8 }}>
           <button style={btnPrimary} onClick={handleSave}>Save</button>
           <button style={btnDanger} onClick={handleDelete}>Delete</button>
@@ -248,6 +276,7 @@ function ConceptForm({
   const [superType, setSuperType] = useState(decl.superType ?? '');
   const [identified, setIdentified] = useState(decl.identified);
   const [identifiedBy, setIdentifiedBy] = useState(decl.identifiedBy ?? '');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setName(decl.name);
@@ -255,20 +284,24 @@ function ConceptForm({
     setSuperType(decl.superType ?? '');
     setIdentified(decl.identified);
     setIdentifiedBy(decl.identifiedBy ?? '');
+    setError(null);
   }, [decl.name, decl.isAbstract, decl.superType, decl.identified, decl.identifiedBy]);
 
   const extendsCandidates = getExtendsCandidates(model.declarations, decl.name);
 
   function handleSave() {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    const trimmedIdBy = identifiedBy.trim();
+    const err = identifierError(trimmed)
+      ?? (identified === 'identified-by' ? identifierError(trimmedIdBy) : null);
+    if (err) { setError(err); return; }
     const cto = updateDecl(model, decl.name, (d) => ({
       ...d,
       name: trimmed,
       isAbstract,
       superType: superType || undefined,
       identified,
-      identifiedBy: identified === 'identified-by' ? identifiedBy : undefined,
+      identifiedBy: identified === 'identified-by' ? trimmedIdBy : undefined,
     }));
     onModelChange(ns, cto);
   }
@@ -281,7 +314,7 @@ function ConceptForm({
   return (
     <div style={cardStyle}>
       <Field label="Name">
-        <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="ConceptName" />
+        <input style={inputStyle} value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="ConceptName" />
       </Field>
 
       <Field label="Type">
@@ -308,11 +341,13 @@ function ConceptForm({
           <input
             style={inputStyle}
             value={identifiedBy}
-            onChange={(e) => setIdentifiedBy(e.target.value)}
+            onChange={(e) => { setIdentifiedBy(e.target.value); setError(null); }}
             placeholder="fieldName"
           />
         </Field>
       )}
+
+      <SaveError message={error} />
 
       <div style={{ ...checkboxRowStyle, marginBottom: 12 }}>
         <input
@@ -353,6 +388,7 @@ function PropertyForm({
   const [isOptional, setIsOptional] = useState(prop.isOptional);
   const [isArray, setIsArray] = useState(prop.isArray);
   const [isRelationship, setIsRelationship] = useState(prop.isRelationship);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setName(prop.name);
@@ -360,6 +396,7 @@ function PropertyForm({
     setIsOptional(prop.isOptional);
     setIsArray(prop.isArray);
     setIsRelationship(prop.isRelationship);
+    setError(null);
   }, [prop.name, prop.type, prop.isOptional, prop.isArray, prop.isRelationship]);
 
   const availableTypes = getAvailableTypes(model.declarations, decl.name);
@@ -367,7 +404,8 @@ function PropertyForm({
 
   function handleSave() {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    const err = identifierError(trimmed);
+    if (err) { setError(err); return; }
     const cto = updateProp(model, decl.name, prop.name, (p) => ({
       ...p,
       name: trimmed,
@@ -391,8 +429,9 @@ function PropertyForm({
   return (
     <div style={cardStyle}>
       <Field label="Name">
-        <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="propertyName" />
+        <input style={inputStyle} value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="propertyName" />
       </Field>
+      <SaveError message={error} />
 
       <Field label="Type">
         <select style={selectStyle} value={type} onChange={(e) => { setType(e.target.value); if (PRIMITIVE_TYPES.has(e.target.value)) setIsRelationship(false); }}>
@@ -458,12 +497,15 @@ function EnumValueForm({
   onModelChange: (ns: string, newCto: string) => void;
 }) {
   const [name, setName] = useState(value);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { setName(value); }, [value]);
+  useEffect(() => { setName(value); setError(null); }, [value]);
 
   function handleSave() {
     const trimmed = name.trim();
-    if (!trimmed || trimmed === value) return;
+    if (trimmed === value) return;
+    const err = identifierError(trimmed);
+    if (err) { setError(err); return; }
     const cto = updateDecl(model, decl.name, (d) => ({
       ...d,
       enumValues: d.enumValues.map((v) => v === value ? trimmed : v),
@@ -482,8 +524,9 @@ function EnumValueForm({
   return (
     <div style={cardStyle}>
       <Field label="Value name">
-        <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="ENUM_VALUE" />
+        <input style={inputStyle} value={name} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="ENUM_VALUE" />
       </Field>
+      <SaveError message={error} />
       <div style={{ display: 'flex', gap: 8 }}>
         <button style={btnPrimary} onClick={handleSave}>Save</button>
         <button style={btnDanger} onClick={handleDelete}>Delete</button>
