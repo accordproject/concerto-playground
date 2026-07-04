@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { Identifiers } from '@accordproject/concerto-util';
 import { identifierError, namespaceError, suggestIdentifier } from '../../components/form/validation';
+
+const { ID_REGEX } = Identifiers;
 
 describe('identifierError', () => {
   it('accepts valid identifiers', () => {
@@ -8,6 +11,19 @@ describe('identifierError', () => {
     expect(identifierError('_private')).toBeNull();
     expect(identifierError('$dollar')).toBeNull();
     expect(identifierError('VALUE_2')).toBeNull();
+  });
+
+  it('matches the concerto-util spec regex decision for any input', () => {
+    // The playground must accept a name exactly when concerto-core does.
+    // The expected value comes from the library itself, not from this test.
+    const samples = [
+      'masinaMea', 'Vehicle', '_private', '$dollar', 'VALUE_2',
+      'mașină', 'français', 'Straße', '日本語', '\\u0041',
+      'masina mea', 'masina-mea', '1masina', 'ma.sina', 'a@b', '',
+    ];
+    for (const s of samples) {
+      expect(identifierError(s) === null, `disagreement on "${s}"`).toBe(ID_REGEX.test(s));
+    }
   });
 
   it('rejects empty names', () => {
@@ -33,6 +49,12 @@ describe('namespaceError', () => {
     expect(namespaceError('org.example@1.0.0')).toBeNull();
     expect(namespaceError('org.example@1.0.0-beta.1')).toBeNull();
     expect(namespaceError('single')).toBeNull();
+  });
+
+  it('validates namespace segments with the concerto-util spec regex', () => {
+    // Segment decision must come from the library, whatever it allows.
+    const segment = 'mașină';
+    expect(namespaceError(`org.${segment}@1.0.0`) === null).toBe(ID_REGEX.test(segment));
   });
 
   it('rejects empty namespaces', () => {

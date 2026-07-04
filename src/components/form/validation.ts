@@ -2,10 +2,18 @@
 // generate CTO that no longer parses, making the namespace vanish from the
 // tree, so every rename is checked here first and rejected with a message
 // explaining the expected format.
+//
+// The accept/reject decision is Concerto's own: ID_REGEX comes from
+// @accordproject/concerto-util, so a name is rejected here exactly when
+// concerto-core would reject it. The messages are only a friendlier layer
+// on top; they never change the validation semantics.
 
-const IDENTIFIER_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
-const NAMESPACE_RE =
-  /^[a-zA-Z_$][a-zA-Z0-9_$]*(\.[a-zA-Z_$][a-zA-Z0-9_$]*)*(@\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?)?$/;
+import { Identifiers } from '@accordproject/concerto-util';
+
+const { ID_REGEX } = Identifiers;
+
+// Version part of a namespace: full semver with optional prerelease tag.
+const VERSION_RE = /^\d+\.\d+\.\d+(-[A-Za-z0-9.-]+)?$/;
 
 /**
  * Returns an error message if `name` is not a valid Concerto identifier
@@ -16,8 +24,8 @@ export function identifierError(name: string): string | null {
   if (/\s/.test(name)) {
     return `Names cannot contain spaces. Write "${suggestIdentifier(name)}" instead of "${name}".`;
   }
-  if (!IDENTIFIER_RE.test(name)) {
-    return 'Names must be a single word of letters, digits, "_" or "$", starting with a letter (e.g. "myCarName").';
+  if (!ID_REGEX.test(name)) {
+    return 'Names must be a single word starting with a letter, "_" or "$" (e.g. "myCarName").';
   }
   return null;
 }
@@ -28,7 +36,11 @@ export function identifierError(name: string): string | null {
  */
 export function namespaceError(ns: string): string | null {
   if (!ns) return 'Namespace is required.';
-  if (!NAMESPACE_RE.test(ns)) {
+  const at = ns.indexOf('@');
+  const name = at === -1 ? ns : ns.slice(0, at);
+  const version = at === -1 ? null : ns.slice(at + 1);
+  const segmentsValid = name.split('.').every((segment) => ID_REGEX.test(segment));
+  if (!segmentsValid || (version !== null && !VERSION_RE.test(version))) {
     return 'Namespaces must be dot-separated words with no spaces, plus an optional version, e.g. "org.example@1.0.0".';
   }
   return null;
