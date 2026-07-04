@@ -50,7 +50,7 @@ export function routeGraphEdges(nodes: Node[], edges: Edge[]): Edge[] {
     );
     if (sourceTop == null || targetTop == null) return edge;
 
-    const sourceX = sourceNode.position.x + getNodeWidth(sourceData.declaration);
+    const sourceX = sourceNode.position.x + getRenderedNodeWidth(sourceNode, sourceData.declaration);
     const sourceY = sourceNode.position.y + sourceTop;
     const targetX = targetNode.position.x;
     const targetY = targetNode.position.y + targetTop;
@@ -112,6 +112,10 @@ function groupLaneEdges(nodes: Node[], edges: Edge[]): Map<string, { handleOrder
 
 function getGraphNodeData(node: Node): GraphNodeData {
   return node.data as unknown as GraphNodeData;
+}
+
+function getRenderedNodeWidth(node: Node, declaration: Declaration): number {
+  return node.measured?.width ?? node.width ?? getNodeWidth(declaration);
 }
 
 function getLaneX({

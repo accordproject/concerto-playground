@@ -13,14 +13,13 @@ test.describe('Share URL', () => {
   test('should keep a shareable URL hash when Share URL is clicked', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
+    await page.getByRole('button', { name: 'Share URL' }).click();
+    await page.waitForFunction(() => window.location.hash.length > 0, { timeout: 5000 });
     const initialHash = await page.evaluate(() => window.location.hash);
     expect(initialHash.length).toBeGreaterThan(1);
 
     await page.getByRole('button', { name: 'Share URL' }).click();
-
-    await page.waitForFunction(() => window.location.hash.length > 0, { timeout: 5000 });
     const newHash = await page.evaluate(() => window.location.hash);
-    expect(newHash.length).toBeGreaterThan(1); // "#" + compressed payload
     expect(newHash).toBe(initialHash);
   });
 

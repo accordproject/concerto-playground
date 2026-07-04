@@ -66,6 +66,13 @@ function encodeModelsHash(models: Record<string, string>): string {
   return LZString.compressToEncodedURIComponent(payload);
 }
 
+function replaceLocationHash(hash: string) {
+  const url = hash
+    ? `${window.location.pathname}${window.location.search}#${hash}`
+    : `${window.location.pathname}${window.location.search}`;
+  window.history.replaceState(null, "", url);
+}
+
 export default function App() {
   const [models, setModels] = useState<Record<string, string>>(_initialModels);
   const [activeNamespace, setActiveNamespace] = useState<string>(() => Object.keys(_initialModels)[0]);
@@ -108,7 +115,7 @@ export default function App() {
   useEffect(() => {
     const nextHash = encodeModelsHash(models);
     if (window.location.hash.slice(1) !== nextHash) {
-      window.location.hash = nextHash;
+      replaceLocationHash(nextHash);
     }
   }, [models]);
 
@@ -163,7 +170,7 @@ export default function App() {
   }
 
   async function handleShare() {
-    window.location.hash = encodeModelsHash(models);
+    replaceLocationHash(encodeModelsHash(models));
     try {
       await navigator.clipboard.writeText(window.location.href);
       setShareLabel("Copied!");

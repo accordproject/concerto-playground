@@ -3,6 +3,7 @@ import { declarationsToCto } from "../../utils/graph/graphToCto";
 import { computeAutoLayoutPositions, declarationsToGraph, getDeclarationPosition, parseCto, validateCto, withDeclarationPositions } from "../../utils/graph/ctoToGraph";
 import { estimateNodeHeight, getNodeWidth } from "../../utils/graph/nodeLayout";
 import { routeGraphEdges } from "../../utils/graph/routeGraphEdges";
+import type { Declaration } from "../../utils/graph/types";
 
 const SIMPLE_CTO = `namespace org.test@1.0.0
 
@@ -313,6 +314,31 @@ concept NDAData {
     });
 
     expect(new Set(laneColumns).size).toBe(4);
+  });
+
+  it("uses measured node width when routing lane edges", () => {
+    const denseCto = `namespace org.accordproject.nda@1.0.0
+concept Party {
+  o String name
+}
+concept NDAData {
+  o Party disclosingParty
+  o Party receivingParty
+}`;
+    const { declarations } = parseCto(denseCto);
+    const { nodes, edges } = declarationsToGraph(declarations);
+    const ndaNode = nodes.find((node) => node.id === "NDAData")!;
+    const declaration = ndaNode.data.declaration as Declaration;
+    const measuredWidth = getNodeWidth(declaration) + 90;
+    ndaNode.measured = { width: measuredWidth, height: estimateNodeHeight(declaration) };
+
+    const routedEdge = routeGraphEdges(nodes, edges).find(
+      (edge) => edge.source === "NDAData" && edge.target === "Party"
+    )!;
+
+    const points = (routedEdge.data as { routePoints?: Array<{ x: number; y: number }> }).routePoints!;
+    expect(points[0]).toBeDefined();
+    expect(points[0]!.x).toBe(ndaNode.position.x + measuredWidth);
   });
 
   it("assigns positions to all nodes", () => {
