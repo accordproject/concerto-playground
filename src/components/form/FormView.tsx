@@ -42,17 +42,18 @@ export function FormView({ models, onModelChange, onAddNamespace, onRemoveNamesp
   // before it reaches the app state. Whatever the cause (bad name, duplicate
   // declaration, anything else), invalid CTO is never saved: the save is
   // dropped and Concerto's own error message is shown instead.
-  function guardedModelChange(ns: string, newCto: string) {
+  function guardedModelChange(ns: string, newCto: string): boolean {
     if (newCto) {
       try {
         parseCto(newCto);
       } catch (e) {
         setSaveError(e instanceof Error ? e.message : String(e));
-        return;
+        return false;
       }
     }
     setSaveError(null);
     onModelChange(ns, newCto);
+    return true;
   }
 
   function handleSelect(sel: FormSel) {
@@ -81,8 +82,9 @@ export function FormView({ models, onModelChange, onAddNamespace, onRemoveNamesp
       decorators: [],
     };
     const updated: ConcertoModel = { ...model, declarations: [...model.declarations, newDecl] };
-    guardedModelChange(ns, declarationsToCto(updated));
-    setSelection({ kind: 'decl', ns, declName: newDecl.name });
+    if (guardedModelChange(ns, declarationsToCto(updated))) {
+      setSelection({ kind: 'decl', ns, declName: newDecl.name });
+    }
   }
 
   function handleAddProperty(ns: string, declName: string) {
@@ -102,8 +104,9 @@ export function FormView({ models, onModelChange, onAddNamespace, onRemoveNamesp
         d.name === declName ? { ...d, properties: [...d.properties, newProp] } : d
       ),
     };
-    guardedModelChange(ns, declarationsToCto(updated));
-    setSelection({ kind: 'prop', ns, declName, propName: newProp.name });
+    if (guardedModelChange(ns, declarationsToCto(updated))) {
+      setSelection({ kind: 'prop', ns, declName, propName: newProp.name });
+    }
   }
 
   function handleAddEnumValue(ns: string, declName: string) {
@@ -116,8 +119,9 @@ export function FormView({ models, onModelChange, onAddNamespace, onRemoveNamesp
         d.name === declName ? { ...d, enumValues: [...d.enumValues, newVal] } : d
       ),
     };
-    guardedModelChange(ns, declarationsToCto(updated));
-    setSelection({ kind: 'enumVal', ns, declName, value: newVal });
+    if (guardedModelChange(ns, declarationsToCto(updated))) {
+      setSelection({ kind: 'enumVal', ns, declName, value: newVal });
+    }
   }
 
   return (

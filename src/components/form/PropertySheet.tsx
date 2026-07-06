@@ -547,7 +547,7 @@ export function PropertySheet({ selection, models, onModelChange, onRemoveNamesp
     return (
       <div style={containerStyle}>
         <div style={{ fontSize: 13, color: COLOR.muted, marginBottom: 12 }}>Namespace</div>
-        <NamespaceForm ns={ns} model={model} onModelChange={onModelChange} onRemoveNamespace={onRemoveNamespace} />
+        <NamespaceForm key={ns} ns={ns} model={model} onModelChange={onModelChange} onRemoveNamespace={onRemoveNamespace} />
       </div>
     );
   }
@@ -565,8 +565,8 @@ export function PropertySheet({ selection, models, onModelChange, onRemoveNamesp
           {decl.type === 'enum' ? 'Enum' : 'Declaration'}
         </div>
         {decl.type === 'enum'
-          ? <EnumForm ns={ns} decl={decl} model={model} onModelChange={onModelChange} />
-          : <ConceptForm ns={ns} decl={decl} model={model} onModelChange={onModelChange} />
+          ? <EnumForm key={`${ns}:${decl.name}`} ns={ns} decl={decl} model={model} onModelChange={onModelChange} />
+          : <ConceptForm key={`${ns}:${decl.name}`} ns={ns} decl={decl} model={model} onModelChange={onModelChange} />
         }
       </div>
     );
@@ -584,7 +584,7 @@ export function PropertySheet({ selection, models, onModelChange, onRemoveNamesp
     return (
       <div style={containerStyle}>
         <div style={{ fontSize: 13, color: COLOR.muted, marginBottom: 12 }}>Property</div>
-        <PropertyForm ns={ns} decl={decl} prop={prop} model={model} onModelChange={onModelChange} />
+        <PropertyForm key={`${ns}:${decl.name}:${prop.name}`} ns={ns} decl={decl} prop={prop} model={model} onModelChange={onModelChange} />
       </div>
     );
   }
@@ -599,7 +599,7 @@ export function PropertySheet({ selection, models, onModelChange, onRemoveNamesp
     return (
       <div style={containerStyle}>
         <div style={{ fontSize: 13, color: COLOR.muted, marginBottom: 12 }}>Enum Value</div>
-        <EnumValueForm ns={ns} decl={decl} value={value} model={model} onModelChange={onModelChange} />
+        <EnumValueForm key={`${ns}:${decl.name}:${value}`} ns={ns} decl={decl} value={value} model={model} onModelChange={onModelChange} />
       </div>
     );
   }
