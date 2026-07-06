@@ -185,7 +185,15 @@ export default function App() {
 
   function handleLoadExample(src: string) {
     const ns = extractNamespace(src);
-    setModels({ [ns]: src });
+    setModels((prev) => {
+      // Merge the example into the open models instead of replacing them, so
+      // other namespaces (including freshly added ones) survive the click.
+      // If the example's namespace is already open with local edits, keep the
+      // user's version and just switch to it; remove the tab first to reload
+      // the pristine example.
+      if (prev[ns] !== undefined && prev[ns] !== src) return prev;
+      return { ...prev, [ns]: src };
+    });
     setActiveNamespace(ns);
     window.location.hash = "";
   }

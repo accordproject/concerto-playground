@@ -1,6 +1,6 @@
 import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
-import { SEMANTIC_ZOOM_THRESHOLD } from './semanticZoom';
+import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 
 interface ScalarNodeData {
   label: string;

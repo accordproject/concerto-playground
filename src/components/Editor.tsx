@@ -18,6 +18,9 @@ interface EditorProps {
 
 // Inject the underline style for clickable type references once.
 const LINK_CLASS = "concerto-type-link";
+// Delay before re-scanning the model for clickable references, so the
+// full-document scan does not run on every keystroke.
+const LINK_DECORATION_DEBOUNCE_MS = 200;
 function ensureLinkStyle() {
   if (typeof document === "undefined" || document.getElementById("concerto-type-link-style")) return;
   const el = document.createElement("style");
@@ -185,29 +188,33 @@ export function Editor({
   };
 
   // Underline declared type names so they read as clickable references.
+  // Debounced: the scan walks the whole model per target, which is too much
+  // work to repeat on every keystroke in larger models.
   useEffect(() => {
     ensureLinkStyle();
     const editor = editorRef.current;
-    const model = editor?.getModel();
-    if (!editor || !model) return;
-    const targets = linkTargets ?? [];
-    const decorations: monaco.editor.IModelDeltaDecoration[] = [];
-    for (const name of targets) {
-      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const matches = model.findMatches(`\\b${escaped}\\b`, false, true, true, null, false);
-      for (const m of matches) {
-        decorations.push({ range: m.range, options: { inlineClassName: LINK_CLASS } });
+    if (!editor) return;
+    const timer = window.setTimeout(() => {
+      const model = editor.getModel();
+      if (!model) return;
+      const targets = linkTargets ?? [];
+      const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+      for (const name of targets) {
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const matches = model.findMatches(`\\b${escaped}\\b`, false, true, true, null, false);
+        for (const m of matches) {
+          decorations.push({ range: m.range, options: { inlineClassName: LINK_CLASS } });
+        }
       }
-    }
-    decorationsRef.current = editor.deltaDecorations(decorationsRef.current, decorations);
+      decorationsRef.current = editor.deltaDecorations(decorationsRef.current, decorations);
+    }, LINK_DECORATION_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
   }, [value, linkTargets, editorReady]);
 
   // Apply error markers whenever the error prop or monaco instance changes
   useEffect(() => {
     if (!monacoInstance) return;
-    const models = monacoInstance.editor.getModels();
-    // Target the first editable model (the CTO input)
-    const model = models.find((m) => !m.isDisposed());
+    const model = editorRef.current?.getModel();
     if (!model) return;
 
     if (error) {
@@ -228,7 +235,7 @@ export function Editor({
     } else {
       monacoInstance.editor.setModelMarkers(model, "concerto", []);
     }
-  }, [error, monacoInstance]);
+  }, [error, monacoInstance, editorReady]);
 
   return (
     <MonacoEditor

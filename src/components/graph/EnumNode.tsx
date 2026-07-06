@@ -1,6 +1,7 @@
 import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
-import { SEMANTIC_ZOOM_THRESHOLD } from './semanticZoom';
+import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import './graph.css';
 
 interface EnumNodeData {
   label: string;
@@ -16,75 +17,50 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
   const valueCount = declaration.enumValues.length;
 
   return (
-    <div style={{
-      background: '#1e2533',
-      borderRadius: 12,
-      border: `2px solid ${selected ? '#fff' : '#d69e2e66'}`,
-      minWidth: 200,
-      boxShadow: selected
-        ? '0 0 20px #d69e2e44, 0 8px 24px rgba(0,0,0,0.4)'
-        : '0 4px 16px rgba(0,0,0,0.3)',
-      overflow: 'hidden',
-      transition: 'border-color 0.2s, box-shadow 0.2s',
-    }}>
-      <Handle type="target" position={Position.Top} id="top" style={handleStyle} />
-      <Handle type="target" position={Position.Left} id="left" style={handleStyle} />
-      <Handle type="source" position={Position.Right} id="right" style={handleStyle} />
+    <div className={`graph-node enum-node${selected ? ' selected' : ''}`}>
+      <Handle type="target" position={Position.Top} id="top" className="graph-node-handle enum-node-handle" />
+      <Handle type="target" position={Position.Left} id="left" className="graph-node-handle enum-node-handle" />
+      <Handle type="source" position={Position.Right} id="right" className="graph-node-handle enum-node-handle" />
 
-      <div style={{
-        padding: '12px 14px 10px',
-        background: 'linear-gradient(135deg, #744210, #744210cc)',
-        borderBottom: '1px solid #d69e2e33',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#ecc94b', fontWeight: 700 }}>
+      <div className="enum-node-header">
+        <div className="graph-node-header-row">
+          <span className="graph-node-kind enum-node-kind">
             enum
           </span>
           <button onClick={() => data.onDeleteDeclaration?.(declaration.name)}
-            style={{ background: 'none', border: 'none', color: '#ffffff55', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>
+            className="graph-node-delete-btn">
             &times;
           </button>
         </div>
-        <div style={{ fontSize: 15, fontWeight: 700, marginTop: 4, color: '#fefcbf' }}>
+        <div className="enum-node-name">
           {declaration.name}
         </div>
       </div>
 
       {!showFull && (
-        <div style={{ padding: '11px 14px', fontSize: 12, color: '#8a97ad' }}>
+        <div className="graph-node-summary">
           {valueCount} {valueCount === 1 ? 'value' : 'values'}
         </div>
       )}
 
       {showFull && (
-      <div style={{ padding: '6px 6px 8px' }}>
+      <div className="graph-node-body">
         {declaration.enumValues.map((val) => (
-          <div key={val} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '5px 8px', margin: '2px 0', background: '#161b27', borderRadius: 6,
-          }}>
-            <span style={{ color: '#fbd38d', fontSize: 12 }}>{val}</span>
+          <div key={val} className="enum-node-value">
+            <span className="enum-node-value-label">{val}</span>
             <button onClick={() => data.onDeleteEnumValue?.(declaration.name, val)}
-              style={{ background: 'none', border: 'none', color: '#ffffff22', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}>
+              className="graph-node-row-delete">
               &times;
             </button>
           </div>
         ))}
-        <button onClick={() => data.onAddEnumValue?.(declaration.name)} style={{
-          background: 'transparent', border: '1px dashed #d69e2e44',
-          color: '#d69e2eaa', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-          padding: '5px 0', marginTop: 4, borderRadius: 6, width: '100%', textAlign: 'center',
-        }}>
+        <button onClick={() => data.onAddEnumValue?.(declaration.name)} className="enum-node-add-btn">
           + Add Value
         </button>
       </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
+      <Handle type="source" position={Position.Bottom} id="bottom" className="graph-node-handle enum-node-handle" />
     </div>
   );
 }
-
-const handleStyle: React.CSSProperties = {
-  width: 10, height: 10, background: '#ecc94b', borderRadius: '50%', border: '2px solid #1e2533',
-};
