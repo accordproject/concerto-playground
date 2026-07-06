@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Declaration } from '../../utils/graph/types';
 import { DECLARATION_TYPES, ALL_TYPES, getAvailableTypes, getExtendsCandidates, getMapKeyTypes, getMapValueTypes } from '../../utils/graph/types';
+import { TOOLBAR_STRINGS, DIALOG_STRINGS } from './strings';
 
 interface GraphToolbarProps {
   declarations: Declaration[];
@@ -14,46 +15,55 @@ interface GraphToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onOpenSearch: () => void;
   showText: boolean;
   onToggleText: () => void;
   onImport: () => void;
   onExport: () => void;
 }
 
-export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
+export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, onOpenSearch, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
   const [showAddDecl, setShowAddDecl] = useState(false);
 
   return (
     <div style={toolbarStyle}>
       <button onClick={onToggleText}
         style={{ ...pillBtn, background: showText ? '#3182ce' : '#4a5568' }}
-        title={showText ? 'Hide CTO text' : 'Show CTO text'}>
-        {showText ? '◀ CTO' : '▶ CTO'}
+        title={showText ? TOOLBAR_STRINGS.hideCtoTooltip : TOOLBAR_STRINGS.showCtoTooltip}>
+        {showText ? TOOLBAR_STRINGS.hideCto : TOOLBAR_STRINGS.showCto}
       </button>
-      <button onClick={onImport} style={pillBtn}>Import</button>
-      <button onClick={onExport} style={pillBtn}>Export</button>
+      <button onClick={onImport} style={pillBtn}>{TOOLBAR_STRINGS.importLabel}</button>
+      <button onClick={onExport} style={pillBtn}>{TOOLBAR_STRINGS.exportLabel}</button>
 
       <div style={sep} />
 
-      <button onClick={() => setShowAddDecl(true)} style={{ ...pillBtn, background: '#3182ce' }}>+ Add</button>
+      <button onClick={() => setShowAddDecl(true)} style={{ ...pillBtn, background: '#3182ce' }}>{TOOLBAR_STRINGS.addDeclaration}</button>
 
       <div style={sep} />
 
       <button onClick={onUndo} disabled={!canUndo}
         style={{ ...arrowBtn, opacity: canUndo ? 1 : 0.25 }}
-        title="Undo (Ctrl+Z)">
-        {'↩'}
+        title={TOOLBAR_STRINGS.undoTooltip}>
+        {TOOLBAR_STRINGS.undoIcon}
       </button>
       <button onClick={onRedo} disabled={!canRedo}
         style={{ ...arrowBtn, opacity: canRedo ? 1 : 0.25 }}
-        title="Redo (Ctrl+Shift+Z)">
-        {'↪'}
+        title={TOOLBAR_STRINGS.redoTooltip}>
+        {TOOLBAR_STRINGS.redoIcon}
+      </button>
+
+      <div style={sep} />
+
+      <button onClick={onOpenSearch} style={searchBtn} title={TOOLBAR_STRINGS.searchTooltip}>
+        <span style={{ color: '#38b2ac' }}>{TOOLBAR_STRINGS.searchIcon}</span>
+        {TOOLBAR_STRINGS.searchNodes}
+        <span style={kbdHint}>{TOOLBAR_STRINGS.searchKbdHint}</span>
       </button>
 
       <div style={legendStyle}>
-        <span style={legendItem}><span style={{ ...dot, background: '#63b3ed' }} />property</span>
-        <span style={legendItem}><span style={{ ...dot, background: '#fc8181' }} />relationship</span>
-        <span style={legendItem}><span style={{ ...dot, background: '#b794f4' }} />extends</span>
+        <span style={legendItem}><span style={{ ...dot, background: '#63b3ed' }} />{TOOLBAR_STRINGS.legendProperty}</span>
+        <span style={legendItem}><span style={{ ...dot, background: '#fc8181' }} />{TOOLBAR_STRINGS.legendRelationship}</span>
+        <span style={legendItem}><span style={{ ...dot, background: '#b794f4' }} />{TOOLBAR_STRINGS.legendExtends}</span>
       </div>
 
       {showAddDecl && (
@@ -132,17 +142,17 @@ function AddDeclarationDialog({ declarations, onAdd, onClose }: {
   return (
     <div style={dialogOverlay} onClick={onClose}>
       <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
-        <h3 style={dialogTitle}>Add Declaration</h3>
+        <h3 style={dialogTitle}>{DIALOG_STRINGS.addDeclarationTitle}</h3>
         <select value={type} onChange={(e) => setType(e.target.value as Declaration['type'])} style={inputStyle}>
           {DECLARATION_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <input value={name} onChange={(e) => setName(e.target.value)}
-          placeholder="Name (e.g. MyContract)" style={inputStyle} autoFocus
+          placeholder={DIALOG_STRINGS.declarationNamePlaceholder} style={inputStyle} autoFocus
           onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
         />
         {type === 'scalar' && (
           <>
-            <label style={fieldLabel}>Extends primitive</label>
+            <label style={fieldLabel}>{DIALOG_STRINGS.extendsPrimitiveLabel}</label>
             <select value={scalarExtends} onChange={(e) => setScalarExtends(e.target.value)} style={inputStyle}>
               {ALL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -150,19 +160,19 @@ function AddDeclarationDialog({ declarations, onAdd, onClose }: {
         )}
         {type === 'map' && (
           <>
-            <label style={fieldLabel}>Key Type</label>
+            <label style={fieldLabel}>{DIALOG_STRINGS.mapKeyTypeLabel}</label>
             <select value={mapKeyType} onChange={(e) => setMapKeyType(e.target.value)} style={inputStyle}>
               {mapKeyOptions.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
-            <label style={fieldLabel}>Value Type</label>
+            <label style={fieldLabel}>{DIALOG_STRINGS.mapValueTypeLabel}</label>
             <select value={mapValueType} onChange={(e) => setMapValueType(e.target.value)} style={inputStyle}>
               {mapValueOptions.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </>
         )}
         <div style={dialogButtons}>
-          <button onClick={handleSubmit} style={{ ...btnStyle, background: '#3182ce' }}>Add</button>
-          <button onClick={onClose} style={btnStyle}>Cancel</button>
+          <button onClick={handleSubmit} style={{ ...btnStyle, background: '#3182ce' }}>{DIALOG_STRINGS.add}</button>
+          <button onClick={onClose} style={btnStyle}>{DIALOG_STRINGS.cancel}</button>
         </div>
       </div>
     </div>
@@ -191,29 +201,29 @@ function AddPropertyDialog({ declName, declarations, onAdd, onClose }: {
   return (
     <div style={dialogOverlay} onClick={onClose}>
       <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
-        <h3 style={dialogTitle}>Add Property to {declName}</h3>
+        <h3 style={dialogTitle}>{DIALOG_STRINGS.addPropertyTitle(declName)}</h3>
         <select value={type} onChange={(e) => setType(e.target.value)} style={inputStyle}>
           {availableTypes.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <input value={name} onChange={(e) => setName(e.target.value)}
-          placeholder="Property name" style={inputStyle} autoFocus
+          placeholder={DIALOG_STRINGS.propertyNamePlaceholder} style={inputStyle} autoFocus
           onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
         />
         <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
           <label style={checkboxLabel}>
-            <input type="checkbox" checked={isOptional} onChange={(e) => setIsOptional(e.target.checked)} /> optional
+            <input type="checkbox" checked={isOptional} onChange={(e) => setIsOptional(e.target.checked)} /> {DIALOG_STRINGS.optionalLabel}
           </label>
           <label style={checkboxLabel}>
-            <input type="checkbox" checked={isArray} onChange={(e) => setIsArray(e.target.checked)} /> array []
+            <input type="checkbox" checked={isArray} onChange={(e) => setIsArray(e.target.checked)} /> {DIALOG_STRINGS.arrayLabel}
           </label>
           <label style={checkboxLabel}>
             <input type="checkbox" checked={isRelationship} onChange={(e) => setIsRelationship(e.target.checked)} />
-            relationship (--&gt;)
+            {DIALOG_STRINGS.relationshipLabel}
           </label>
         </div>
         <div style={dialogButtons}>
-          <button onClick={handleSubmit} style={{ ...btnStyle, background: '#3182ce' }}>Add</button>
-          <button onClick={onClose} style={btnStyle}>Cancel</button>
+          <button onClick={handleSubmit} style={{ ...btnStyle, background: '#3182ce' }}>{DIALOG_STRINGS.add}</button>
+          <button onClick={onClose} style={btnStyle}>{DIALOG_STRINGS.cancel}</button>
         </div>
       </div>
     </div>
@@ -231,14 +241,14 @@ function AddEnumValueDialog({ declName, onAdd, onClose }: {
   return (
     <div style={dialogOverlay} onClick={onClose}>
       <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
-        <h3 style={dialogTitle}>Add Value to {declName}</h3>
+        <h3 style={dialogTitle}>{DIALOG_STRINGS.addEnumValueTitle(declName)}</h3>
         <input value={value} onChange={(e) => setValue(e.target.value)}
-          placeholder="Value (e.g. Active)" style={inputStyle} autoFocus
+          placeholder={DIALOG_STRINGS.enumValuePlaceholder} style={inputStyle} autoFocus
           onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
         />
         <div style={dialogButtons}>
-          <button onClick={handleSubmit} style={{ ...btnStyle, background: '#d69e2e' }}>Add</button>
-          <button onClick={onClose} style={btnStyle}>Cancel</button>
+          <button onClick={handleSubmit} style={{ ...btnStyle, background: '#d69e2e' }}>{DIALOG_STRINGS.add}</button>
+          <button onClick={onClose} style={btnStyle}>{DIALOG_STRINGS.cancel}</button>
         </div>
       </div>
     </div>
@@ -257,14 +267,14 @@ function SetInheritanceDialog({ declName, declarations, onSet, onClose }: {
   return (
     <div style={dialogOverlay} onClick={onClose}>
       <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
-        <h3 style={dialogTitle}>Set Inheritance for {declName}</h3>
+        <h3 style={dialogTitle}>{DIALOG_STRINGS.setInheritanceTitle(declName)}</h3>
         <select value={superType} onChange={(e) => setSuperType(e.target.value)} style={inputStyle}>
-          <option value="">None (no inheritance)</option>
+          <option value="">{DIALOG_STRINGS.noInheritanceOption}</option>
           {candidates.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <div style={dialogButtons}>
-          <button onClick={() => onSet(superType || undefined)} style={{ ...btnStyle, background: '#805ad5' }}>Set</button>
-          <button onClick={onClose} style={btnStyle}>Cancel</button>
+          <button onClick={() => onSet(superType || undefined)} style={{ ...btnStyle, background: '#805ad5' }}>{DIALOG_STRINGS.set}</button>
+          <button onClick={onClose} style={btnStyle}>{DIALOG_STRINGS.cancel}</button>
         </div>
       </div>
     </div>
@@ -295,6 +305,17 @@ const arrowBtn: React.CSSProperties = {
 
 const sep: React.CSSProperties = {
   width: 1, height: 20, background: '#4a5568', flexShrink: 0,
+};
+
+const searchBtn: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 7,
+  background: '#2d3748', color: '#a0aec0', border: '1px solid #4a5568',
+  borderRadius: 6, padding: '4px 11px', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+};
+
+const kbdHint: React.CSSProperties = {
+  fontSize: 10, border: '1px solid #4a5568', borderRadius: 4,
+  padding: '0px 5px', marginLeft: 2, color: '#718096',
 };
 
 const legendStyle: React.CSSProperties = {

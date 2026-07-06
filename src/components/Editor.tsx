@@ -1,5 +1,5 @@
-import MonacoEditor, { useMonaco, type BeforeMount } from "@monaco-editor/react";
-import { useEffect } from "react";
+import MonacoEditor, { useMonaco, type BeforeMount, type OnMount } from "@monaco-editor/react";
+import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 
 interface EditorProps {
@@ -10,6 +10,23 @@ interface EditorProps {
   height?: string;
   /** Validation error string — shown as a red squiggle at the reported line/column */
   error?: string | null;
+  /** Declared type names to render as clickable references. */
+  linkTargets?: string[];
+  /** Called with the type name when a clickable reference is clicked. */
+  onNavigate?: (name: string) => void;
+}
+
+// Inject the underline style for clickable type references once.
+const LINK_CLASS = "concerto-type-link";
+// Delay before re-scanning the model for clickable references, so the
+// full-document scan does not run on every keystroke.
+const LINK_DECORATION_DEBOUNCE_MS = 200;
+function ensureLinkStyle() {
+  if (typeof document === "undefined" || document.getElementById("concerto-type-link-style")) return;
+  const el = document.createElement("style");
+  el.id = "concerto-type-link-style";
+  el.textContent = `.${LINK_CLASS} { text-decoration: underline dotted #38b2ac; text-underline-offset: 3px; cursor: pointer; }`;
+  document.head.appendChild(el);
 }
 
 // ── Language registration ────────────────────────────────────────────────────
@@ -143,15 +160,61 @@ export function Editor({
   language = "concerto",
   height = "100%",
   error = null,
+  linkTargets,
+  onNavigate,
 }: EditorProps) {
   const monacoInstance = useMonaco();
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const decorationsRef = useRef<string[]>([]);
+  const targetsRef = useRef<Set<string>>(new Set());
+  const onNavigateRef = useRef(onNavigate);
+  const [editorReady, setEditorReady] = useState(false);
+
+  targetsRef.current = new Set(linkTargets ?? []);
+  onNavigateRef.current = onNavigate;
+
+  const handleMount: OnMount = (editor) => {
+    editorRef.current = editor;
+    setEditorReady(true);
+    editor.onMouseDown((e) => {
+      if (!onNavigateRef.current || !e.event.leftButton) return;
+      const pos = e.target.position;
+      if (!pos) return;
+      const word = editor.getModel()?.getWordAtPosition(pos);
+      if (word && targetsRef.current.has(word.word)) {
+        onNavigateRef.current(word.word);
+      }
+    });
+  };
+
+  // Underline declared type names so they read as clickable references.
+  // Debounced: the scan walks the whole model per target, which is too much
+  // work to repeat on every keystroke in larger models.
+  useEffect(() => {
+    ensureLinkStyle();
+    const editor = editorRef.current;
+    if (!editor) return;
+    const timer = window.setTimeout(() => {
+      const model = editor.getModel();
+      if (!model) return;
+      const targets = linkTargets ?? [];
+      const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+      for (const name of targets) {
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const matches = model.findMatches(`\\b${escaped}\\b`, false, true, true, null, false);
+        for (const m of matches) {
+          decorations.push({ range: m.range, options: { inlineClassName: LINK_CLASS } });
+        }
+      }
+      decorationsRef.current = editor.deltaDecorations(decorationsRef.current, decorations);
+    }, LINK_DECORATION_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [value, linkTargets, editorReady]);
 
   // Apply error markers whenever the error prop or monaco instance changes
   useEffect(() => {
     if (!monacoInstance) return;
-    const models = monacoInstance.editor.getModels();
-    // Target the first editable model (the CTO input)
-    const model = models.find((m) => !m.isDisposed());
+    const model = editorRef.current?.getModel();
     if (!model) return;
 
     if (error) {
@@ -172,7 +235,7 @@ export function Editor({
     } else {
       monacoInstance.editor.setModelMarkers(model, "concerto", []);
     }
-  }, [error, monacoInstance]);
+  }, [error, monacoInstance, editorReady]);
 
   return (
     <MonacoEditor
@@ -181,6 +244,7 @@ export function Editor({
       value={value}
       onChange={(v) => onChange?.(v ?? "")}
       beforeMount={setupMonaco}
+      onMount={handleMount}
       theme="concerto-dark"
       options={{
         readOnly,

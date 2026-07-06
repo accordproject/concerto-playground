@@ -85,6 +85,37 @@ test.describe('Loading Examples', () => {
     await expect(page.getByText('Concerto Schema')).toBeVisible();
   });
 
+  test('loading an example keeps other open examples', async ({ page }) => {
+    // Initial workspace holds NDA; loading Vehicles must merge, not replace
+    await page.getByRole('button', { name: 'Vehicles' }).click();
+    // Both namespaces stay open in the tab strip (NDA tab label is truncated)
+    await expect(page.getByText('sample.vehicles@1.0.0')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('org.accordproject.nda@1', { exact: false })).toBeVisible();
+  });
+
+  test('loading an example keeps a freshly added namespace', async ({ page }) => {
+    await page.locator('button[title="Add namespace"]').click();
+    await expect(page.getByText('org.example.new', { exact: false })).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole('button', { name: 'NDA' }).click();
+
+    // The new namespace must survive loading an example
+    await expect(page.getByText('org.example.new', { exact: false })).toBeVisible();
+  });
+
+  test('re-clicking an example does not wipe local edits', async ({ page }) => {
+    // Type a marker into the CTO editor for the NDA namespace
+    const editor = page.locator('.monaco-editor').first();
+    await expect(editor).toBeVisible({ timeout: 10000 });
+    await editor.click();
+    await page.keyboard.type('MYEDIT');
+    await expect(page.locator('.view-lines').first()).toContainText('MYEDIT');
+
+    // Clicking the NDA example again must keep the edited version
+    await page.getByRole('button', { name: 'NDA' }).click();
+    await expect(page.locator('.view-lines').first()).toContainText('MYEDIT');
+  });
+
   test('example buttons persist across view mode switches', async ({ page }) => {
     await page.getByRole('button', { name: 'Code' }).click();
     await expect(page.getByRole('button', { name: 'Vehicles' })).toBeVisible({ timeout: 5000 });
