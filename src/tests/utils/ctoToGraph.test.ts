@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCto, validateCto, declarationsToGraph } from "../../utils/graph/ctoToGraph";
+import { parseCto, validateCto, declarationsToGraph, describeParseError } from "../../utils/graph/ctoToGraph";
 
 const SIMPLE_CTO = `namespace org.test@1.0.0
 
@@ -257,5 +257,26 @@ concept NDAData {
       expect(node.data).toBeDefined();
       expect(node.data.declaration).toBeDefined();
     }
+  });
+});
+
+describe("describeParseError", () => {
+  it("uses the ParseException's structured location fields", () => {
+    let message = "";
+    try {
+      parseCto("namespace org.test@1.0.0\nconcept {\n}");
+    } catch (e) {
+      message = describeParseError(e);
+    }
+    expect(message).toMatch(/Line 2 column 9/);
+    expect(message).toContain('"{" found');
+  });
+
+  it("falls back to the message for plain errors", () => {
+    expect(describeParseError(new Error("boom"))).toBe("boom");
+  });
+
+  it("stringifies non-Error values", () => {
+    expect(describeParseError("oops")).toBe("oops");
   });
 });

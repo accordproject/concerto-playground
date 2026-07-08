@@ -1,6 +1,7 @@
 import MonacoEditor, { useMonaco, type BeforeMount, type OnMount } from "@monaco-editor/react";
 import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
+import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
 
 interface EditorProps {
   value: string;
@@ -151,6 +152,55 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
   });
 };
 
+// Builds the error markers for the current error, in priority order: the
+// position embedded in the message, then the culprit's location from the
+// parser AST (for semantic errors), then line 1 as a last resort.
+function buildErrorMarkers(
+  error: string,
+  model: monaco.editor.ITextModel,
+): monaco.editor.IMarkerData[] {
+  const position = parseErrorPosition(error);
+  if (position) {
+    return [
+      {
+        startLineNumber: position.line,
+        startColumn: Math.max(1, position.column - 1),
+        endLineNumber: position.line,
+        endColumn: position.column + 2,
+        message: error,
+        severity: monaco.MarkerSeverity.Error,
+      },
+    ];
+  }
+
+  // Semantic validator messages carry no position. Locate the culprit through
+  // the parser AST (Unicode/$-safe) instead of a text search for the name.
+  const culprit = locateCulprit(error, model.getValue());
+  if (culprit) {
+    return [
+      {
+        startLineNumber: culprit.line,
+        startColumn: culprit.column,
+        endLineNumber: culprit.line,
+        endColumn: culprit.column + culprit.name.length,
+        message: error,
+        severity: monaco.MarkerSeverity.Error,
+      },
+    ];
+  }
+
+  return [
+    {
+      startLineNumber: 1,
+      startColumn: 1,
+      endLineNumber: 1,
+      endColumn: 3,
+      message: error,
+      severity: monaco.MarkerSeverity.Error,
+    },
+  ];
+}
+
 // ── Editor component ─────────────────────────────────────────────────────────
 
 export function Editor({
@@ -217,24 +267,11 @@ export function Editor({
     const model = editorRef.current?.getModel();
     if (!model) return;
 
-    if (error) {
-      // Parse "Line N column M" from the error message (Concerto parser format)
-      const match = error.match(/[Ll]ine\s+(\d+)\s+col(?:umn)?\s+(\d+)/);
-      const lineNumber = match ? parseInt(match[1], 10) : 1;
-      const col = match ? parseInt(match[2], 10) : 1;
-      monacoInstance.editor.setModelMarkers(model, "concerto", [
-        {
-          startLineNumber: lineNumber,
-          startColumn: Math.max(1, col - 1),
-          endLineNumber: lineNumber,
-          endColumn: col + 2,
-          message: error,
-          severity: monaco.MarkerSeverity.Error,
-        },
-      ]);
-    } else {
-      monacoInstance.editor.setModelMarkers(model, "concerto", []);
-    }
+    monacoInstance.editor.setModelMarkers(
+      model,
+      "concerto",
+      error ? buildErrorMarkers(error, model) : [],
+    );
   }, [error, monacoInstance, editorReady]);
 
   return (

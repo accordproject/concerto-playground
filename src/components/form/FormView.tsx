@@ -1,6 +1,6 @@
 // Form view adapted from accordproject/lab-concerto-editor-web (Dan Selman <danscode@selman.org>, Ayman)
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ConcertoModel, Declaration, Property } from '../../utils/graph/types';
 import { parseCto } from '../../utils/graph/ctoToGraph';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
@@ -61,13 +61,17 @@ export function FormView({ models, onModelChange, onAddNamespace, onRemoveNamesp
     setSelection(sel);
   }
 
-  // Parse all models, gracefully skipping broken ones
-  const parsedModels: Record<string, ConcertoModel> = {};
-  for (const [ns, cto] of Object.entries(models)) {
-    if (!cto) continue;
-    const parsed = parseModelSafe(cto);
-    if (parsed) parsedModels[ns] = parsed;
-  }
+  // Parse all models, gracefully skipping broken ones. Memoized so selection
+  // changes do not re-run the parser for every namespace on each render.
+  const parsedModels = useMemo(() => {
+    const parsed: Record<string, ConcertoModel> = {};
+    for (const [ns, cto] of Object.entries(models)) {
+      if (!cto) continue;
+      const model = parseModelSafe(cto);
+      if (model) parsed[ns] = model;
+    }
+    return parsed;
+  }, [models]);
 
   function handleAddDeclaration(ns: string) {
     const model = parsedModels[ns];
