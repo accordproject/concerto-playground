@@ -133,7 +133,11 @@ function propertyToAst(prop: Property): any {
     isArray: prop.isArray,
     isOptional: prop.isOptional,
   };
-  if (prop.validators?.default) result.defaultValue = prop.validators.default;
+  if (prop.validators?.default != null) {
+    // The parser stores defaults JSON-quoted; unquote like the primitive branch,
+    // otherwise the printer double-quotes them (default=""USED"") and the CTO breaks.
+    result.defaultValue = prop.validators.default.replace(/^["']|["']$/g, '');
+  }
   return result;
 }
 
