@@ -6,6 +6,7 @@ import { Editor } from "./components/Editor";
 import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
@@ -551,7 +552,9 @@ export default function App() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={declaredTypes} onNavigate={handleFocusNode} />
+              <ErrorBoundary label="Text Editor" resetKeys={[source]}>
+                <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={declaredTypes} onNavigate={handleFocusNode} />
+              </ErrorBoundary>
             </div>
           </div>
         )}
@@ -559,28 +562,34 @@ export default function App() {
         {/* Right: Graph, Form, or Code output */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           {viewMode === "form" ? (
-            <FormView
-              models={models}
-              onModelChange={handleModelChange}
-              onAddNamespace={handleAddNamespace}
-              onRemoveNamespace={handleRemoveNamespace}
-            />
+            <ErrorBoundary label="Form View" resetKeys={[models]}>
+              <FormView
+                models={models}
+                onModelChange={handleModelChange}
+                onAddNamespace={handleAddNamespace}
+                onRemoveNamespace={handleRemoveNamespace}
+              />
+            </ErrorBoundary>
           ) : viewMode === "graph" ? (
-            <ConcertoGraphEditor
-              cto={source}
-              onModelChange={setSource}
-              showText={showCto}
-              onToggleText={() => setShowCto((v) => !v)}
-              onImport={handleImport}
-              onExport={handleExport}
-              focusRequest={focusRequest}
-            />
+            <ErrorBoundary label="Graph Canvas" resetKeys={[source]}>
+              <ConcertoGraphEditor
+                cto={source}
+                onModelChange={setSource}
+                showText={showCto}
+                onToggleText={() => setShowCto((v) => !v)}
+                onImport={handleImport}
+                onExport={handleExport}
+                focusRequest={focusRequest}
+              />
+            </ErrorBoundary>
           ) : (
-            <OutputTabs
-              results={results}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
+            <ErrorBoundary label="Code Output" resetKeys={[results, activeTab]}>
+              <OutputTabs
+                results={results}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+            </ErrorBoundary>
           )}
         </div>
       </div>

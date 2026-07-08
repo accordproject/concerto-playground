@@ -1,0 +1,59 @@
+/* Styles for the ErrorBoundary fallback shown when a panel crashes while
+   rendering, instead of letting React unmount the whole page. */
+
+.error-boundary {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #1a202c;
+  overflow: auto;
+}
+
+.error-boundary-card {
+  max-width: 560px;
+  width: 100%;
+  background: #2d3748;
+  border: 1px solid #e53e3e;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.error-boundary-title {
+  margin: 0 0 8px;
+  color: #fc8181;
+  font-size: 14px;
+}
+
+.error-boundary-text {
+  margin: 0 0 12px;
+  color: #a0aec0;
+  font-size: 12px;
+}
+
+.error-boundary-message {
+  margin: 0 0 16px;
+  padding: 12px;
+  background: #1a202c;
+  color: #fc8181;
+  font-size: 12px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.error-boundary-retry {
+  background: #3182ce;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
