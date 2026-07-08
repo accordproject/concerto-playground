@@ -32,6 +32,10 @@ function extractNamespace(cto: string): string {
   return m ? m[1] : `org.example.unknown@1.0.0`;
 }
 
+// Pristine source by namespace for the built-in example buttons. Used to tell
+// untouched examples (swappable) apart from edited ones (kept open).
+const EXAMPLE_SOURCES = new Map(EXAMPLES.map((ex) => [extractNamespace(ex.source), ex.source]));
+
 // Evaluated once at module load — avoids parsing the URL hash twice for the
 // two separate useState initialisers that need models and activeNamespace.
 const _initialModels = (() => {
@@ -183,18 +187,21 @@ export default function App() {
     }
   }
 
+  // Loading an example never destroys work: user namespaces and edited
+  // examples stay open as tabs, so they remain visible and included in
+  // share/export/codegen. Only untouched examples are swapped out. Closing
+  // an example's tab and clicking its button again reloads the pristine one.
   function handleLoadExample(src: string) {
-    const ns = extractNamespace(src);
+    const targetNs = extractNamespace(src);
     setModels((prev) => {
-      // Merge the example into the open models instead of replacing them, so
-      // other namespaces (including freshly added ones) survive the click.
-      // If the example's namespace is already open with local edits, keep the
-      // user's version and just switch to it; remove the tab first to reload
-      // the pristine example.
-      if (prev[ns] !== undefined && prev[ns] !== src) return prev;
-      return { ...prev, [ns]: src };
+      const next: Record<string, string> = {};
+      for (const [ns, cto] of Object.entries(prev)) {
+        if (EXAMPLE_SOURCES.get(ns) !== cto) next[ns] = cto;
+      }
+      next[targetNs] = prev[targetNs] ?? src;
+      return next;
     });
-    setActiveNamespace(ns);
+    setActiveNamespace(targetNs);
     window.location.hash = "";
   }
 
