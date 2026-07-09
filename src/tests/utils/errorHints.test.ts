@@ -42,7 +42,18 @@ describe("findErrorHint", () => {
 
   it("suggests the fixed line when a property lacks the o prefix", () => {
     const cto = 'namespace org.x@1.0.0\nconcept Person {\n  String name\n}';
-    expect(findErrorHint(officialParseMessage(cto), cto)).toContain('write "o String name"');
+    const hint = findErrorHint(officialParseMessage(cto), cto);
+    expect(hint).toContain('write "o String name"');
+    // A relationship to a primitive is invalid, so the "-->" form must not
+    // be offered for a primitive type.
+    expect(hint).not.toContain('-->');
+  });
+
+  it("still offers the relationship form when the unmarked type is not primitive", () => {
+    const cto = 'namespace org.x@1.0.0\nconcept Person {\n  Person friend\n}';
+    const hint = findErrorHint(officialParseMessage(cto), cto);
+    expect(hint).toContain('write "o Person friend"');
+    expect(hint).toContain('"--> Person friend"');
   });
 
   it("hints about a stray space when a property type contains one", () => {
@@ -90,6 +101,14 @@ describe("findErrorHint", () => {
     const hint = findErrorHint(message as string, cto);
     expect(hint).toContain('"Base"');
     expect(hint).toContain('parent type');
+    // Declaration order does not matter in Concerto, so the hint must not
+    // tell the user to declare the parent "above" its subtype.
+    expect(hint).not.toContain('above');
+  });
+
+  it("accepts a super type declared below its subtype (declaration order is free)", () => {
+    const cto = 'namespace org.x@1.0.0\nconcept Person extends Base {\n  o String n\n}\nconcept Base {\n  o String b\n}';
+    expect(validateCto(cto)).toBeNull();
   });
 
   it("names the duplicated declaration (validator message)", () => {

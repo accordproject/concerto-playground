@@ -11,7 +11,7 @@
 // via the "line N column M" position that Concerto errors carry). First
 // matching rule wins, so keep the more specific rules first.
 
-import { DECLARATION_TYPES } from './graph/types';
+import { DECLARATION_TYPES, PRIMITIVE_TYPES } from './graph/types';
 import { locateTypeReference } from './graph/ctoToGraph';
 
 export interface EnclosingDeclaration {
@@ -189,9 +189,15 @@ const HINT_RULES: HintRule[] = [
       !/^\s*(?:o\s|-->)/.test(line),
     hint: ({ line }) => {
       const body = line.trim();
-      return body
-        ? `Every property line starts with a marker: write "o ${body}" for a value, or "--> ${body}" for a relationship.`
-        : 'Every property line starts with a marker: "o" for a value ("o String name") or "-->" for a relationship.';
+      if (!body) {
+        return 'Every property line starts with a marker: "o" for a value ("o String name") or "-->" for a relationship.';
+      }
+      // A relationship to a primitive type is itself invalid, so only offer
+      // the "-->" form when the type is not a primitive.
+      const type = body.split(/\s+/)[0];
+      return PRIMITIVE_TYPES.has(type)
+        ? `Every property line starts with a marker: write "o ${body}".`
+        : `Every property line starts with a marker: write "o ${body}" for a value, or "--> ${body}" for a relationship.`;
     },
   },
   {
@@ -215,8 +221,8 @@ const HINT_RULES: HintRule[] = [
     hint: ({ message }) => {
       const type = extractCulpritName(message);
       return type
-        ? `The parent type "${type}" after "extends" does not exist yet. Declare it above this one, or import it from another namespace.`
-        : 'The parent type after "extends" does not exist yet. Declare it above this one, or import it from another namespace.';
+        ? `The parent type "${type}" after "extends" does not exist. Declare it in this file, or import it from another namespace.`
+        : 'The parent type after "extends" does not exist. Declare it in this file, or import it from another namespace.';
     },
   },
   {
