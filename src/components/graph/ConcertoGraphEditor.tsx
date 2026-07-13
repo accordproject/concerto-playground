@@ -400,10 +400,10 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
             {/* Lead with the friendly hint; the raw parser/validator message
                 stays on the left editor's squiggle. Fall back to the raw
                 message when no hint matches this error. */}
-            <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">{bannerError.hint ?? stripPosition(bannerError.message)}</div>
+            <div className="pointer-events-auto select-text whitespace-pre-wrap [overflow-wrap:anywhere]">{bannerError.hint ?? stripPosition(bannerError.message)}</div>
             {/* Every banner points at its location the same way: a code
                 excerpt with a caret under the offending column. */}
-            {bannerError.snippet && <pre className="my-1.5 overflow-x-auto whitespace-pre font-mono text-[13px] text-red-100">{bannerError.snippet}</pre>}
+            {bannerError.snippet && <pre className="pointer-events-auto my-1.5 overflow-x-auto select-text whitespace-pre font-mono text-[13px] text-red-100">{bannerError.snippet}</pre>}
             {parseError && (
               <div className="mt-1 opacity-75">
                 Showing the last valid graph. Fix the text on the left to update it.
