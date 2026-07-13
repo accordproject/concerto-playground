@@ -393,17 +393,26 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         </ReactFlow>
 
         {bannerError && (
-          <div role="alert" className="absolute top-2 left-2 right-2 z-10 max-h-[45vh] overflow-hidden pointer-events-none rounded-md border border-red-600 bg-red-900/55 px-3.5 py-2.5 text-[13px] leading-relaxed text-red-100 backdrop-blur-sm">
-            <div className="mb-0.5 font-semibold">
+          <div
+            role="alert"
+            className="absolute top-2 left-2 right-2 z-10 px-3.5 py-2.5 rounded-md border border-[#e53e3e] bg-[#742a2a]/55 backdrop-blur-[3px] text-[13px] leading-normal text-[#fed7d7] max-h-[45vh] overflow-hidden pointer-events-none"
+          >
+            <div className="font-semibold mb-0.5">
               {parseError ? 'Schema parse error' : 'Schema error'}
             </div>
             {/* Lead with the friendly hint; the raw parser/validator message
                 stays on the left editor's squiggle. Fall back to the raw
                 message when no hint matches this error. */}
-            <div className="pointer-events-auto select-text whitespace-pre-wrap [overflow-wrap:anywhere]">{bannerError.hint ?? stripPosition(bannerError.message)}</div>
+            <div className="whitespace-pre-wrap [overflow-wrap:anywhere] pointer-events-auto select-text">
+              {bannerError.hint ?? stripPosition(bannerError.message)}
+            </div>
             {/* Every banner points at its location the same way: a code
                 excerpt with a caret under the offending column. */}
-            {bannerError.snippet && <pre className="pointer-events-auto my-1.5 overflow-x-auto select-text whitespace-pre font-mono text-[13px] text-red-100">{bannerError.snippet}</pre>}
+            {bannerError.snippet && (
+              <pre className="my-1.5 font-['Fira_Code','Cascadia_Code',Consolas,monospace] overflow-x-auto pointer-events-auto select-text">
+                {bannerError.snippet}
+              </pre>
+            )}
             {parseError && (
               <div className="mt-1 opacity-75">
                 Showing the last valid graph. Fix the text on the left to update it.
