@@ -8,6 +8,7 @@ import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
+import { loadWorkspaceSnapshot, useWorkspacePersistence } from "./hooks/useWorkspacePersistence";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
   generate,
@@ -62,6 +63,11 @@ const _initialModels = (() => {
 
 const _initialUrlOptions = parsePlaygroundUrlOptions(window.location.search);
 
+// Captured before the App mounts: the persistence hook starts overwriting the
+// stored snapshot shortly after the first render, so the previous session has
+// to be read here, not in an effect.
+const _savedSnapshot = loadWorkspaceSnapshot();
+
 export default function App() {
   const [models, setModels] = useState<Record<string, string>>(_initialModels);
   const [activeNamespace, setActiveNamespace] = useState<string>(() => Object.keys(_initialModels)[0]);
@@ -73,6 +79,25 @@ export default function App() {
   const [importError, setImportError] = useState<string | null>(null);
   const [focusRequest, setFocusRequest] = useState<{ name: string; ts: number } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const lastSaved = useWorkspacePersistence(models);
+  // Offer to restore the previous session only when it would change something:
+  // a shared link (URL hash) takes precedence over the cache, and a snapshot
+  // identical to what already loaded has nothing to restore.
+  const [showRestore, setShowRestore] = useState(
+    () =>
+      _savedSnapshot !== null &&
+      !window.location.hash.slice(1) &&
+      JSON.stringify(_savedSnapshot.models) !== JSON.stringify(_initialModels),
+  );
+
+  function handleRestoreSession() {
+    if (_savedSnapshot) {
+      setModels(_savedSnapshot.models);
+      setActiveNamespace(Object.keys(_savedSnapshot.models)[0]);
+    }
+    setShowRestore(false);
+  }
 
   // The "active" source for single-model views (graph editor, CTO editor)
   const source = models[activeNamespace] ?? "";
@@ -323,6 +348,30 @@ export default function App() {
   return (
     <div className={`flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden ${_initialUrlOptions.headless ? "" : "pt-16"}`}>
       {!_initialUrlOptions.headless && <Header />}
+
+      {/* Restore previous session prompt */}
+      {showRestore && _savedSnapshot && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-[#2a4365] border-b border-[#2c5282] text-xs text-blue-100 shrink-0">
+          <span className="flex-1">
+            Restore previous session? Work saved in this browser on{" "}
+            {new Date(_savedSnapshot.savedAt).toLocaleString()} was found.
+          </span>
+          <button
+            onClick={handleRestoreSession}
+            className="shrink-0 text-xs px-2.5 py-1 rounded font-semibold"
+            style={{ background: "#3182ce", color: "#e2e8f0", border: "none", cursor: "pointer" }}
+          >
+            Restore
+          </button>
+          <button
+            onClick={() => setShowRestore(false)}
+            className="shrink-0 text-xs px-2.5 py-1 rounded"
+            style={{ background: "transparent", color: "#90cdf4", border: "1px solid #2c5282", cursor: "pointer" }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Import error banner */}
       {importError && (
@@ -589,6 +638,9 @@ export default function App() {
       <div className="flex items-center justify-between px-4 py-1 text-white text-xs shrink-0" style={{ background: "#007acc" }}>
         <span>Accord Project — Concerto Playground</span>
         <div className="flex items-center gap-4">
+          {lastSaved !== null && (
+            <span className="opacity-80">Last saved: {new Date(lastSaved).toLocaleTimeString()}</span>
+          )}
           <a
             href="https://concerto.accordproject.org/docs/intro"
             target="_blank"
