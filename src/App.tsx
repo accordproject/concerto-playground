@@ -78,15 +78,22 @@ export default function App() {
   // The "active" source for single-model views (graph editor, CTO editor)
   const source = models[activeNamespace] ?? "";
 
-  // Declared type names in the active model — used to render clickable
-  // references in the CTO editor.
-  const declaredTypes = useMemo(() => {
+  // Single parse of the active model per keystroke; everything below that
+  // needs the AST derives from this memo instead of re-parsing.
+  const parsedModel = useMemo(() => {
     try {
-      return parseCto(source).declarations.map((d) => d.name);
+      return parseCto(source);
     } catch {
-      return [];
+      return null;
     }
   }, [source]);
+
+  // Declared type names in the active model — used to render clickable
+  // references in the CTO editor.
+  const declaredTypes = useMemo(
+    () => parsedModel?.declarations.map((d) => d.name) ?? [],
+    [parsedModel],
+  );
 
   // Jump to a declaration's node in the graph (from a CTO reference click).
   const handleFocusNode = useCallback((name: string) => {
@@ -96,7 +103,13 @@ export default function App() {
 
   const validationError = useMemo(() => {
     const peers = Object.values(models).filter((s) => s && s !== source);
-    try { return validateCto(source, peers); } catch { return null; }
+    // validateCto reports problems as a return value; if it throws anyway,
+    // surface the message instead of silently pretending the model is valid.
+    try {
+      return validateCto(source, peers);
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
   }, [source, models]);
 
   const runGeneration = useCallback(async (sources: string[]) => {
@@ -580,6 +593,7 @@ export default function App() {
                 onImport={handleImport}
                 onExport={handleExport}
                 focusRequest={focusRequest}
+                validationError={validationError}
               />
             </ErrorBoundary>
           ) : (
