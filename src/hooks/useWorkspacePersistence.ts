@@ -66,11 +66,15 @@ interface WorkspacePersistenceState {
 
 // Persists the open models to localStorage, debounced. Reports the last
 // successful save and any storage failure so the UI can warn the user.
-export function useWorkspacePersistence(models: Record<string, string>): WorkspacePersistenceState {
+export function useWorkspacePersistence(
+  models: Record<string, string>,
+  enabled = true,
+): WorkspacePersistenceState {
   const [lastSaved, setLastSaved] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     const timer = setTimeout(() => {
       try {
         const snapshot: WorkspaceSnapshot = { models, savedAt: Date.now() };
@@ -83,7 +87,7 @@ export function useWorkspacePersistence(models: Record<string, string>): Workspa
       }
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [models]);
+  }, [models, enabled]);
 
   return { lastSaved, saveError, dismissSaveError: () => setSaveError(null) };
 }

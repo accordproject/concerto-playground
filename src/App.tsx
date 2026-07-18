@@ -80,7 +80,6 @@ export default function App() {
   const [focusRequest, setFocusRequest] = useState<{ name: string; ts: number } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { lastSaved, saveError, dismissSaveError } = useWorkspacePersistence(models);
   // Offer to restore the previous session only when it would change something:
   // a shared link (URL hash) takes precedence over the cache, and a snapshot
   // identical to what already loaded has nothing to restore.
@@ -90,6 +89,9 @@ export default function App() {
       !window.location.hash.slice(1) &&
       !areWorkspaceModelsEqual(_savedSnapshot.models, _initialModels),
   );
+  // Do not overwrite a recoverable snapshot until the user chooses Restore or
+  // Dismiss on the restore prompt.
+  const { lastSaved, saveError, dismissSaveError } = useWorkspacePersistence(models, !showRestore);
 
   function handleRestoreSession() {
     if (_savedSnapshot) {

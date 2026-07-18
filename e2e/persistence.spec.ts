@@ -64,6 +64,29 @@ test.describe('Workspace persistence', () => {
     await expect(page.getByText('RestoredWidget').first()).toBeVisible({ timeout: 15000 });
   });
 
+  test('does not overwrite a previous session while the restore prompt is open', async ({ page }) => {
+    await page.addInitScript(
+      ([key, cto]) => {
+        window.localStorage.setItem(
+          key,
+          JSON.stringify({ models: { 'org.example.restored@1.0.0': cto }, savedAt: 1700000000000 }),
+        );
+      },
+      [STORAGE_KEY, RESTORED_CTO],
+    );
+    await page.goto('/');
+    await expect(page.getByText('Restore previous session?')).toBeVisible({ timeout: 15000 });
+
+    // Wait longer than the normal persistence debounce. The saved workspace
+    // must remain untouched until Restore or Dismiss is chosen.
+    await page.waitForTimeout(750);
+    const stored = await page.evaluate(
+      (key) => JSON.parse(window.localStorage.getItem(key) ?? 'null'),
+      STORAGE_KEY,
+    );
+    expect(stored.models['org.example.restored@1.0.0']).toBe(RESTORED_CTO);
+  });
+
   test('dismisses the restore prompt without touching the current workspace', async ({ page }) => {
     await page.addInitScript(
       ([key, cto]) => {
