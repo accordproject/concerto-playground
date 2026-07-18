@@ -8,7 +8,7 @@ import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
-import { loadWorkspaceSnapshot, useWorkspacePersistence } from "./hooks/useWorkspacePersistence";
+import { areWorkspaceModelsEqual, loadWorkspaceSnapshot, useWorkspacePersistence } from "./hooks/useWorkspacePersistence";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
   generate,
@@ -88,7 +88,7 @@ export default function App() {
     () =>
       _savedSnapshot !== null &&
       !window.location.hash.slice(1) &&
-      JSON.stringify(_savedSnapshot.models) !== JSON.stringify(_initialModels),
+      !areWorkspaceModelsEqual(_savedSnapshot.models, _initialModels),
   );
 
   function handleRestoreSession() {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseSnapshot, useWorkspacePersistence } from "../../hooks/useWorkspacePersistence";
+import { areWorkspaceModelsEqual, parseSnapshot, useWorkspacePersistence } from "../../hooks/useWorkspacePersistence";
 
 const VALID = {
   models: { "org.example@1.0.0": "namespace org.example@1.0.0" },
@@ -48,6 +48,19 @@ describe("parseSnapshot", () => {
     expect(
       parseSnapshot(JSON.stringify({ savedAt: 1, models: { "org.a@1.0.0": 5 } })),
     ).toBeNull();
+  });
+});
+
+describe("areWorkspaceModelsEqual", () => {
+  it("ignores key insertion order", () => {
+    const first = { "org.a@1.0.0": "a", "org.b@1.0.0": "b" };
+    const second = { "org.b@1.0.0": "b", "org.a@1.0.0": "a" };
+    expect(areWorkspaceModelsEqual(first, second)).toBe(true);
+  });
+
+  it("detects missing namespaces and changed CTO", () => {
+    expect(areWorkspaceModelsEqual({ "org.a@1.0.0": "a" }, {})).toBe(false);
+    expect(areWorkspaceModelsEqual({ "org.a@1.0.0": "a" }, { "org.a@1.0.0": "changed" })).toBe(false);
   });
 });
 

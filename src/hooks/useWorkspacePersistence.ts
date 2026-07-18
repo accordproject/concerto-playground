@@ -11,6 +11,18 @@ export interface WorkspaceSnapshot {
   savedAt: number;
 }
 
+/** Returns whether two workspace model maps have the same keys and CTO text. */
+export function areWorkspaceModelsEqual(
+  left: Record<string, string>,
+  right: Record<string, string>,
+): boolean {
+  const leftKeys = Object.keys(left);
+  if (leftKeys.length !== Object.keys(right).length) return false;
+  return leftKeys.every(
+    (namespace) => Object.prototype.hasOwnProperty.call(right, namespace) && left[namespace] === right[namespace],
+  );
+}
+
 /**
  * Parses a persisted workspace snapshot.
  *
