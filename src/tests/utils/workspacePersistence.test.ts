@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { areWorkspaceModelsEqual, parseSnapshot, useWorkspacePersistence } from "../../hooks/useWorkspacePersistence";
+import {
+  areWorkspaceModelsEqual,
+  clearWorkspaceSnapshot,
+  parseSnapshot,
+  useWorkspacePersistence,
+} from "../../hooks/useWorkspacePersistence";
 
 const VALID = {
   models: { "org.example@1.0.0": "namespace org.example@1.0.0" },
@@ -61,6 +66,14 @@ describe("areWorkspaceModelsEqual", () => {
   it("detects missing namespaces and changed CTO", () => {
     expect(areWorkspaceModelsEqual({ "org.a@1.0.0": "a" }, {})).toBe(false);
     expect(areWorkspaceModelsEqual({ "org.a@1.0.0": "a" }, { "org.a@1.0.0": "changed" })).toBe(false);
+  });
+});
+
+describe("clearWorkspaceSnapshot", () => {
+  it("removes the persisted workspace", () => {
+    localStorage.setItem("workspace.v1", JSON.stringify(VALID));
+    clearWorkspaceSnapshot();
+    expect(localStorage.getItem("workspace.v1")).toBeNull();
   });
 });
 

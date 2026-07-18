@@ -58,6 +58,15 @@ export function loadWorkspaceSnapshot(): WorkspaceSnapshot | null {
   }
 }
 
+/** Removes the persisted workspace snapshot, if browser storage is available. */
+export function clearWorkspaceSnapshot(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (error) {
+    console.warn("Could not clear workspace from local storage:", error);
+  }
+}
+
 interface WorkspacePersistenceState {
   lastSaved: number | null;
   saveError: string | null;
