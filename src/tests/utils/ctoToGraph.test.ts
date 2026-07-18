@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCto, validateCto, declarationsToGraph, describeParseError } from "../../utils/graph/ctoToGraph";
+import { parseCto, validateCto, declarationsToGraph, describeParseError, buildExternalTypeMap } from "../../utils/graph/ctoToGraph";
 
 const SIMPLE_CTO = `namespace org.test@1.0.0
 
@@ -278,5 +278,141 @@ describe("describeParseError", () => {
 
   it("stringifies non-Error values", () => {
     expect(describeParseError("oops")).toBe("oops");
+  });
+});
+
+const CHILD_CTO = `namespace org.child@1.0.0
+import org.base@1.0.0.{BaseThing, Color}
+import org.missing@1.0.0.Ghost
+
+concept Kid extends BaseThing {
+  o Color color
+  o Ghost ghost
+  o String name
+}`;
+
+const WORKSPACE = {
+  "org.child@1.0.0": ["Kid"],
+  "org.base@1.0.0": ["BaseThing", "Color"],
+};
+
+describe("parseCto imports", () => {
+  it("parses named imports with their namespace", () => {
+    const { imports } = parseCto(CHILD_CTO);
+    expect(imports).toHaveLength(2);
+    const base = imports.find((i) => i.namespace === "org.base@1.0.0");
+    expect(base!.types).toEqual(["BaseThing", "Color"]);
+    const missing = imports.find((i) => i.namespace === "org.missing@1.0.0");
+    expect(missing!.types).toEqual(["Ghost"]);
+  });
+});
+
+describe("buildExternalTypeMap", () => {
+  it("resolves imported types whose namespace is open and declares them", () => {
+    const { imports } = parseCto(CHILD_CTO);
+    const map = buildExternalTypeMap(imports, WORKSPACE);
+    expect(map.BaseThing).toEqual({ namespace: "org.base@1.0.0", resolved: true });
+    expect(map.Color).toEqual({ namespace: "org.base@1.0.0", resolved: true });
+  });
+
+  it("marks types from unopened namespaces as unresolved", () => {
+    const { imports } = parseCto(CHILD_CTO);
+    const map = buildExternalTypeMap(imports, WORKSPACE);
+    expect(map.Ghost).toEqual({ namespace: "org.missing@1.0.0", resolved: false });
+  });
+
+  it("marks a type as unresolved when the open namespace does not declare it", () => {
+    const imports = [{ namespace: "org.base@1.0.0", types: ["NotThere"] }];
+    const map = buildExternalTypeMap(imports, WORKSPACE);
+    expect(map.NotThere).toEqual({ namespace: "org.base@1.0.0", resolved: false });
+  });
+
+  it("expands wildcard imports from the open namespace's declarations", () => {
+    const imports = [{ namespace: "org.base@1.0.0", types: ["*"] }];
+    const map = buildExternalTypeMap(imports, WORKSPACE);
+    expect(map.BaseThing).toEqual({ namespace: "org.base@1.0.0", resolved: true });
+    expect(map.Color).toEqual({ namespace: "org.base@1.0.0", resolved: true });
+  });
+
+  it("yields nothing for a wildcard import of an unopened namespace", () => {
+    const imports = [{ namespace: "org.missing@1.0.0", types: ["*"] }];
+    const map = buildExternalTypeMap(imports, WORKSPACE);
+    expect(Object.keys(map)).toHaveLength(0);
+  });
+});
+
+describe("declarationsToGraph with imported types", () => {
+  const buildGraph = () => {
+    const { declarations, imports } = parseCto(CHILD_CTO);
+    const externalTypes = buildExternalTypeMap(imports, WORKSPACE);
+    return declarationsToGraph(declarations, { externalTypes, workspaceDeclarations: WORKSPACE });
+  };
+
+  it("creates an importedNode with a namespace-qualified id for each referenced imported type", () => {
+    const { nodes } = buildGraph();
+    const imported = nodes.filter((n) => n.type === "importedNode");
+    expect(imported.map((n) => n.id).sort()).toEqual([
+      "org.base@1.0.0.BaseThing",
+      "org.base@1.0.0.Color",
+      "org.missing@1.0.0.Ghost",
+    ]);
+  });
+
+  it("marks imported nodes from open namespaces as resolved", () => {
+    const { nodes } = buildGraph();
+    const base = nodes.find((n) => n.id === "org.base@1.0.0.BaseThing");
+    expect(base!.data).toMatchObject({ label: "BaseThing", namespace: "org.base@1.0.0", resolved: true });
+  });
+
+  it("marks imported nodes from unopened namespaces as unresolved", () => {
+    const { nodes } = buildGraph();
+    const ghost = nodes.find((n) => n.id === "org.missing@1.0.0.Ghost");
+    expect(ghost!.data).toMatchObject({ label: "Ghost", namespace: "org.missing@1.0.0", resolved: false });
+  });
+
+  it("creates an extends edge to the imported supertype", () => {
+    const { edges } = buildGraph();
+    const ext = edges.find((e) => e.source === "Kid" && e.target === "org.base@1.0.0.BaseThing");
+    expect(ext).toBeDefined();
+    expect(ext!.label).toBe("extends");
+  });
+
+  it("creates property edges to imported types", () => {
+    const { edges } = buildGraph();
+    const color = edges.find((e) => e.source === "Kid" && e.target === "org.base@1.0.0.Color");
+    expect(color).toBeDefined();
+    const ghost = edges.find((e) => e.source === "Kid" && e.target === "org.missing@1.0.0.Ghost");
+    expect(ghost).toBeDefined();
+  });
+
+  it("includes imported-type properties in the node's edgeProperties", () => {
+    const { nodes } = buildGraph();
+    const kid = nodes.find((n) => n.id === "Kid");
+    expect(kid!.data.edgeProperties).toEqual(["color", "ghost"]);
+  });
+
+  it("creates no imported nodes without workspace context", () => {
+    const { declarations } = parseCto(CHILD_CTO);
+    const { nodes, edges } = declarationsToGraph(declarations);
+    expect(nodes.filter((n) => n.type === "importedNode")).toHaveLength(0);
+    expect(edges).toHaveLength(0);
+  });
+
+  it("lets a local declaration shadow an imported type of the same name", () => {
+    const shadowCto = `namespace org.child@1.0.0
+import org.base@1.0.0.BaseThing
+
+concept BaseThing {
+  o String id
+}
+concept Kid {
+  o BaseThing thing
+}`;
+    const { declarations, imports } = parseCto(shadowCto);
+    const externalTypes = buildExternalTypeMap(imports, WORKSPACE);
+    const { nodes, edges } = declarationsToGraph(declarations, { externalTypes, workspaceDeclarations: WORKSPACE });
+    expect(nodes.filter((n) => n.type === "importedNode")).toHaveLength(0);
+    const edge = edges.find((e) => e.source === "Kid");
+    expect(edge!.target).toBe("BaseThing");
   });
 });

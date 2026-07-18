@@ -7,7 +7,8 @@ import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
+import { validateCto, parseCto, buildExternalTypeMap, type GraphContext } from "./utils/graph/ctoToGraph";
+import type { ImportStatement, TypeLinkTarget } from "./utils/graph/types";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import {
   areWorkspaceModelsEqual,
@@ -83,7 +84,7 @@ export default function App() {
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
   const [importError, setImportError] = useState<string | null>(null);
-  const [focusRequest, setFocusRequest] = useState<{ name: string; ts: number } | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ name: string; namespace?: string; ts: number } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Offer to restore the previous session only when it would change something:
@@ -115,28 +116,65 @@ export default function App() {
   // The "active" source for single-model views (graph editor, CTO editor)
   const source = models[activeNamespace] ?? "";
 
-  // Single parse of the active model per keystroke; everything below that
-  // needs the AST derives from this memo instead of re-parsing.
-  const parsedModel = useMemo(() => {
+  // Declared type names per open namespace. Used to resolve imported type
+  // references (clickable links, foreign-namespace graph nodes).
+  const workspaceDeclarations = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    for (const [ns, cto] of Object.entries(models)) {
+      if (!cto) continue;
+      try {
+        result[ns] = parseCto(cto).declarations.map((d) => d.name);
+      } catch {
+        // Unparseable model: treat its types as unavailable until it parses again
+      }
+    }
+    return result;
+  }, [models]);
+
+  // Declarations and imports of the active model.
+  const activeModel = useMemo(() => {
     try {
-      return parseCto(source);
+      const parsed = parseCto(source);
+      return { declarations: parsed.declarations, imports: parsed.imports };
     } catch {
-      return null;
+      return { declarations: [] as { name: string }[], imports: [] as ImportStatement[] };
     }
   }, [source]);
 
-  // Declared type names in the active model — used to render clickable
-  // references in the CTO editor.
-  const declaredTypes = useMemo(
-    () => parsedModel?.declarations.map((d) => d.name) ?? [],
-    [parsedModel],
+  // Types the active model pulls in from other namespaces, with resolution
+  // status (resolved = the namespace is open and declares the type).
+  const externalTypes = useMemo(
+    () => buildExternalTypeMap(activeModel.imports, workspaceDeclarations),
+    [activeModel, workspaceDeclarations],
   );
 
-  // Jump to a declaration's node in the graph (from a CTO reference click).
-  const handleFocusNode = useCallback((name: string) => {
+  const graphContext = useMemo<GraphContext>(
+    () => ({ externalTypes, workspaceDeclarations }),
+    [externalTypes, workspaceDeclarations],
+  );
+
+  // Clickable references in the CTO editor: local declarations plus imported
+  // types. Local names win when an import shadows them.
+  const linkTargets = useMemo<TypeLinkTarget[]>(() => {
+    const local: TypeLinkTarget[] = activeModel.declarations.map((d) => ({ name: d.name, resolved: true }));
+    const localNames = new Set(local.map((t) => t.name));
+    const imported: TypeLinkTarget[] = Object.entries(externalTypes)
+      .filter(([name]) => !localNames.has(name))
+      .map(([name, info]) => ({ name, namespace: info.namespace, resolved: info.resolved }));
+    return [...local, ...imported];
+  }, [activeModel, externalTypes]);
+
+  // Jump to a declaration's node in the graph (from a CTO reference click or
+  // an imported node click). A namespace argument means the type lives in
+  // another open namespace: switch the workspace there first, then focus.
+  const handleFocusNode = useCallback((name: string, namespace?: string) => {
+    if (namespace) {
+      if (models[namespace] === undefined) return; // unresolved namespace: nothing to navigate to
+      if (namespace !== activeNamespace) setActiveNamespace(namespace);
+    }
     setViewMode("graph");
-    setFocusRequest({ name, ts: Date.now() });
-  }, []);
+    setFocusRequest({ name, namespace, ts: Date.now() });
+  }, [models, activeNamespace]);
 
   const validationError = useMemo(() => {
     const peers = Object.values(models).filter((s) => s && s !== source);
@@ -641,7 +679,7 @@ export default function App() {
             </div>
             <div className="flex-1 min-h-0">
               <ErrorBoundary label="Text Editor" resetKeys={[source]}>
-                <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={declaredTypes} onNavigate={handleFocusNode} />
+                <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={linkTargets} onNavigate={handleFocusNode} />
               </ErrorBoundary>
             </div>
           </div>
@@ -669,6 +707,8 @@ export default function App() {
                 onExport={handleExport}
                 focusRequest={focusRequest}
                 validationError={validationError}
+                graphContext={graphContext}
+                onNavigateToType={handleFocusNode}
               />
             </ErrorBoundary>
           ) : (

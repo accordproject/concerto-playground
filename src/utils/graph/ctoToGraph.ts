@@ -1,5 +1,5 @@
 import type { Node, Edge } from '@xyflow/react';
-import type { Declaration, ConcertoModel, ImportStatement, Property, PropertyValidator, Decorator, IdentifiedKind } from './types';
+import type { Declaration, ConcertoModel, ImportStatement, Property, PropertyValidator, Decorator, IdentifiedKind, ExternalTypeMap } from './types';
 import { PRIMITIVE_TYPES } from './types';
 
 import { Parser as ParserModule } from '@accordproject/concerto-cto';
@@ -109,6 +109,37 @@ function parseImports(astImports: any[]): ImportStatement[] {
   });
 }
 
+/**
+ * Classify every type name reachable through a model's import statements.
+ * A type is resolved when its namespace is open in the workspace and actually
+ * declares it; otherwise it is kept with resolved=false so the UI can show a
+ * "Namespace unresolved" warning instead of a broken link.
+ */
+export function buildExternalTypeMap(
+  imports: ImportStatement[],
+  workspaceDeclarations: Record<string, string[]>,
+): ExternalTypeMap {
+  const map: ExternalTypeMap = {};
+  for (const imp of imports) {
+    const peerDecls = workspaceDeclarations[imp.namespace];
+    if (imp.types.length === 1 && imp.types[0] === '*') {
+      // Wildcard import: the individual names are only knowable when the
+      // namespace is open in the workspace.
+      for (const name of peerDecls ?? []) {
+        map[name] = { namespace: imp.namespace, resolved: true };
+      }
+    } else {
+      for (const name of imp.types) {
+        map[name] = {
+          namespace: imp.namespace,
+          resolved: peerDecls != null && peerDecls.includes(name),
+        };
+      }
+    }
+  }
+  return map;
+}
+
 function parseDeclarations(astDecls: any[]): Declaration[] {
   return astDecls.map((decl: any) => {
     const $class: string = decl.$class;
@@ -184,6 +215,7 @@ function parseDeclarations(astDecls: any[]): Declaration[] {
       type,
       isAbstract: !!decl.isAbstract,
       superType: decl.superType?.name,
+      superTypeNamespace: decl.superType?.namespace,
       properties: (decl.properties || []).map(parseProperty),
       enumValues: [],
       identified,
@@ -198,8 +230,10 @@ function parseProperty(p: any): Property {
   const isRelationship = $class === `${META}.RelationshipProperty`;
 
   let type: string;
+  let typeNamespace: string | undefined;
   if ($class === `${META}.ObjectProperty` || isRelationship) {
     type = p.type?.name || 'String';
+    typeNamespace = p.type?.namespace;
   } else {
     type = $class.replace(`${META}.`, '').replace('Property', '');
   }
@@ -224,6 +258,7 @@ function parseProperty(p: any): Property {
   return {
     name: p.name,
     type,
+    typeNamespace,
     isOptional: !!p.isOptional,
     isArray: !!p.isArray,
     isRelationship,
@@ -368,11 +403,62 @@ function computeTreeLayout(declarations: Declaration[]): Map<string, { x: number
   return positions;
 }
 
-export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[]; edges: Edge[] } {
+/** Workspace context used to render imported (foreign namespace) types. */
+export interface GraphContext {
+  /** Short name to owning-namespace info, built from the model's imports. */
+  externalTypes?: ExternalTypeMap;
+  /** Declared type names per open namespace, for qualified references. */
+  workspaceDeclarations?: Record<string, string[]>;
+}
+
+interface ExternalRef {
+  id: string;
+  name: string;
+  namespace: string;
+  resolved: boolean;
+}
+
+const EXTERNAL_NODE_HEIGHT = 100;
+
+export function declarationsToGraph(declarations: Declaration[], context: GraphContext = {}): { nodes: Node[]; edges: Edge[] } {
+  const { externalTypes = {}, workspaceDeclarations = {} } = context;
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   const declNames = new Set(declarations.map((d) => d.name));
   const positions = computeTreeLayout(declarations);
+
+  // Resolve a type reference that does not point at a local declaration:
+  // either a namespace-qualified name or a name brought in by an import.
+  // Imported nodes get namespace-qualified ids so they cannot collide with
+  // local declaration names.
+  const externalFor = (typeName: string, explicitNs?: string): ExternalRef | undefined => {
+    if (PRIMITIVE_TYPES.has(typeName)) return undefined;
+    if (explicitNs) {
+      const peerDecls = workspaceDeclarations[explicitNs];
+      return {
+        id: `${explicitNs}.${typeName}`,
+        name: typeName,
+        namespace: explicitNs,
+        resolved: peerDecls != null && peerDecls.includes(typeName),
+      };
+    }
+    if (declNames.has(typeName)) return undefined;
+    const info = externalTypes[typeName];
+    return info
+      ? { id: `${info.namespace}.${typeName}`, name: typeName, namespace: info.namespace, resolved: info.resolved }
+      : undefined;
+  };
+
+  // Imported types referenced by at least one declaration, keyed by node id.
+  const externalNodes = new Map<string, ExternalRef>();
+  const registerExternal = (typeName: string, explicitNs?: string): ExternalRef | undefined => {
+    const ext = externalFor(typeName, explicitNs);
+    if (ext && !externalNodes.has(ext.id)) externalNodes.set(ext.id, ext);
+    return ext;
+  };
+
+  const isLocal = (typeName: string, explicitNs?: string) =>
+    !explicitNs && declNames.has(typeName) && !PRIMITIVE_TYPES.has(typeName);
 
   declarations.forEach((decl) => {
     let nodeType = 'conceptNode';
@@ -385,7 +471,7 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
       ? decl.properties.filter((p) => p.name === '_value')
       : decl.properties;
     const edgeProperties = propsToEdge
-      .filter((p) => declNames.has(p.type) && !PRIMITIVE_TYPES.has(p.type))
+      .filter((p) => isLocal(p.type, p.typeNamespace) || externalFor(p.type, p.typeNamespace))
       .map((p) => p.name);
 
     nodes.push({
@@ -395,28 +481,36 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
       data: { label: decl.name, declaration: decl, edgeProperties },
     });
 
-    if (decl.superType && declNames.has(decl.superType)) {
-      edges.push({
-        id: `${decl.name}-extends-${decl.superType}`,
-        source: decl.name, target: decl.superType,
-        sourceHandle: 'bottom',
-        targetHandle: 'top',
-        type: 'floating', animated: true,
-        label: 'extends',
-        style: { stroke: '#b794f4', strokeWidth: 1.5, opacity: 0.7, animationDirection: 'reverse' },
-        labelStyle: { fill: '#b794f4', fontSize: 10, fontWeight: 600 },
-        labelBgStyle: { fill: '#1a202c', fillOpacity: 0.8 },
-        labelBgPadding: [6, 3] as [number, number],
-        labelBgBorderRadius: 4,
-      });
+    if (decl.superType) {
+      const superTarget = isLocal(decl.superType, decl.superTypeNamespace)
+        ? decl.superType
+        : registerExternal(decl.superType, decl.superTypeNamespace)?.id;
+      if (superTarget) {
+        edges.push({
+          id: `${decl.name}-extends-${superTarget}`,
+          source: decl.name, target: superTarget,
+          sourceHandle: 'bottom',
+          targetHandle: 'top',
+          type: 'floating', animated: true,
+          label: 'extends',
+          style: { stroke: '#b794f4', strokeWidth: 1.5, opacity: 0.7, animationDirection: 'reverse' },
+          labelStyle: { fill: '#b794f4', fontSize: 10, fontWeight: 600 },
+          labelBgStyle: { fill: '#1a202c', fillOpacity: 0.8 },
+          labelBgPadding: [6, 3] as [number, number],
+          labelBgBorderRadius: 4,
+        });
+      }
     }
 
     for (const prop of propsToEdge) {
-      if (declNames.has(prop.type) && !PRIMITIVE_TYPES.has(prop.type)) {
+      const propTarget = isLocal(prop.type, prop.typeNamespace)
+        ? prop.type
+        : registerExternal(prop.type, prop.typeNamespace)?.id;
+      if (propTarget) {
         const isRel = prop.isRelationship;
         edges.push({
-          id: `${decl.name}-${prop.name}-${prop.type}`,
-          source: decl.name, target: prop.type,
+          id: `${decl.name}-${prop.name}-${propTarget}`,
+          source: decl.name, target: propTarget,
           sourceHandle: `prop:${prop.name}`,
           targetHandle: 'left',
           label: prop.name.startsWith('_') ? '' : prop.name + (prop.isArray ? '[]' : ''),
@@ -435,6 +529,27 @@ export function declarationsToGraph(declarations: Declaration[]): { nodes: Node[
       }
     }
   });
+
+  // Imported types get their own column to the right of the local layout so
+  // they read as external to the current file.
+  if (externalNodes.size > 0) {
+    let maxX = 0;
+    for (const pos of positions.values()) maxX = Math.max(maxX, pos.x);
+    const externalX = declarations.length > 0 ? maxX + 380 : 0;
+    const externals = [...externalNodes.values()];
+    const gapY = 40;
+    const totalHeight = externals.length * EXTERNAL_NODE_HEIGHT + (externals.length - 1) * gapY;
+    let y = -totalHeight / 2;
+    for (const ext of externals) {
+      nodes.push({
+        id: ext.id,
+        type: 'importedNode',
+        position: { x: externalX, y },
+        data: { label: ext.name, namespace: ext.namespace, resolved: ext.resolved },
+      });
+      y += EXTERNAL_NODE_HEIGHT + gapY;
+    }
+  }
 
   return { nodes, edges };
 }
