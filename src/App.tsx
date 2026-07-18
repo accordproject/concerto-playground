@@ -6,6 +6,7 @@ import { Editor } from "./components/Editor";
 import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import {
@@ -114,15 +115,22 @@ export default function App() {
   // The "active" source for single-model views (graph editor, CTO editor)
   const source = models[activeNamespace] ?? "";
 
-  // Declared type names in the active model — used to render clickable
-  // references in the CTO editor.
-  const declaredTypes = useMemo(() => {
+  // Single parse of the active model per keystroke; everything below that
+  // needs the AST derives from this memo instead of re-parsing.
+  const parsedModel = useMemo(() => {
     try {
-      return parseCto(source).declarations.map((d) => d.name);
+      return parseCto(source);
     } catch {
-      return [];
+      return null;
     }
   }, [source]);
+
+  // Declared type names in the active model — used to render clickable
+  // references in the CTO editor.
+  const declaredTypes = useMemo(
+    () => parsedModel?.declarations.map((d) => d.name) ?? [],
+    [parsedModel],
+  );
 
   // Jump to a declaration's node in the graph (from a CTO reference click).
   const handleFocusNode = useCallback((name: string) => {
@@ -132,7 +140,13 @@ export default function App() {
 
   const validationError = useMemo(() => {
     const peers = Object.values(models).filter((s) => s && s !== source);
-    try { return validateCto(source, peers); } catch { return null; }
+    // validateCto reports problems as a return value; if it throws anyway,
+    // surface the message instead of silently pretending the model is valid.
+    try {
+      return validateCto(source, peers);
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
   }, [source, models]);
 
   const runGeneration = useCallback(async (sources: string[]) => {
@@ -626,7 +640,9 @@ export default function App() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={declaredTypes} onNavigate={handleFocusNode} />
+              <ErrorBoundary label="Text Editor" resetKeys={[source]}>
+                <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={declaredTypes} onNavigate={handleFocusNode} />
+              </ErrorBoundary>
             </div>
           </div>
         )}
@@ -634,28 +650,35 @@ export default function App() {
         {/* Right: Graph, Form, or Code output */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           {viewMode === "form" ? (
-            <FormView
-              models={models}
-              onModelChange={handleModelChange}
-              onAddNamespace={handleAddNamespace}
-              onRemoveNamespace={handleRemoveNamespace}
-            />
+            <ErrorBoundary label="Form View" resetKeys={[models]}>
+              <FormView
+                models={models}
+                onModelChange={handleModelChange}
+                onAddNamespace={handleAddNamespace}
+                onRemoveNamespace={handleRemoveNamespace}
+              />
+            </ErrorBoundary>
           ) : viewMode === "graph" ? (
-            <ConcertoGraphEditor
-              cto={source}
-              onModelChange={setSource}
-              showText={showCto}
-              onToggleText={() => setShowCto((v) => !v)}
-              onImport={handleImport}
-              onExport={handleExport}
-              focusRequest={focusRequest}
-            />
+            <ErrorBoundary label="Graph Canvas" resetKeys={[source]}>
+              <ConcertoGraphEditor
+                cto={source}
+                onModelChange={setSource}
+                showText={showCto}
+                onToggleText={() => setShowCto((v) => !v)}
+                onImport={handleImport}
+                onExport={handleExport}
+                focusRequest={focusRequest}
+                validationError={validationError}
+              />
+            </ErrorBoundary>
           ) : (
-            <OutputTabs
-              results={results}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
+            <ErrorBoundary label="Code Output" resetKeys={[results, activeTab]}>
+              <OutputTabs
+                results={results}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+            </ErrorBoundary>
           )}
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -23,7 +23,8 @@ import { FloatingEdge } from './FloatingEdge';
 import { GraphToolbar } from './GraphToolbar';
 import { NodeSearch } from './NodeSearch';
 import { useFocusNode } from './useFocusNode';
-import { parseCto, declarationsToGraph } from '../../utils/graph/ctoToGraph';
+import { parseCto, declarationsToGraph, describeParseError } from '../../utils/graph/ctoToGraph';
+import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel } from '../../utils/graph/types';
 
@@ -47,6 +48,8 @@ interface ConcertoGraphEditorProps {
   onExport: () => void;
   /** When this changes, the graph centers on and highlights the named node. */
   focusRequest?: { name: string; ts: number } | null;
+  /** Semantic validation error for the current model (from validateCto). */
+  validationError?: string | null;
 }
 
 interface HistoryEntry {
@@ -57,13 +60,31 @@ interface HistoryEntry {
 
 const MAX_HISTORY = 50;
 
-export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onExport, focusRequest }: ConcertoGraphEditorProps) {
+// Debounces an error value: shows it only after `delay` ms of stability, so
+// banners do not flash on every keystroke, and clears it immediately when it
+// becomes null.
+function useDebouncedError<T>(value: T | null, delay: number): T | null {
+  const [debounced, setDebounced] = useState<T | null>(null);
+  useEffect(() => {
+    if (value === null) {
+      setDebounced(null);
+      return;
+    }
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onExport, focusRequest, validationError }: ConcertoGraphEditorProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [model, setModelState] = useState<ConcertoModel>({ namespace: 'org.example@1.0.0', imports: [], declarations: [] });
   const modelRef = useRef(model);
   const setModel = useCallback((m: ConcertoModel) => { modelRef.current = m; setModelState(m); }, []);
+  const [rawParseError, setRawParseError] = useState<{ message: string; hint: string | null; snippet: string | null } | null>(null);
+  const parseError = useDebouncedError(rawParseError, 600);
   const [activeDialog, setActiveDialog] = useState<{ type: 'property' | 'enum-value' | 'inheritance'; declName: string } | null>(null);
   const [connectDialog, setConnectDialog] = useState<{ sourceId: string; targetId: string } | null>(null);
   const updatingFromGraph = useRef(false);
@@ -73,6 +94,20 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   const isUndoRedo = useRef(false);
 
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  // The semantic validation error shown in the overlay banner when the text
+  // parses but the model is invalid. The snippet points a caret at the
+  // culprit name, the same way parse errors point at their position.
+  const rawSemanticError = useMemo(() => {
+    if (!validationError) return null;
+    const culprit = locateCulprit(validationError, cto);
+    return {
+      message: validationError,
+      hint: findErrorHint(validationError, cto),
+      snippet: culprit ? buildSnippet(cto, culprit.line, culprit.column) : null,
+    };
+  }, [validationError, cto]);
+  const semanticError = useDebouncedError(rawSemanticError, 600);
 
   useEffect(() => {
     for (const node of nodes) {
@@ -109,8 +144,18 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         pushHistory({ model: parsed, nodes: nodesWithPositions, edges: graph.edges });
       }
       isUndoRedo.current = false;
-    } catch {
-      // Ignore parse errors while user is typing — keep last valid graph state
+      setRawParseError(null);
+    } catch (e) {
+      // Keep the last valid graph on screen while the user is typing, but
+      // report the parse error in an overlay banner instead of dropping it
+      // (debounced above so it does not flash while typing).
+      const message = describeParseError(e);
+      const position = parseErrorPosition(message);
+      setRawParseError({
+        message,
+        hint: findErrorHint(message, cto),
+        snippet: position ? buildSnippet(cto, position.line, position.column) : null,
+      });
     }
   }, [cto, setNodes, setEdges]);
 
@@ -127,6 +172,9 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     setNodes(nodesWithPositions);
     setEdges(graph.edges);
     pushHistory({ model: newModel, nodes: nodesWithPositions, edges: graph.edges });
+    // A graph edit regenerates the CTO from the last valid model, so any
+    // pending text parse error is now stale.
+    setRawParseError(null);
     updatingFromGraph.current = true;
     onModelChange?.(newCto);
   }, [setModel, setNodes, setEdges, onModelChange, pushHistory]);
@@ -205,6 +253,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     for (const node of entry.nodes) {
       nodePositionsRef.current.set(node.id, { ...node.position });
     }
+    setRawParseError(null);
     updatingFromGraph.current = true;
     onModelChange?.(declarationsToCto(entry.model));
   }, [history, historyIndex, setNodes, setEdges, onModelChange]);
@@ -221,6 +270,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     for (const node of entry.nodes) {
       nodePositionsRef.current.set(node.id, { ...node.position });
     }
+    setRawParseError(null);
     updatingFromGraph.current = true;
     onModelChange?.(declarationsToCto(entry.model));
   }, [history, historyIndex, setNodes, setEdges, onModelChange]);
@@ -254,6 +304,10 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
+
+  // Parse errors win over semantic ones: unparseable text cannot be
+  // semantically validated anyway, so the parse message is the actionable one.
+  const bannerError = parseError ?? semanticError;
 
   const onNodeDragStop = useCallback((_event: React.MouseEvent, _node: Node) => {
     const currentNodes = nodes.map((n) => {
@@ -337,6 +391,35 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
            <Controls />
           <Background variant={BackgroundVariant.Dots} color="#4a5568" gap={20} size={1} />
         </ReactFlow>
+
+        {bannerError && (
+          <div
+            role="alert"
+            className="absolute top-2 left-2 right-2 z-10 px-3.5 py-2.5 rounded-md border border-[#e53e3e] bg-[#742a2a]/55 backdrop-blur-[3px] text-[13px] leading-normal text-[#fed7d7] max-h-[45vh] overflow-hidden pointer-events-none"
+          >
+            <div className="font-semibold mb-0.5">
+              {parseError ? 'Schema parse error' : 'Schema error'}
+            </div>
+            {/* Lead with the friendly hint; the raw parser/validator message
+                stays on the left editor's squiggle. Fall back to the raw
+                message when no hint matches this error. */}
+            <div className="whitespace-pre-wrap [overflow-wrap:anywhere] pointer-events-auto select-text">
+              {bannerError.hint ?? stripPosition(bannerError.message)}
+            </div>
+            {/* Every banner points at its location the same way: a code
+                excerpt with a caret under the offending column. */}
+            {bannerError.snippet && (
+              <pre className="my-1.5 font-['Fira_Code','Cascadia_Code',Consolas,monospace] overflow-x-auto pointer-events-auto select-text">
+                {bannerError.snippet}
+              </pre>
+            )}
+            {parseError && (
+              <div className="mt-1 opacity-75">
+                Showing the last valid graph. Fix the text on the left to update it.
+              </div>
+            )}
+          </div>
+        )}
 
         <FocusController focusRequest={focusRequest} />
 
