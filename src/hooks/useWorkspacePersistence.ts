@@ -27,7 +27,7 @@ export function parseSnapshot(raw: string | null): WorkspaceSnapshot | null {
   }
   if (typeof parsed !== "object" || parsed === null) return null;
   const { models, savedAt } = parsed as { models?: unknown; savedAt?: unknown };
-  if (typeof savedAt !== "number") return null;
+  if (typeof savedAt !== "number" || !Number.isFinite(savedAt)) return null;
   if (typeof models !== "object" || models === null || Array.isArray(models)) return null;
   const sources = Object.values(models);
   if (sources.length === 0) return null;

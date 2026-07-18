@@ -33,6 +33,10 @@ describe("parseSnapshot", () => {
     expect(parseSnapshot(JSON.stringify({ ...VALID, savedAt: "yesterday" }))).toBeNull();
   });
 
+  it("returns null when savedAt is not finite", () => {
+    expect(parseSnapshot('{"models":{"org.example@1.0.0":"cto"},"savedAt":1e999}')).toBeNull();
+  });
+
   it("returns null when models is missing, not a record, or empty", () => {
     expect(parseSnapshot(JSON.stringify({ savedAt: 1 }))).toBeNull();
     expect(parseSnapshot(JSON.stringify({ savedAt: 1, models: [] }))).toBeNull();
