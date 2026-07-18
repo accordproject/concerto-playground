@@ -104,6 +104,9 @@ test.describe('Workspace persistence', () => {
 
     await expect(page.getByText('Restore previous session?')).not.toBeVisible();
     await expect(page.getByText('RestoredWidget')).toHaveCount(0);
+    await expect
+      .poll(() => page.evaluate((key) => window.localStorage.getItem(key), STORAGE_KEY))
+      .toBeNull();
   });
 
   test('does not offer restore when a shared link hash is present', async ({ page }) => {

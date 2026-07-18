@@ -8,7 +8,12 @@ import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
-import { areWorkspaceModelsEqual, loadWorkspaceSnapshot, useWorkspacePersistence } from "./hooks/useWorkspacePersistence";
+import {
+  areWorkspaceModelsEqual,
+  clearWorkspaceSnapshot,
+  loadWorkspaceSnapshot,
+  useWorkspacePersistence,
+} from "./hooks/useWorkspacePersistence";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
   generate,
@@ -98,6 +103,11 @@ export default function App() {
       setModels(_savedSnapshot.models);
       setActiveNamespace(Object.keys(_savedSnapshot.models)[0]);
     }
+    setShowRestore(false);
+  }
+
+  function handleDismissRestore() {
+    clearWorkspaceSnapshot();
     setShowRestore(false);
   }
 
@@ -366,7 +376,7 @@ export default function App() {
             Restore
           </button>
           <button
-            onClick={() => setShowRestore(false)}
+            onClick={handleDismissRestore}
             className="shrink-0 text-xs px-2.5 py-1 rounded"
             style={{ background: "transparent", color: "#90cdf4", border: "1px solid #2c5282", cursor: "pointer" }}
           >
