@@ -80,7 +80,7 @@ export default function App() {
   const [focusRequest, setFocusRequest] = useState<{ name: string; ts: number } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const lastSaved = useWorkspacePersistence(models);
+  const { lastSaved, saveError, dismissSaveError } = useWorkspacePersistence(models);
   // Offer to restore the previous session only when it would change something:
   // a shared link (URL hash) takes precedence over the cache, and a snapshot
   // identical to what already loaded has nothing to restore.
@@ -369,6 +369,20 @@ export default function App() {
             style={{ background: "transparent", color: "#90cdf4", border: "1px solid #2c5282", cursor: "pointer" }}
           >
             Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Storage failure banner */}
+      {saveError && (
+        <div role="alert" className="flex items-start gap-2 px-4 py-2 bg-amber-900 bg-opacity-60 border-b border-amber-700 text-xs text-amber-100 shrink-0">
+          <span className="flex-1">{saveError}</span>
+          <button
+            onClick={dismissSaveError}
+            className="shrink-0 text-amber-300 hover:text-white leading-none"
+            aria-label="Dismiss storage warning"
+          >
+            ×
           </button>
         </div>
       )}

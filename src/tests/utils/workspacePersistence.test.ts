@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { parseSnapshot } from "../../hooks/useWorkspacePersistence";
+// @vitest-environment jsdom
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { parseSnapshot, useWorkspacePersistence } from "../../hooks/useWorkspacePersistence";
 
 const VALID = {
   models: { "org.example@1.0.0": "namespace org.example@1.0.0" },
@@ -42,5 +44,31 @@ describe("parseSnapshot", () => {
     expect(
       parseSnapshot(JSON.stringify({ savedAt: 1, models: { "org.a@1.0.0": 5 } })),
     ).toBeNull();
+  });
+});
+
+describe("useWorkspacePersistence", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("warns and exposes a user-facing error when local storage rejects a save", () => {
+    vi.useFakeTimers();
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("Quota exceeded");
+    });
+
+    const { result } = renderHook(() => useWorkspacePersistence(VALID.models));
+    act(() => vi.advanceTimersByTime(500));
+
+    expect(warning).toHaveBeenCalledWith(
+      "Could not save workspace to local storage:",
+      expect.any(Error),
+    );
+    expect(result.current.saveError).toContain("could not be saved");
+    expect(result.current.lastSaved).toBeNull();
   });
 });

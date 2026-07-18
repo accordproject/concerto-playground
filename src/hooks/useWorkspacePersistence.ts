@@ -11,9 +11,12 @@ export interface WorkspaceSnapshot {
   savedAt: number;
 }
 
-// Pure so it can be unit-tested without a browser localStorage. Returns null
-// for anything that is not a well-formed snapshot (corrupt JSON, older or
-// foreign shapes, empty workspaces), so callers never have to re-validate.
+/**
+ * Parses a persisted workspace snapshot.
+ *
+ * Pure so it can be unit-tested without browser localStorage. Returns `null`
+ * for corrupt JSON, unsupported shapes, or empty workspaces.
+ */
 export function parseSnapshot(raw: string | null): WorkspaceSnapshot | null {
   if (!raw) return null;
   let parsed: unknown;
@@ -43,10 +46,17 @@ export function loadWorkspaceSnapshot(): WorkspaceSnapshot | null {
   }
 }
 
-// Persists the open models to localStorage, debounced. Returns the timestamp
-// of the last successful write, for the "Last saved" label.
-export function useWorkspacePersistence(models: Record<string, string>): number | null {
+interface WorkspacePersistenceState {
+  lastSaved: number | null;
+  saveError: string | null;
+  dismissSaveError: () => void;
+}
+
+// Persists the open models to localStorage, debounced. Reports the last
+// successful save and any storage failure so the UI can warn the user.
+export function useWorkspacePersistence(models: Record<string, string>): WorkspacePersistenceState {
   const [lastSaved, setLastSaved] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -54,12 +64,14 @@ export function useWorkspacePersistence(models: Record<string, string>): number 
         const snapshot: WorkspaceSnapshot = { models, savedAt: Date.now() };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
         setLastSaved(snapshot.savedAt);
-      } catch {
-        // Quota exceeded or storage denied: persistence is best-effort.
+        setSaveError(null);
+      } catch (error) {
+        console.warn("Could not save workspace to local storage:", error);
+        setSaveError("Changes could not be saved in this browser. Keep this tab open or copy your schema before closing it.");
       }
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [models]);
 
-  return lastSaved;
+  return { lastSaved, saveError, dismissSaveError: () => setSaveError(null) };
 }
