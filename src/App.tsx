@@ -7,12 +7,13 @@ import { ImportDialog } from "./components/ImportDialog";
 import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
-import { validateCto } from "./utils/graph/ctoToGraph";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
 import {
   DEFAULT_IMPORT_NAMESPACE,
   DEFAULT_ROOT_TYPE_NAME,
   extractNamespace,
-  inferCtoFromJsonText,
+  inferCtoFromImportText,
 } from "./utils/import/importInference";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
@@ -29,6 +30,9 @@ const EXAMPLES = [
   { label: "Service Agreement", source: SERVICE_EXAMPLE },
 ];
 
+// Pristine source by namespace for the built-in example buttons. Used to tell
+// untouched examples (swappable) apart from edited ones (kept open).
+const EXAMPLE_SOURCES = new Map(EXAMPLES.map((ex) => [extractNamespace(ex.source), ex.source]));
 // Evaluated once at module load — avoids parsing the URL hash twice for the
 // two separate useState initialisers that need models and activeNamespace.
 const _initialModels = (() => {
@@ -64,14 +68,44 @@ export default function App() {
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [focusRequest, setFocusRequest] = useState<{ name: string; ts: number } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The "active" source for single-model views (graph editor, CTO editor)
   const source = models[activeNamespace] ?? "";
 
+  // Single parse of the active model per keystroke; everything below that
+  // needs the AST derives from this memo instead of re-parsing.
+  const parsedModel = useMemo(() => {
+    try {
+      return parseCto(source);
+    } catch {
+      return null;
+    }
+  }, [source]);
+
+  // Declared type names in the active model — used to render clickable
+  // references in the CTO editor.
+  const declaredTypes = useMemo(
+    () => parsedModel?.declarations.map((d) => d.name) ?? [],
+    [parsedModel],
+  );
+
+  // Jump to a declaration's node in the graph (from a CTO reference click).
+  const handleFocusNode = useCallback((name: string) => {
+    setViewMode("graph");
+    setFocusRequest({ name, ts: Date.now() });
+  }, []);
+
   const validationError = useMemo(() => {
     const peers = Object.values(models).filter((s) => s && s !== source);
-    try { return validateCto(source, peers); } catch { return null; }
+    // validateCto reports problems as a return value; if it throws anyway,
+    // surface the message instead of silently pretending the model is valid.
+    try {
+      return validateCto(source, peers);
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
   }, [source, models]);
 
   const runGeneration = useCallback(async (sources: string[]) => {
@@ -163,10 +197,21 @@ export default function App() {
     }
   }
 
+  // Loading an example never destroys work: user namespaces and edited
+  // examples stay open as tabs, so they remain visible and included in
+  // share/export/codegen. Only untouched examples are swapped out. Closing
+  // an example's tab and clicking its button again reloads the pristine one.
   function handleLoadExample(src: string) {
-    const ns = extractNamespace(src);
-    setModels({ [ns]: src });
-    setActiveNamespace(ns);
+    const targetNs = extractNamespace(src);
+    setModels((prev) => {
+      const next: Record<string, string> = {};
+      for (const [ns, cto] of Object.entries(prev)) {
+        if (EXAMPLE_SOURCES.get(ns) !== cto) next[ns] = cto;
+      }
+      next[targetNs] = prev[targetNs] ?? src;
+      return next;
+    });
+    setActiveNamespace(targetNs);
     window.location.hash = "";
   }
 
@@ -177,80 +222,56 @@ export default function App() {
     }
   }
 
-  // Convert a Concerto metamodel AST (single Model or a { models: [...] }
-  // container) into one or more CTO source strings via the metamodel printer.
-  async function astToCtoSources(json: string): Promise<string[]> {
-    const { Printer } = await import("@accordproject/concerto-cto");
-    const { MetaModel } = await import("@accordproject/concerto-core");
-
-    const ast = JSON.parse(json); // SyntaxError for non-JSON
-
-    // Quick pre-check: the top-level object (or the first item in models[])
-    // must carry a concerto.metamodel $class. This catches common cases like
-    // JSON Schema or OpenAPI files being uploaded accidentally and gives a
-    // clearer message than the metamodel validator's property-level errors.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const topClass: unknown = (ast as any)?.["$class"] ?? (ast as any)?.models?.[0]?.["$class"];
-    if (typeof topClass !== "string" || !topClass.startsWith("concerto.metamodel@")) {
-      throw new Error(
-        "Not a Concerto metamodel file. Only JSON AST files (exported from the JSON AST tab) can be imported as .json.",
-      );
-    }
-
-    // Normalise to a Models container so validateMetaModel can check the
-    // full structure. A single Model object is wrapped; a container is used
-    // as-is.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const modelsAst: any = Array.isArray(ast?.models)
-      ? ast
-      : { $class: "concerto.metamodel@1.0.0.Models", models: [ast] };
-
-    // Full metamodel validation via Concerto's own validator.
-    // Requires proper $class identifiers and rejects unexpected properties.
-    MetaModel.validateMetaModel(modelsAst);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return modelsAst.models.map((m: any) => Printer.toCTO(m));
-  }
-
   async function handleImportFiles(files: FileList) {
-    const ctoSources: string[] = [];
+    const imported: Array<{ cto: string; replacesActive: boolean }> = [];
+    const errors: string[] = [];
     for (const file of Array.from(files)) {
-      const text = await file.text();
-      const isJson =
-        file.name.toLowerCase().endsWith(".json") ||
-        /^\s*[{[]/.test(text);
-      if (isJson) {
-        ctoSources.push(...(await astToCtoSources(text)));
-      } else {
-        ctoSources.push(text);
+      try {
+        const result = await inferCtoFromImportText(await file.text(), {
+          fallbackNamespace: activeNamespace,
+          defaultNamespace: DEFAULT_IMPORT_NAMESPACE,
+          rootTypeName: DEFAULT_ROOT_TYPE_NAME,
+        });
+        imported.push(...result.ctoSources.map((cto) => ({
+          cto,
+          replacesActive: result.kind === "json" || result.kind === "json-schema",
+        })));
+      } catch (error) {
+        errors.push(`${file.name}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
-    if (ctoSources.length === 0) {
-      return;
+    if (imported.length > 0) {
+      setModels((prev) => {
+        const next = { ...prev };
+        if (imported.some(({ replacesActive }) => replacesActive)) delete next[activeNamespace];
+        for (const { cto } of imported) next[extractNamespace(cto)] = cto;
+        return next;
+      });
+      setActiveNamespace(extractNamespace(imported[0].cto));
+      revealImportedCto();
     }
 
-    const additions: Record<string, string> = {};
-    for (const cto of ctoSources) {
-      additions[extractNamespace(cto)] = cto;
-    }
-
-    setModels((prev) => ({ ...prev, ...additions }));
-    setActiveNamespace(extractNamespace(ctoSources[0]));
-    revealImportedCto();
+    if (errors.length > 0) throw new Error(errors.join("\n"));
     setIsImportDialogOpen(false);
   }
 
-  async function handleImportJson(sourceText: string) {
-    const { cto } = await inferCtoFromJsonText(sourceText, {
+  async function handleImportText(sourceText: string) {
+    const result = await inferCtoFromImportText(sourceText, {
       fallbackNamespace: activeNamespace,
       defaultNamespace: DEFAULT_IMPORT_NAMESPACE,
       rootTypeName: DEFAULT_ROOT_TYPE_NAME,
     });
 
     revealImportedCto();
-    handleModelChange(activeNamespace, cto);
+    if (result.kind === "json" || result.kind === "json-schema") {
+      handleModelChange(activeNamespace, result.ctoSources[0]);
+    } else {
+      const additions: Record<string, string> = {};
+      for (const cto of result.ctoSources) additions[extractNamespace(cto)] = cto;
+      setModels((prev) => ({ ...prev, ...additions }));
+      setActiveNamespace(extractNamespace(result.ctoSources[0]));
+    }
     setIsImportDialogOpen(false);
   }
 
@@ -292,7 +313,7 @@ export default function App() {
         isOpen={isImportDialogOpen}
         onClose={() => setIsImportDialogOpen(false)}
         onImportFiles={handleImportFiles}
-        onImportJson={handleImportJson}
+        onImportText={handleImportText}
       />
 
       {/* Toolbar */}
@@ -508,7 +529,9 @@ export default function App() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <Editor value={source} onChange={setSource} language="concerto" error={validationError} />
+              <ErrorBoundary label="Text Editor" resetKeys={[source]}>
+                <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={declaredTypes} onNavigate={handleFocusNode} />
+              </ErrorBoundary>
             </div>
           </div>
         )}
@@ -516,27 +539,35 @@ export default function App() {
         {/* Right: Graph, Form, or Code output */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           {viewMode === "form" ? (
-            <FormView
-              models={models}
-              onModelChange={handleModelChange}
-              onAddNamespace={handleAddNamespace}
-              onRemoveNamespace={handleRemoveNamespace}
-            />
+            <ErrorBoundary label="Form View" resetKeys={[models]}>
+              <FormView
+                models={models}
+                onModelChange={handleModelChange}
+                onAddNamespace={handleAddNamespace}
+                onRemoveNamespace={handleRemoveNamespace}
+              />
+            </ErrorBoundary>
           ) : viewMode === "graph" ? (
-            <ConcertoGraphEditor
-              cto={source}
-              onModelChange={setSource}
-              showText={showCto}
-              onToggleText={() => setShowCto((v) => !v)}
-              onImport={() => setIsImportDialogOpen(true)}
-              onExport={handleExport}
-            />
+            <ErrorBoundary label="Graph Canvas" resetKeys={[source]}>
+              <ConcertoGraphEditor
+                cto={source}
+                onModelChange={setSource}
+                showText={showCto}
+                onToggleText={() => setShowCto((v) => !v)}
+                onImport={() => setIsImportDialogOpen(true)}
+                onExport={handleExport}
+                focusRequest={focusRequest}
+                validationError={validationError}
+              />
+            </ErrorBoundary>
           ) : (
-            <OutputTabs
-              results={results}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
+            <ErrorBoundary label="Code Output" resetKeys={[results, activeTab]}>
+              <OutputTabs
+                results={results}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+            </ErrorBoundary>
           )}
         </div>
       </div>

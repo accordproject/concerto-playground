@@ -1,12 +1,10 @@
-import { useEffect, useState } from "react";
-
-type ImportMode = "files" | "json";
+import { useEffect, useRef, useState } from "react";
 
 interface ImportDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onImportFiles: (files: FileList) => Promise<void>;
-  onImportJson: (source: string) => Promise<void>;
+  onImportText: (source: string) => Promise<void>;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -17,17 +15,16 @@ export function ImportDialog({
   isOpen,
   onClose,
   onImportFiles,
-  onImportJson,
+  onImportText,
 }: ImportDialogProps) {
-  const [mode, setMode] = useState<ImportMode>("files");
-  const [jsonSource, setJsonSource] = useState("");
+  const [source, setSource] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
-      setMode("files");
-      setJsonSource("");
+      setSource("");
       setError(null);
       setIsSubmitting(false);
     }
@@ -55,32 +52,11 @@ export function ImportDialog({
     }
   }
 
-  async function handleJsonFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    setError(null);
-    try {
-      setJsonSource(await file.text());
-    } catch (readError) {
-      setError(getErrorMessage(readError));
-    } finally {
-      event.target.value = "";
-    }
-  }
-
-  async function handleJsonImport() {
-    if (!jsonSource.trim()) {
-      setError("Paste or load a JSON Schema or JSON sample first.");
-      return;
-    }
-
+  async function handleTextImport() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await onImportJson(jsonSource);
+      await onImportText(source);
     } catch (importError) {
       setError(getErrorMessage(importError));
     } finally {
@@ -101,7 +77,7 @@ export function ImportDialog({
           <div>
             <h2 id="import-model-title" style={titleStyle}>Import Model</h2>
             <p style={subtitleStyle}>
-              Load existing `.cto` or JSON AST files, or infer CTO from JSON Schema and JSON samples.
+              Paste or choose CTO, Concerto JSON AST, JSON Schema, or a JSON sample.
             </p>
           </div>
           <button onClick={onClose} style={closeButtonStyle} aria-label="Close import dialog">
@@ -109,77 +85,40 @@ export function ImportDialog({
           </button>
         </div>
 
-        <div style={tabListStyle}>
-          <button
-            onClick={() => setMode("files")}
-            style={{
-              ...tabButtonStyle,
-              background: mode === "files" ? "#3182ce" : "#2d3748",
-            }}
-          >
-            CTO / AST Files
-          </button>
-          <button
-            onClick={() => setMode("json")}
-            style={{
-              ...tabButtonStyle,
-              background: mode === "json" ? "#3182ce" : "#2d3748",
-            }}
-          >
-            JSON / JSON Schema
-          </button>
-        </div>
-
-        {mode === "files" ? (
-          <div style={panelStyle}>
-            <p style={bodyTextStyle}>
-              Import one or more `.cto` files or Concerto JSON AST `.json` files into the current session.
-            </p>
-            <label style={fileFieldStyle}>
-              <span style={fieldLabelStyle}>Choose `.cto` or JSON AST files</span>
-              <input
-                type="file"
-                accept=".cto,.json"
-                multiple
-                onChange={handleFileChange}
-                disabled={isSubmitting}
-                data-testid="model-file-input"
-              />
-            </label>
-          </div>
-        ) : (
-          <div style={panelStyle}>
-            <p style={bodyTextStyle}>
-              Paste a JSON Schema document or a representative JSON object or array, then import the inferred CTO.
-            </p>
-            <label style={fileFieldStyle}>
-              <span style={fieldLabelStyle}>Load JSON from file</span>
-              <input
-                type="file"
-                accept=".json,.schema.json,application/json"
-                onChange={handleJsonFileChange}
-                disabled={isSubmitting}
-                data-testid="json-file-input"
-              />
-            </label>
-            <label htmlFor="json-import-source" style={fieldLabelStyle}>
-              JSON input
-            </label>
-            <textarea
-              id="json-import-source"
-              value={jsonSource}
-              onChange={(event) => setJsonSource(event.target.value)}
-              placeholder='{"firstName":"Alice"}'
-              spellCheck={false}
-              style={textAreaStyle}
+        <div style={panelStyle}>
+          <label htmlFor="import-source" style={fieldLabelStyle}>Model input</label>
+          <textarea
+            id="import-source"
+            value={source}
+            onChange={(event) => setSource(event.target.value)}
+            placeholder={'namespace org.example@1.0.0\n\nconcept Example {\n  o String name\n}'}
+            spellCheck={false}
+            style={textAreaStyle}
+          />
+          <div style={footerStyle}>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{ ...buttonStyle, background: "#4a5568" }}
+              disabled={isSubmitting}
+            >
+              Choose files
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".cto,.json,application/json"
+              multiple
+              onChange={handleFileChange}
+              disabled={isSubmitting}
+              data-testid="model-file-input"
+              style={hiddenFileInputStyle}
             />
-            <div style={footerStyle}>
-              <button onClick={handleJsonImport} style={primaryButtonStyle} disabled={isSubmitting}>
-                Import JSON
-              </button>
-            </div>
+            <button type="button" onClick={handleTextImport} style={buttonStyle} disabled={isSubmitting}>
+              Import
+            </button>
           </div>
-        )}
+        </div>
 
         {error && (
           <div role="alert" style={errorStyle}>
@@ -241,40 +180,8 @@ const closeButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const tabListStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  padding: "14px 22px 0",
-};
-
-const tabButtonStyle: React.CSSProperties = {
-  border: "none",
-  color: "#e2e8f0",
-  borderRadius: 999,
-  padding: "8px 14px",
-  fontSize: 12,
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
 const panelStyle: React.CSSProperties = {
   padding: 22,
-};
-
-const bodyTextStyle: React.CSSProperties = {
-  margin: "0 0 16px",
-  color: "#a0aec0",
-  fontSize: 13,
-  lineHeight: 1.6,
-};
-
-const fileFieldStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-  marginBottom: 16,
-  color: "#e2e8f0",
-  fontSize: 13,
 };
 
 const fieldLabelStyle: React.CSSProperties = {
@@ -302,10 +209,11 @@ const textAreaStyle: React.CSSProperties = {
 const footerStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "flex-end",
+  gap: 8,
   marginTop: 14,
 };
 
-const primaryButtonStyle: React.CSSProperties = {
+const buttonStyle: React.CSSProperties = {
   background: "#3182ce",
   color: "#e2e8f0",
   border: "none",
@@ -314,6 +222,10 @@ const primaryButtonStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
   cursor: "pointer",
+};
+
+const hiddenFileInputStyle: React.CSSProperties = {
+  display: "none",
 };
 
 const errorStyle: React.CSSProperties = {

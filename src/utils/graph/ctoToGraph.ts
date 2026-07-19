@@ -16,6 +16,71 @@ export function parseCto(cto: string): ConcertoModel {
   return { namespace, imports, declarations };
 }
 
+/**
+ * Finds where a type name is referenced in the source using the real parser's
+ * AST (with source locations), rather than a text search. Used to point error
+ * banners and markers at the culprit of a semantic error. Because the name and
+ * position come from the official parser, this handles Unicode and `$`
+ * identifiers correctly (a hand-rolled regex truncated "CharlesⅢ" to "Charles"
+ * and could not match "$foo"). Returns the 1-based line/column, or null if the
+ * source does not parse or the name is not referenced.
+ */
+export function locateTypeReference(
+  source: string,
+  name: string,
+): { line: number; column: number } | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let ast: any;
+  try {
+    ast = ParserModule.parse(source, undefined, { skipLocationNodes: false });
+  } catch {
+    return null;
+  }
+  const sourceLines = source.split(/\r?\n/);
+  // The parser locates a property at its "o"/"-->" marker; refine the column to
+  // the name itself with a literal search (indexOf, so it is Unicode/$-safe).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const at = (loc: any) => {
+    if (!loc) return null;
+    const line: number = loc.start.line;
+    const idx = (sourceLines[line - 1] ?? '').indexOf(name);
+    return { line, column: idx >= 0 ? idx + 1 : loc.start.column };
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const decls: any[] = ast.declarations || [];
+
+  // Duplicate declaration name: point at the second (offending) occurrence.
+  const sameName = decls.filter((d) => d.name === name);
+  if (sameName.length > 1) return at(sameName[1].location);
+
+  for (const d of decls) {
+    if (d.superType && d.superType.name === name) return at(d.location);
+    for (const p of d.properties || []) {
+      if (p.type && p.type.name === name) return at(p.location);
+    }
+    if (d.key && d.key.name === name) return at(d.location);
+    if (d.value && d.value.name === name) return at(d.location);
+  }
+  return null;
+}
+
+// Formats an error thrown by the Concerto parser for display. Concerto's
+// ParseException carries structured fields (shortMessage, fileLocation), so
+// prefer those over the free-form message text; fall back to the message for
+// non-Concerto errors.
+export function describeParseError(e: unknown): string {
+  const err = e as {
+    shortMessage?: string;
+    fileLocation?: { start?: { line?: number; column?: number } };
+  };
+  const start = err.fileLocation?.start;
+  if (err.shortMessage && start?.line != null) {
+    return `${err.shortMessage} Line ${start.line} column ${start.column}`;
+  }
+  return e instanceof Error ? e.message : String(e);
+}
+
 export function validateCto(cto: string, peers: string[] = []): string | null {
   try {
     const mm = new ModelManager();
@@ -24,7 +89,10 @@ export function validateCto(cto: string, peers: string[] = []): string | null {
     mm.addCTOModel(cto, 'model.cto');
     return null;
   } catch (e: any) {
-    return e.message || 'Validation failed';
+    const message: string = e.message || 'Validation failed';
+    // 'model.cto' is the internal name this function gives the model above;
+    // it means nothing to the user, so drop that fragment from the message.
+    return message.replace(/\s*File '?model\.cto'?:?\s*/g, ' ').trim();
   }
 }
 

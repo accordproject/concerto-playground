@@ -1,4 +1,5 @@
 import { CodeGen } from "@accordproject/concerto-codegen";
+import { MetaModel } from "@accordproject/concerto-core";
 import { Printer } from "@accordproject/concerto-cto";
 
 const META_MODEL_NAMESPACE = "concerto.metamodel@1.0.0";
@@ -6,42 +7,53 @@ const META_MODEL_NAMESPACE = "concerto.metamodel@1.0.0";
 export const DEFAULT_IMPORT_NAMESPACE = "org.example.imported@1.0.0";
 export const DEFAULT_ROOT_TYPE_NAME = "Root";
 
-export type ImportInputKind = "json" | "json-schema";
+export type ImportInputKind = "cto" | "concerto-json" | "json-schema" | "json";
 
-export interface InferCtoFromJsonOptions {
+export interface InferCtoFromImportOptions {
   fallbackNamespace?: string;
   defaultNamespace?: string;
   rootTypeName?: string;
 }
 
-export interface InferCtoFromJsonResult {
+export interface InferCtoFromImportResult {
   kind: ImportInputKind;
-  cto: string;
-  namespace: string;
+  ctoSources: string[];
 }
 
 type JsonRecord = Record<string, unknown>;
+type ConcertoModel = JsonRecord & { $class: string; namespace: string };
 
-export function extractNamespace(cto: string): string {
+function isJsonRecord(input: unknown): input is JsonRecord {
+  return Boolean(input) && typeof input === "object" && !Array.isArray(input);
+}
+
+function namespaceMatch(cto: string): RegExpMatchArray | null {
   const stripped = cto
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/\/\/.*/g, "");
-  const match = stripped.match(/^\s*namespace\s+(\S+)/m);
+  return stripped.match(/^\s*namespace\s+(\S+)/m);
+}
+
+export function extractNamespace(cto: string): string {
+  const match = namespaceMatch(cto);
   return match ? match[1] : "org.example.unknown@1.0.0";
 }
 
-export function isLikelyJsonSchema(input: unknown): input is JsonRecord {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return false;
-  }
+export function isLikelyConcertoJson(input: unknown): input is JsonRecord {
+  if (!isJsonRecord(input)) return false;
+  const firstModel = Array.isArray(input.models) ? input.models[0] : undefined;
+  const topClass = input.$class ?? (isJsonRecord(firstModel) ? firstModel.$class : undefined);
+  return typeof topClass === "string" && topClass.startsWith("concerto.metamodel@");
+}
 
-  const record = input as JsonRecord;
+export function isLikelyJsonSchema(input: unknown): input is JsonRecord {
+  if (!isJsonRecord(input)) return false;
   return (
-    typeof record.$schema === "string" ||
-    typeof record.$id === "string" ||
-    typeof record.properties === "object" ||
-    typeof record.definitions === "object" ||
-    typeof record.$defs === "object"
+    typeof input.$schema === "string" ||
+    typeof input.$id === "string" ||
+    typeof input.properties === "object" ||
+    typeof input.definitions === "object" ||
+    typeof input.$defs === "object"
   );
 }
 
@@ -56,7 +68,7 @@ function inferNamespaceFromSchemaId(schemaId: unknown): string | null {
     const pathParts = url.pathname.split("/");
     pathParts.pop();
     namespace += pathParts.length > 0 ? pathParts.join(".") : "";
-    return namespace || null;
+    return namespace ? `${namespace}@1.0.0` : null;
   } catch {
     return null;
   }
@@ -64,7 +76,7 @@ function inferNamespaceFromSchemaId(schemaId: unknown): string | null {
 
 function getSchemaNamespace(
   schema: JsonRecord,
-  options: InferCtoFromJsonOptions,
+  options: InferCtoFromImportOptions,
 ): string {
   return (
     inferNamespaceFromSchemaId(schema.$id) ??
@@ -78,15 +90,38 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export async function inferCtoFromJsonText(
+export async function inferCtoFromImportText(
   source: string,
-  options: InferCtoFromJsonOptions = {},
-): Promise<InferCtoFromJsonResult> {
+  options: InferCtoFromImportOptions = {},
+): Promise<InferCtoFromImportResult> {
+  if (!source.trim()) {
+    throw new Error("Paste CTO, Concerto JSON, JSON Schema, or a JSON sample first.");
+  }
+
+  if (namespaceMatch(source)) {
+    return { kind: "cto", ctoSources: [source] };
+  }
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(source);
   } catch (error) {
-    throw new Error(`Invalid JSON: ${getErrorMessage(error)}`);
+    throw new Error(`Invalid JSON or CTO: ${getErrorMessage(error)}`);
+  }
+
+  if (isLikelyConcertoJson(parsed)) {
+    try {
+      const modelsAst = Array.isArray(parsed.models)
+        ? parsed
+        : { $class: `${META_MODEL_NAMESPACE}.Models`, models: [parsed] };
+      MetaModel.validateMetaModel(modelsAst);
+      return {
+        kind: "concerto-json",
+        ctoSources: (modelsAst.models as ConcertoModel[]).map((model) => Printer.toCTO(model)),
+      };
+    } catch (error) {
+      throw new Error(`Unable to import Concerto JSON: ${getErrorMessage(error)}`);
+    }
   }
 
   if (isLikelyJsonSchema(parsed)) {
@@ -97,11 +132,9 @@ export async function inferCtoFromJsonText(
         metaModelNamespace: META_MODEL_NAMESPACE,
         namespace,
       });
-      const cto = Printer.toCTO(concertoJson.models[0]);
       return {
         kind: "json-schema",
-        cto,
-        namespace,
+        ctoSources: [Printer.toCTO(concertoJson.models[0])],
       };
     } catch (error) {
       throw new Error(`Unable to infer Concerto model from JSON Schema: ${getErrorMessage(error)}`);
@@ -124,8 +157,7 @@ export async function inferCtoFromJsonText(
     const inferModel = inferModelModule.default;
     return {
       kind: "json",
-      cto: inferModel(namespace, rootTypeName, parsed),
-      namespace,
+      ctoSources: [inferModel(namespace, rootTypeName, parsed)],
     };
   } catch (error) {
     throw new Error(`Unable to infer Concerto model from JSON sample: ${getErrorMessage(error)}`);
