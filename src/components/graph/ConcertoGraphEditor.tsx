@@ -12,6 +12,7 @@ import {
   type Connection,
   type Node,
   type Edge,
+  type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -319,7 +320,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   // semantically validated anyway, so the parse message is the actionable one.
   const bannerError = parseError ?? semanticError;
 
-  const onNodeDragStop = useCallback((_event: MouseEvent | TouchEvent, _node: Node) => {
+  const onNodeDragStop: OnNodeDrag<Node> = useCallback((_event, _node) => {
     const currentNodes = nodes.map((n) => {
       const pos = nodePositionsRef.current.get(n.id);
       return pos ? { ...n, position: pos } : n;
