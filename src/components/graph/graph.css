@@ -1,0 +1,402 @@
+/* Styles for the graph view components (ConceptNode, EnumNode, NodeSearch).
+   Node colors that depend on the declaration type are passed in as the
+   --accent and --bg custom properties from the component. */
+
+/* Shared node shell */
+
+.graph-node {
+  background: #1e2533;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.graph-node-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.graph-node-kind {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.graph-node-delete-btn {
+  background: none;
+  border: none;
+  color: #ffffff55;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+}
+
+.graph-node-row-delete {
+  background: none;
+  border: none;
+  color: #ffffff22;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  line-height: 1;
+}
+
+.graph-node-summary {
+  padding: 11px 14px;
+  font-size: 12px;
+  color: #8a97ad;
+}
+
+.graph-node-body {
+  padding: 6px 6px 8px;
+}
+
+.react-flow__handle.graph-node-handle {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #1e2533;
+}
+
+.react-flow__handle.graph-node-row-handle {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Concept node (also asset, participant, event, transaction) */
+
+.concept-node {
+  border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  min-width: 250px;
+}
+
+.concept-node.selected {
+  border-color: #fff;
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 27%, transparent),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.concept-node-header {
+  padding: 12px 14px 10px;
+  background: linear-gradient(
+    135deg,
+    var(--bg),
+    color-mix(in srgb, var(--bg) 80%, transparent)
+  );
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.concept-node-kind-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.concept-node-kind {
+  color: var(--accent);
+}
+
+.concept-node-abstract-badge,
+.concept-node-concrete-badge {
+  font-size: 8px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+
+.concept-node-abstract-badge {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.concept-node-concrete-badge {
+  background: transparent;
+  color: #ffffff44;
+  border: 1px solid #ffffff22;
+}
+
+.concept-node-decorators {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.concept-node-decorator {
+  font-size: 8px;
+  color: #fbb6ce;
+  background: #ed64a622;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.concept-node-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  margin-top: 4px;
+}
+
+.concept-node-identified {
+  font-size: 10px;
+  color: #68d391;
+  margin-top: 2px;
+}
+
+.concept-node-extends {
+  font-size: 11px;
+  color: #d6bcfa;
+  margin-top: 4px;
+}
+
+.concept-node-prop {
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  margin: 2px 0;
+  background: #161b27;
+  border-radius: 6px;
+  gap: 8px;
+  font-size: 12px;
+  position: relative;
+}
+
+.concept-node-rel-arrow {
+  color: #fc8181;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.concept-node-prop-type {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.concept-node-prop-name {
+  color: #e2e8f0;
+  flex: 1;
+}
+
+.concept-node-prop-validator {
+  color: #a0aec0;
+  font-size: 8px;
+  font-family: monospace;
+}
+
+.concept-node-prop-opt {
+  color: #fbd38d;
+  font-size: 9px;
+  font-weight: 700;
+  background: #fbd38d22;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.concept-node-empty {
+  font-size: 11px;
+  color: #ffffff33;
+  padding: 8px;
+  text-align: center;
+  font-style: italic;
+}
+
+.concept-node-add-btn {
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--accent) 27%, transparent);
+  color: color-mix(in srgb, var(--accent) 67%, transparent);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 0;
+  margin-top: 4px;
+  border-radius: 6px;
+  width: 100%;
+  text-align: center;
+}
+
+/* Enum node */
+
+.enum-node {
+  border: 2px solid #d69e2e66;
+  min-width: 200px;
+}
+
+.enum-node.selected {
+  border-color: #fff;
+  box-shadow: 0 0 20px #d69e2e44, 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.enum-node-header {
+  padding: 12px 14px 10px;
+  background: linear-gradient(135deg, #744210, #744210cc);
+  border-bottom: 1px solid #d69e2e33;
+}
+
+.enum-node-kind {
+  color: #ecc94b;
+}
+
+.enum-node-name {
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 4px;
+  color: #fefcbf;
+}
+
+.enum-node-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  margin: 2px 0;
+  background: #161b27;
+  border-radius: 6px;
+}
+
+.enum-node-value-label {
+  color: #fbd38d;
+  font-size: 12px;
+}
+
+.enum-node-add-btn {
+  background: transparent;
+  border: 1px dashed #d69e2e44;
+  color: #d69e2eaa;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 0;
+  margin-top: 4px;
+  border-radius: 6px;
+  width: 100%;
+  text-align: center;
+}
+
+.react-flow__handle.enum-node-handle {
+  background: #ecc94b;
+}
+
+/* Node search palette */
+
+.node-search-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+}
+
+.node-search-panel {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 440px;
+  max-width: calc(100% - 32px);
+  background: #0e1730;
+  border: 1px solid #2a3a5c;
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  z-index: 20;
+}
+
+.node-search-input-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 16px;
+  border-bottom: 1px solid #1c2742;
+}
+
+.node-search-icon {
+  color: #38b2ac;
+  font-size: 16px;
+}
+
+.node-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  background: transparent;
+  color: #e6ebf2;
+}
+
+.node-search-kbd {
+  font-size: 10.5px;
+  color: #6b7790;
+  border: 1px solid #2a3a5c;
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+.node-search-results {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.node-search-result {
+  padding: 10px 16px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-bottom: 1px solid #141d31;
+  background: transparent;
+}
+
+.node-search-result.active {
+  background: #13203c;
+}
+
+.node-search-result-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.node-search-kind-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  color: #04141f;
+  padding: 2px 7px;
+  border-radius: 5px;
+  text-transform: uppercase;
+}
+
+.node-search-result-name {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: #e6ebf2;
+}
+
+.node-search-prop-line {
+  font-size: 11.5px;
+  color: #7e8ca6;
+  font-family: 'JetBrains Mono', monospace;
+  padding-left: 2px;
+}
+
+.node-search-no-matches {
+  padding: 22px;
+  text-align: center;
+  color: #6b7790;
+  font-size: 13px;
+}
+
+.node-search-hint {
+  padding: 15px 17px;
+  color: #7e8ca6;
+  font-size: 12.5px;
+  line-height: 1.7;
+}

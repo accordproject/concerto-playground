@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { declarationsToCto } from "../../utils/graph/graphToCto";
-import { computeAutoLayoutPositions, declarationsToGraph, getDeclarationPosition, parseCto, validateCto, withDeclarationPositions } from "../../utils/graph/ctoToGraph";
+import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, getDeclarationPosition, parseCto, validateCto, withDeclarationPositions } from "../../utils/graph/ctoToGraph";
 import { estimateNodeHeight, getNodeWidth } from "../../utils/graph/nodeLayout";
 import { routeGraphEdges } from "../../utils/graph/routeGraphEdges";
 import type { Declaration } from "../../utils/graph/types";
@@ -606,5 +606,26 @@ concept Person {
     const roundTrip = parseCto(declarationsToCto({ ...model, declarations: updated }));
     expect(getDeclarationPosition(roundTrip.declarations[0])).toEqual({ x: 120, y: 340 });
     expect(roundTrip.declarations[0].decorators.find((decorator) => decorator.name === "Audited")).toBeDefined();
+  });
+});
+
+describe("describeParseError", () => {
+  it("uses the ParseException's structured location fields", () => {
+    let message = "";
+    try {
+      parseCto("namespace org.test@1.0.0\nconcept {\n}");
+    } catch (e) {
+      message = describeParseError(e);
+    }
+    expect(message).toMatch(/Line 2 column 9/);
+    expect(message).toContain('"{" found');
+  });
+
+  it("falls back to the message for plain errors", () => {
+    expect(describeParseError(new Error("boom"))).toBe("boom");
+  });
+
+  it("stringifies non-Error values", () => {
+    expect(describeParseError("oops")).toBe("oops");
   });
 });

@@ -6,7 +6,8 @@ import { Editor } from "./components/Editor";
 import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
-import { validateCto } from "./utils/graph/ctoToGraph";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
@@ -31,6 +32,10 @@ function extractNamespace(cto: string): string {
   const m = stripped.match(/^\s*namespace\s+(\S+)/m);
   return m ? m[1] : `org.example.unknown@1.0.0`;
 }
+
+// Pristine source by namespace for the built-in example buttons. Used to tell
+// untouched examples (swappable) apart from edited ones (kept open).
+const EXAMPLE_SOURCES = new Map(EXAMPLES.map((ex) => [extractNamespace(ex.source), ex.source]));
 
 // Evaluated once at module load — avoids parsing the URL hash twice for the
 // two separate useState initialisers that need models and activeNamespace.
@@ -82,14 +87,44 @@ export default function App() {
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
   const [importError, setImportError] = useState<string | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ name: string; ts: number } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The "active" source for single-model views (graph editor, CTO editor)
   const source = models[activeNamespace] ?? "";
 
+  // Single parse of the active model per keystroke; everything below that
+  // needs the AST derives from this memo instead of re-parsing.
+  const parsedModel = useMemo(() => {
+    try {
+      return parseCto(source);
+    } catch {
+      return null;
+    }
+  }, [source]);
+
+  // Declared type names in the active model — used to render clickable
+  // references in the CTO editor.
+  const declaredTypes = useMemo(
+    () => parsedModel?.declarations.map((d) => d.name) ?? [],
+    [parsedModel],
+  );
+
+  // Jump to a declaration's node in the graph (from a CTO reference click).
+  const handleFocusNode = useCallback((name: string) => {
+    setViewMode("graph");
+    setFocusRequest({ name, ts: Date.now() });
+  }, []);
+
   const validationError = useMemo(() => {
     const peers = Object.values(models).filter((s) => s && s !== source);
-    try { return validateCto(source, peers); } catch { return null; }
+    // validateCto reports problems as a return value; if it throws anyway,
+    // surface the message instead of silently pretending the model is valid.
+    try {
+      return validateCto(source, peers);
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
   }, [source, models]);
 
   const runGeneration = useCallback(async (sources: string[]) => {
@@ -183,10 +218,22 @@ export default function App() {
     }
   }
 
+  // Loading an example never destroys work: user namespaces and edited
+  // examples stay open as tabs, so they remain visible and included in
+  // share/export/codegen. Only untouched examples are swapped out. Closing
+  // an example's tab and clicking its button again reloads the pristine one.
   function handleLoadExample(src: string) {
-    const ns = extractNamespace(src);
-    setModels({ [ns]: src });
-    setActiveNamespace(ns);
+    const targetNs = extractNamespace(src);
+    setModels((prev) => {
+      const next: Record<string, string> = {};
+      for (const [ns, cto] of Object.entries(prev)) {
+        if (EXAMPLE_SOURCES.get(ns) !== cto) next[ns] = cto;
+      }
+      next[targetNs] = prev[targetNs] ?? src;
+      return next;
+    });
+    setActiveNamespace(targetNs);
+    replaceLocationHash("");
   }
 
   // Convert a Concerto metamodel AST (single Model or a { models: [...] }
@@ -535,7 +582,9 @@ export default function App() {
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <Editor value={source} onChange={setSource} language="concerto" error={validationError} />
+              <ErrorBoundary label="Text Editor" resetKeys={[source]}>
+                <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={declaredTypes} onNavigate={handleFocusNode} />
+              </ErrorBoundary>
             </div>
           </div>
         )}
@@ -543,27 +592,35 @@ export default function App() {
         {/* Right: Graph, Form, or Code output */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           {viewMode === "form" ? (
-            <FormView
-              models={models}
-              onModelChange={handleModelChange}
-              onAddNamespace={handleAddNamespace}
-              onRemoveNamespace={handleRemoveNamespace}
-            />
+            <ErrorBoundary label="Form View" resetKeys={[models]}>
+              <FormView
+                models={models}
+                onModelChange={handleModelChange}
+                onAddNamespace={handleAddNamespace}
+                onRemoveNamespace={handleRemoveNamespace}
+              />
+            </ErrorBoundary>
           ) : viewMode === "graph" ? (
-            <ConcertoGraphEditor
-              cto={source}
-              onModelChange={setSource}
-              showText={showCto}
-              onToggleText={() => setShowCto((v) => !v)}
-              onImport={handleImport}
-              onExport={handleExport}
-            />
+            <ErrorBoundary label="Graph Canvas" resetKeys={[source]}>
+              <ConcertoGraphEditor
+                cto={source}
+                onModelChange={setSource}
+                showText={showCto}
+                onToggleText={() => setShowCto((v) => !v)}
+                onImport={handleImport}
+                onExport={handleExport}
+                focusRequest={focusRequest}
+                validationError={validationError}
+              />
+            </ErrorBoundary>
           ) : (
-            <OutputTabs
-              results={results}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
+            <ErrorBoundary label="Code Output" resetKeys={[results, activeTab]}>
+              <OutputTabs
+                results={results}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+            </ErrorBoundary>
           )}
         </div>
       </div>

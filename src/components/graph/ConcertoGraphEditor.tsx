@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   useNodesState,
   useEdgesState,
@@ -20,7 +21,10 @@ import { MapNode } from './MapNode';
 import { ScalarNode } from './ScalarNode';
 import { FloatingEdge } from './FloatingEdge';
 import { GraphToolbar } from './GraphToolbar';
-import { computeAutoLayoutPositions, declarationsToGraph, parseCto, withDeclarationPositions } from '../../utils/graph/ctoToGraph';
+import { NodeSearch } from './NodeSearch';
+import { useFocusNode } from './useFocusNode';
+import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, parseCto, withDeclarationPositions } from '../../utils/graph/ctoToGraph';
+import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel } from '../../utils/graph/types';
 import { routeGraphEdges } from '../../utils/graph/routeGraphEdges';
@@ -43,6 +47,10 @@ interface ConcertoGraphEditorProps {
   onToggleText: () => void;
   onImport: () => void;
   onExport: () => void;
+  /** When this changes, the graph centers on and highlights the named node. */
+  focusRequest?: { name: string; ts: number } | null;
+  /** Semantic validation error for the current model (from validateCto). */
+  validationError?: string | null;
 }
 
 interface HistoryEntry {
@@ -53,12 +61,31 @@ interface HistoryEntry {
 
 const MAX_HISTORY = 50;
 
-export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onExport }: ConcertoGraphEditorProps) {
+// Debounces an error value: shows it only after `delay` ms of stability, so
+// banners do not flash on every keystroke, and clears it immediately when it
+// becomes null.
+function useDebouncedError<T>(value: T | null, delay: number): T | null {
+  const [debounced, setDebounced] = useState<T | null>(null);
+  useEffect(() => {
+    if (value === null) {
+      setDebounced(null);
+      return;
+    }
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onExport, focusRequest, validationError }: ConcertoGraphEditorProps) {
+  const [searchOpen, setSearchOpen] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [model, setModelState] = useState<ConcertoModel>({ namespace: 'org.example@1.0.0', imports: [], declarations: [] });
   const modelRef = useRef(model);
   const setModel = useCallback((m: ConcertoModel) => { modelRef.current = m; setModelState(m); }, []);
+  const [rawParseError, setRawParseError] = useState<{ message: string; hint: string | null; snippet: string | null } | null>(null);
+  const parseError = useDebouncedError(rawParseError, 600);
   const [activeDialog, setActiveDialog] = useState<{ type: 'property' | 'enum-value' | 'inheritance'; declName: string } | null>(null);
   const [connectDialog, setConnectDialog] = useState<{ sourceId: string; targetId: string } | null>(null);
   const updatingFromGraph = useRef(false);
@@ -71,6 +98,20 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const fitViewRef = useRef<(() => void) | null>(null);
   const renderedEdges = useMemo(() => routeGraphEdges(nodes, edges), [nodes, edges]);
+
+  // The semantic validation error shown in the overlay banner when the text
+  // parses but the model is invalid. The snippet points a caret at the
+  // culprit name, the same way parse errors point at their position.
+  const rawSemanticError = useMemo(() => {
+    if (!validationError) return null;
+    const culprit = locateCulprit(validationError, cto);
+    return {
+      message: validationError,
+      hint: findErrorHint(validationError, cto),
+      snippet: culprit ? buildSnippet(cto, culprit.line, culprit.column) : null,
+    };
+  }, [validationError, cto]);
+  const semanticError = useDebouncedError(rawSemanticError, 600);
 
   useEffect(() => {
     for (const node of nodes) {
@@ -110,8 +151,18 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         pushHistory({ model: parsed, nodes: nodesWithPositions, edges: graph.edges });
       }
       isUndoRedo.current = false;
-    } catch {
-      // Ignore parse errors while user is typing — keep last valid graph state
+      setRawParseError(null);
+    } catch (e) {
+      // Keep the last valid graph on screen while the user is typing, but
+      // report the parse error in an overlay banner instead of dropping it
+      // (debounced above so it does not flash while typing).
+      const message = describeParseError(e);
+      const position = parseErrorPosition(message);
+      setRawParseError({
+        message,
+        hint: findErrorHint(message, cto),
+        snippet: position ? buildSnippet(cto, position.line, position.column) : null,
+      });
     }
   }, [cto, setNodes, setEdges]);
 
@@ -131,6 +182,9 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     setNodes(nodesWithPositions);
     setEdges(graph.edges);
     pushHistory({ model: newModel, nodes: nodesWithPositions, edges: graph.edges });
+    // A graph edit regenerates the CTO from the last valid model, so any
+    // pending text parse error is now stale.
+    setRawParseError(null);
     updatingFromGraph.current = true;
     onModelChange?.(newCto);
   }, [setModel, setNodes, setEdges, onModelChange, pushHistory]);
@@ -209,6 +263,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     for (const node of entry.nodes) {
       nodePositionsRef.current.set(node.id, { ...node.position });
     }
+    setRawParseError(null);
     updatingFromGraph.current = true;
     onModelChange?.(declarationsToCto(entry.model));
   }, [history, historyIndex, setNodes, setEdges, onModelChange]);
@@ -225,6 +280,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     for (const node of entry.nodes) {
       nodePositionsRef.current.set(node.id, { ...node.position });
     }
+    setRawParseError(null);
     updatingFromGraph.current = true;
     onModelChange?.(declarationsToCto(entry.model));
   }, [history, historyIndex, setNodes, setEdges, onModelChange]);
@@ -244,6 +300,13 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         e.preventDefault();
         handleRedo();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -252,7 +315,11 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
 
-  const onNodeDragStop = useCallback((_event: React.MouseEvent, _node: Node) => {
+  // Parse errors win over semantic ones: unparseable text cannot be
+  // semantically validated anyway, so the parse message is the actionable one.
+  const bannerError = parseError ?? semanticError;
+
+  const onNodeDragStop = useCallback((_event: MouseEvent | TouchEvent, _node: Node) => {
     const currentNodes = nodes.map((n) => {
       const pos = nodePositionsRef.current.get(n.id);
       return pos ? { ...n, position: pos } : n;
@@ -327,6 +394,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   }));
 
   return (
+    <ReactFlowProvider>
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <GraphToolbar
         declarations={model.declarations}
@@ -343,6 +411,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         onAutoLayout={() => { void handleAutoLayout(); }}
         isAutoLayouting={isAutoLayouting}
         onSaveLayout={handleSaveLayout}
+        onOpenSearch={() => setSearchOpen(true)}
         showText={showText}
         onToggleText={onToggleText}
         onImport={onImport}
@@ -372,6 +441,44 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           <Background variant={BackgroundVariant.Dots} color="#4a5568" gap={20} size={1} />
         </ReactFlow>
 
+        {bannerError && (
+          <div
+            role="alert"
+            className="absolute top-2 left-2 right-2 z-10 px-3.5 py-2.5 rounded-md border border-[#e53e3e] bg-[#742a2a]/55 backdrop-blur-[3px] text-[13px] leading-normal text-[#fed7d7] max-h-[45vh] overflow-hidden pointer-events-none"
+          >
+            <div className="font-semibold mb-0.5">
+              {parseError ? 'Schema parse error' : 'Schema error'}
+            </div>
+            {/* Lead with the friendly hint; the raw parser/validator message
+                stays on the left editor's squiggle. Fall back to the raw
+                message when no hint matches this error. */}
+            <div className="whitespace-pre-wrap [overflow-wrap:anywhere] pointer-events-auto select-text">
+              {bannerError.hint ?? stripPosition(bannerError.message)}
+            </div>
+            {/* Every banner points at its location the same way: a code
+                excerpt with a caret under the offending column. */}
+            {bannerError.snippet && (
+              <pre className="my-1.5 font-['Fira_Code','Cascadia_Code',Consolas,monospace] overflow-x-auto pointer-events-auto select-text">
+                {bannerError.snippet}
+              </pre>
+            )}
+            {parseError && (
+              <div className="mt-1 opacity-75">
+                Showing the last valid graph. Fix the text on the left to update it.
+              </div>
+            )}
+          </div>
+        )}
+
+        <FocusController focusRequest={focusRequest} />
+
+        {searchOpen && (
+          <NodeSearch
+            declarations={model.declarations}
+            onClose={() => setSearchOpen(false)}
+          />
+        )}
+
         {connectDialog && (
           <ConnectEdgeDialog
             sourceId={connectDialog.sourceId}
@@ -382,7 +489,21 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         )}
       </div>
     </div>
+    </ReactFlowProvider>
   );
+}
+
+/** Centers/highlights a node whenever focusRequest changes (e.g. a CTO link click). */
+function FocusController({ focusRequest }: { focusRequest?: { name: string; ts: number } | null }) {
+  const focusNode = useFocusNode();
+  const lastTs = useRef<number>(0);
+  useEffect(() => {
+    if (!focusRequest || focusRequest.ts === lastTs.current) return;
+    lastTs.current = focusRequest.ts;
+    const id = requestAnimationFrame(() => focusNode(focusRequest.name));
+    return () => cancelAnimationFrame(id);
+  }, [focusRequest, focusNode]);
+  return null;
 }
 
 function ConnectEdgeDialog({ sourceId, targetId, onSubmit, onClose }: {

@@ -1,7 +1,8 @@
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
 import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
-import { HANDLE_SIZE, PROPERTY_ROW_GAP, PROPERTY_ROW_HEIGHT } from '../../utils/graph/nodeLayout';
+import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import './graph.css';
 
 const TYPE_COLORS: Record<string, string> = {
   String: '#68d391',
@@ -37,141 +38,130 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
   const colors = DECL_COLORS[declaration.type] || DECL_COLORS.concept;
   const edgeProperties = new Set(data.edgeProperties ?? []);
   const incomingHandles = data.incomingHandles ?? [];
+  const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
+  const propCount = declaration.properties.length;
+  const nodeVars = { '--accent': colors.accent, '--bg': colors.bg } as React.CSSProperties;
 
   return (
-    <div style={{
-      background: '#1e2533',
-      borderRadius: 12,
-      border: `2px solid ${selected ? '#fff' : colors.accent + '66'}`,
-      minWidth: 250,
-      boxShadow: selected
-        ? `0 0 20px ${colors.accent}44, 0 8px 24px rgba(0,0,0,0.4)`
-        : '0 4px 16px rgba(0,0,0,0.3)',
-      overflow: 'hidden',
-      transition: 'border-color 0.2s, box-shadow 0.2s',
-    }}>
-      <Handle type="target" position={Position.Top} id="top" style={{ ...handleStyle, background: colors.accent }} />
-      <Handle type="target" position={Position.Left} id="left" style={{ ...handleStyle, background: colors.accent }} />
-      <Handle type="source" position={Position.Right} id="right" style={{ ...handleStyle, background: colors.accent }} />
+    <div className={`graph-node concept-node${selected ? ' selected' : ''}`} style={nodeVars}>
+      <Handle type="target" position={Position.Top} id="top" className="graph-node-handle" style={{ background: colors.accent }} />
+      <Handle type="target" position={Position.Left} id="left" className="graph-node-handle" style={{ background: colors.accent }} />
+      <Handle type="source" position={Position.Right} id="right" className="graph-node-handle" style={{ background: colors.accent }} />
       {incomingHandles.map((handle) => (
-        <Handle
-          key={handle.id}
-          type="target"
-          position={Position.Left}
-          id={handle.id}
-          style={{ ...incomingHandleStyle, top: handle.top, background: colors.accent }}
-        />
+        <Handle key={handle.id} type="target" position={Position.Left} id={handle.id}
+          className="graph-node-handle" style={{ top: handle.top, background: colors.accent }} />
       ))}
 
-      <div style={{
-        padding: '12px 14px 10px',
-        background: `linear-gradient(135deg, ${colors.bg}, ${colors.bg}cc)`,
-        borderBottom: `1px solid ${colors.accent}33`,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{
-              fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase',
-              color: colors.accent, fontWeight: 700,
-            }}>
+      <div className="concept-node-header">
+        <div className="graph-node-header-row">
+          <div className="concept-node-kind-group">
+            <span className="graph-node-kind concept-node-kind">
               {declaration.type}
             </span>
             {declaration.isAbstract && (
-              <span style={{
-                fontSize: 8, background: 'rgba(255,255,255,0.15)', color: '#fff',
-                padding: '2px 6px', borderRadius: 10, textTransform: 'uppercase',
-                letterSpacing: 0.5, cursor: 'pointer',
-              }} onClick={() => data.onToggleAbstract?.(declaration.name)} title="Toggle abstract">
+              <span className="concept-node-abstract-badge"
+                onClick={() => data.onToggleAbstract?.(declaration.name)} title="Toggle abstract">
                 abstract
               </span>
             )}
             {!declaration.isAbstract && (
-              <span style={{
-                fontSize: 8, background: 'transparent', color: '#ffffff44',
-                padding: '2px 6px', borderRadius: 10, border: '1px solid #ffffff22',
-                textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'pointer',
-              }} onClick={() => data.onToggleAbstract?.(declaration.name)} title="Make abstract">
+              <span className="concept-node-concrete-badge"
+                onClick={() => data.onToggleAbstract?.(declaration.name)} title="Make abstract">
                 concrete
               </span>
             )}
           </div>
           <button onClick={() => data.onDeleteDeclaration?.(declaration.name)}
-            style={{ background: 'none', border: 'none', color: '#ffffff55', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}
+            className="graph-node-delete-btn"
             title="Delete"
           >
             &times;
           </button>
         </div>
         {declaration.decorators?.length > 0 && (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+          <div className="concept-node-decorators">
             {declaration.decorators.map((d) => (
-              <span key={d.name} style={{
-                fontSize: 8, color: '#fbb6ce', background: '#ed64a622', padding: '1px 5px',
-                borderRadius: 4, fontFamily: 'monospace',
-              }}>
+              <span key={d.name} className="concept-node-decorator">
                 @{d.name}{d.args.length > 0 ? `(${d.args.join(', ')})` : ''}
               </span>
             ))}
           </div>
         )}
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginTop: 4 }}>
+        <div className="concept-node-name">
           {declaration.name}
         </div>
         {declaration.identified === 'identified-by' && declaration.identifiedBy && (
-          <div style={{ fontSize: 10, color: '#68d391', marginTop: 2 }}>
+          <div className="concept-node-identified">
             identified by {declaration.identifiedBy}
           </div>
         )}
         {declaration.identified === 'identified' && (
-          <div style={{ fontSize: 10, color: '#68d391', marginTop: 2 }}>
+          <div className="concept-node-identified">
             identified
           </div>
         )}
         {declaration.superType && (
-          <div style={{ fontSize: 11, color: '#d6bcfa', marginTop: 4 }}>
+          <div className="concept-node-extends">
             extends {declaration.superType}
           </div>
         )}
       </div>
 
-      <div style={{ padding: '6px 6px 8px' }}>
+      {!showFull && (
+        <div className="graph-node-summary">
+          {propCount} {propCount === 1 ? 'property' : 'properties'}
+          {/* Keep one source handle per edge property alive when zoomed out, spread
+              along the node's right edge so every edge keeps its own anchor. */}
+          {(data.edgeProperties ?? []).map((p, i, arr) => (
+            <Handle
+              key={`compact:${p}`}
+              type="source"
+              position={Position.Right}
+              id={`prop:${p}`}
+              className="graph-node-handle graph-node-row-handle"
+              style={{
+                background: colors.accent,
+                top: `${Math.round(((i + 1) / (arr.length + 1)) * 100)}%`,
+                opacity: 0,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {showFull && (
+      <div className="graph-node-body">
         {declaration.properties.map((prop) => (
-          <div key={prop.name} style={{
-            display: 'flex', alignItems: 'center', padding: '5px 8px', marginBottom: PROPERTY_ROW_GAP,
-            minHeight: PROPERTY_ROW_HEIGHT, boxSizing: 'border-box',
-            background: '#161b27', borderRadius: 6, gap: 8, fontSize: 12, position: 'relative',
-          }}>
+          <div key={prop.name} className="concept-node-prop">
             {edgeProperties.has(prop.name) && (
               <Handle
                 type="source"
                 position={Position.Right}
                 id={`prop:${prop.name}`}
-                style={{ ...rowHandleStyle, background: colors.accent }}
+                className="graph-node-handle graph-node-row-handle"
+                style={{ background: colors.accent }}
               />
             )}
             {prop.isRelationship && (
-              <span style={{ color: '#fc8181', fontSize: 10, fontWeight: 700 }}>&#8594;</span>
+              <span className="concept-node-rel-arrow">&#8594;</span>
             )}
-            <span style={{
-              color: TYPE_COLORS[prop.type] || colors.accent,
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, flexShrink: 0,
-            }}>
+            <span className="concept-node-prop-type" style={{ color: TYPE_COLORS[prop.type] || colors.accent }}>
               {prop.type}{prop.isArray ? '[]' : ''}
             </span>
-            <span style={{ color: '#e2e8f0', flex: 1 }}>{prop.name}</span>
+            <span className="concept-node-prop-name">{prop.name}</span>
             {prop.validators?.default && (
-              <span style={{ color: '#a0aec0', fontSize: 8, fontFamily: 'monospace' }}>={prop.validators.default}</span>
+              <span className="concept-node-prop-validator">={prop.validators.default}</span>
             )}
             {prop.validators?.regex && (
-              <span style={{ color: '#a0aec0', fontSize: 8, fontFamily: 'monospace' }}>{prop.validators.regex}</span>
+              <span className="concept-node-prop-validator">{prop.validators.regex}</span>
             )}
             {prop.isOptional && (
-              <span style={{ color: '#fbd38d', fontSize: 9, fontWeight: 700, background: '#fbd38d22', padding: '1px 5px', borderRadius: 4 }}>
+              <span className="concept-node-prop-opt">
                 opt
               </span>
             )}
             <button onClick={() => data.onDeleteProperty?.(declaration.name, prop.name)}
-              style={{ background: 'none', border: 'none', color: '#ffffff22', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}
+              className="graph-node-row-delete"
               title="Delete property"
             >
               &times;
@@ -179,37 +169,17 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
           </div>
         ))}
         {declaration.properties.length === 0 && (
-          <div style={{ fontSize: 11, color: '#ffffff33', padding: '8px', textAlign: 'center', fontStyle: 'italic' }}>
+          <div className="concept-node-empty">
             No properties yet
           </div>
         )}
-        <button onClick={() => data.onAddProperty?.(declaration.name)} style={{
-          background: 'transparent', border: `1px dashed ${colors.accent}44`,
-          color: colors.accent + 'aa', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-          padding: '5px 0', marginTop: 4, borderRadius: 6, width: '100%', textAlign: 'center',
-        }}>
+        <button onClick={() => data.onAddProperty?.(declaration.name)} className="concept-node-add-btn">
           + Add Property
         </button>
       </div>
+      )}
 
-      <Handle type="source" position={Position.Bottom} id="bottom" style={{ ...handleStyle, background: colors.accent }} />
+      <Handle type="source" position={Position.Bottom} id="bottom" className="graph-node-handle" style={{ background: colors.accent }} />
     </div>
   );
 }
-
-const handleStyle: React.CSSProperties = {
-  width: HANDLE_SIZE, height: HANDLE_SIZE, borderRadius: '50%', border: '2px solid #1e2533',
-};
-
-const rowHandleStyle: React.CSSProperties = {
-  ...handleStyle,
-  right: -6,
-  top: '50%',
-  transform: 'translateY(-50%)',
-};
-
-const incomingHandleStyle: React.CSSProperties = {
-  ...handleStyle,
-  left: -6,
-  transform: 'translateY(-50%)',
-};
