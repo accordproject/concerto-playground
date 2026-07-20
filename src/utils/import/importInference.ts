@@ -1,6 +1,6 @@
 import { CodeGen } from "@accordproject/concerto-codegen";
 import { MetaModel } from "@accordproject/concerto-core";
-import { Printer } from "@accordproject/concerto-cto";
+import { Parser, Printer } from "@accordproject/concerto-cto";
 
 const META_MODEL_NAMESPACE = "concerto.metamodel@1.0.0";
 
@@ -98,8 +98,11 @@ export async function inferCtoFromImportText(
     throw new Error("Paste CTO, Concerto JSON, JSON Schema, or a JSON sample first.");
   }
 
-  if (namespaceMatch(source)) {
+  try {
+    Parser.parse(source);
     return { kind: "cto", ctoSources: [source] };
+  } catch {
+    // Try the supported JSON formats next.
   }
 
   let parsed: unknown;

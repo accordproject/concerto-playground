@@ -14,11 +14,17 @@ function metamodelFromCto(cto: string): object {
 }
 
 describe("inferCtoFromImportText", () => {
-  it("accepts pasted CTO", async () => {
-    const cto = "namespace org.example.pasted@1.0.0\n\nconcept Person {}\n";
+  it("accepts decorated CTO", async () => {
+    const cto = '@license("Apache-2.0")\nnamespace org.example.pasted@1.0.0\n\nconcept Person {}\n';
     const result = await inferCtoFromImportText(cto);
 
     expect(result).toEqual({ kind: "cto", ctoSources: [cto] });
+  });
+
+  it("rejects invalid text that only resembles CTO", async () => {
+    await expect(inferCtoFromImportText(
+      "namespace org.example.invalid@1.0.0\n\nconcept Broken {",
+    )).rejects.toThrow("Invalid JSON or CTO:");
   });
 
   it("converts a single Concerto JSON model into CTO", async () => {
