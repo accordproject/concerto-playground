@@ -54,4 +54,21 @@ describe("PasteImportDialog", () => {
     expect(onClose).toHaveBeenCalledOnce();
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("cannot be dismissed while an import is in flight", async () => {
+    let resolveSubmit!: () => void;
+    const onSubmit = vi.fn(() => new Promise<void>((resolve) => { resolveSubmit = resolve; }));
+    const { onClose, textarea, importBtn } = setup(onSubmit);
+    fireEvent.change(textarea, { target: { value: "{}" } });
+    fireEvent.click(importBtn);
+
+    // Busy: Cancel is disabled and clicking it (or the overlay) does not close.
+    const cancelBtn = screen.getByRole("button", { name: DIALOG_STRINGS.cancel }) as HTMLButtonElement;
+    expect(cancelBtn.disabled).toBe(true);
+    fireEvent.click(cancelBtn);
+    expect(onClose).not.toHaveBeenCalled();
+
+    resolveSubmit();
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
 });

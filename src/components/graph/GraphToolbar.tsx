@@ -133,16 +133,22 @@ export function PasteImportDialog({ onSubmit, onClose }: {
     setError(null);
     try {
       await onSubmit(text);
+      // Close without further state updates — the dialog unmounts here.
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-    } finally {
       setBusy(false);
     }
   };
 
+  // While an import is in flight the dialog cannot be dismissed, so the
+  // pending promise never resolves against an unmounted component.
+  const handleClose = () => {
+    if (!busy) onClose();
+  };
+
   return (
-    <div style={dialogOverlay} onClick={onClose}>
+    <div style={dialogOverlay} onClick={handleClose}>
       <div style={{ ...dialogStyle, width: 480 }} onClick={(e) => e.stopPropagation()}>
         <h3 style={dialogTitle}>{DIALOG_STRINGS.pasteImportTitle}</h3>
         <textarea
@@ -162,7 +168,8 @@ export function PasteImportDialog({ onSubmit, onClose }: {
             style={{ ...btnStyle, background: '#3182ce', opacity: !text.trim() || busy ? 0.5 : 1 }}>
             {busy ? DIALOG_STRINGS.pasteImportBusy : DIALOG_STRINGS.pasteImportSubmit}
           </button>
-          <button onClick={onClose} style={btnStyle}>{DIALOG_STRINGS.cancel}</button>
+          <button onClick={handleClose} disabled={busy}
+            style={{ ...btnStyle, opacity: busy ? 0.5 : 1 }}>{DIALOG_STRINGS.cancel}</button>
         </div>
       </div>
     </div>
