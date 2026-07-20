@@ -80,9 +80,17 @@ test.describe("Import Dialog", () => {
         mimeType: "application/json",
         buffer: Buffer.from("{ invalid }"),
       },
+      {
+        name: "also-invalid.json",
+        mimeType: "application/json",
+        buffer: Buffer.from("[ invalid ]"),
+      },
     ]);
 
-    await expect(page.getByRole("alert")).toContainText("invalid.json: Invalid JSON or CTO:");
+    const alert = page.getByRole("alert");
+    await expect(alert).toContainText("invalid.json: Invalid JSON or CTO:");
+    await expect(alert).toContainText("also-invalid.json: Invalid JSON or CTO:");
+    await expect(alert).toHaveCSS("white-space", "pre-wrap");
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByRole("button", { name: "Close import dialog" }).click();
     await expect(page.getByText("FileModel").first()).toBeVisible();

@@ -51,9 +51,9 @@ export function isLikelyJsonSchema(input: unknown): input is JsonRecord {
   return (
     typeof input.$schema === "string" ||
     typeof input.$id === "string" ||
-    typeof input.properties === "object" ||
-    typeof input.definitions === "object" ||
-    typeof input.$defs === "object"
+    isJsonRecord(input.properties) ||
+    isJsonRecord(input.definitions) ||
+    isJsonRecord(input.$defs)
   );
 }
 
@@ -65,9 +65,9 @@ function inferNamespaceFromSchemaId(schemaId: unknown): string | null {
   try {
     const url = new URL(schemaId);
     let namespace = url.hostname.split(".").reverse().join(".");
-    const pathParts = url.pathname.split("/");
-    pathParts.pop();
-    namespace += pathParts.length > 0 ? pathParts.join(".") : "";
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    if (pathParts[pathParts.length - 1]?.includes(".")) pathParts.pop();
+    if (pathParts.length > 0) namespace += `.${pathParts.join(".")}`;
     return namespace ? `${namespace}@1.0.0` : null;
   } catch {
     return null;

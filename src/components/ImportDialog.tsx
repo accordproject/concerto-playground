@@ -237,4 +237,5 @@ const errorStyle: React.CSSProperties = {
   color: "#fc8181",
   fontSize: 12,
   lineHeight: 1.5,
+  whiteSpace: "pre-wrap",
 };

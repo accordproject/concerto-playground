@@ -93,7 +93,15 @@ describe("inferCtoFromImportText", () => {
     for (const marker of ["$schema", "$id", "properties", "definitions", "$defs"]) {
       expect(isLikelyJsonSchema({ [marker]: marker === "$schema" || marker === "$id" ? "value" : {} })).toBe(true);
     }
+    expect(isLikelyJsonSchema({ properties: null, definitions: null, $defs: null })).toBe(false);
     expect(isLikelyJsonSchema({ firstName: "Alice", age: 31 })).toBe(false);
+  });
+
+  it("treats nullable schema-like properties as a JSON sample", async () => {
+    const result = await inferCtoFromImportText('{"name":"Alice","properties":null}');
+
+    expect(result.kind).toBe("json");
+    expect(validateCto(result.ctoSources[0])).toBeNull();
   });
 
   it("detects Concerto JSON before JSON Schema", async () => {
@@ -118,6 +126,16 @@ describe("inferCtoFromImportText", () => {
 
     expect(extractNamespace(result.ctoSources[0])).toBe("com.example.contracts@1.0.0");
     expect(validateCto(result.ctoSources[0])).toBeNull();
+  });
+
+  it("keeps directory-like $id paths in the inferred namespace", async () => {
+    const result = await inferCtoFromImportText(JSON.stringify({
+      $id: "https://example.com/contracts",
+      type: "object",
+      properties: { customerId: { type: "string" } },
+    }));
+
+    expect(extractNamespace(result.ctoSources[0])).toBe("com.example.contracts@1.0.0");
   });
 
   it("uses active and default namespace fallbacks", async () => {
