@@ -32,13 +32,18 @@ export async function astToCtoSources(json: string): Promise<string[]> {
     );
   }
 
+  const isModelsContainer = Array.isArray(ast?.models);
+  if (!isModelsContainer && !topClass.endsWith(".Model")) {
+    throw new Error("Not a Concerto metamodel. Expected a single model $class ending in .Model.");
+  }
+
   // Normalise to a Models container so validateMetaModel can check the
   // full structure. A single Model object is wrapped; a container is used
   // as-is.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const modelsAst: any = Array.isArray(ast?.models)
+  const modelsAst: any = isModelsContainer
     ? ast
-    : { $class: "concerto.metamodel@1.0.0.Models", models: [ast] };
+    : { $class: `${topClass.slice(0, -".Model".length)}.Models`, models: [ast] };
 
   // Full metamodel validation via Concerto's own validator.
   // Requires proper $class identifiers and rejects unexpected properties.

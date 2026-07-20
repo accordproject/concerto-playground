@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { astToCtoSources, looksLikeJson } from "../../utils/metamodelImport";
 
 const CTO = `namespace org.test@1.0.0
@@ -27,6 +27,32 @@ describe("looksLikeJson", () => {
 });
 
 describe("astToCtoSources", () => {
+  it.each([
+    ["concerto.metamodel@1.0.0.Model", "concerto.metamodel@1.0.0.Models"],
+    ["concerto.metamodel@9.9.9.Model", "concerto.metamodel@9.9.9.Models"],
+  ])("derives the Models wrapper from %s", async (modelClass, modelsClass) => {
+    const { MetaModel } = await import("@accordproject/concerto-core");
+    const { Printer } = await import("@accordproject/concerto-cto");
+    const validate = vi.spyOn(MetaModel, "validateMetaModel").mockImplementation(() => undefined);
+    const print = vi.spyOn(Printer, "toCTO").mockReturnValue(CTO);
+    const ast = {
+      $class: modelClass,
+      namespace: "org.test@1.0.0",
+      declarations: [],
+    };
+
+    try {
+      await astToCtoSources(JSON.stringify(ast));
+      expect(validate).toHaveBeenCalledWith({
+        $class: modelsClass,
+        models: [ast],
+      });
+    } finally {
+      validate.mockRestore();
+      print.mockRestore();
+    }
+  });
+
   it("round-trips a single Model AST to CTO", async () => {
     const ast = await ctoToAst(CTO);
     const sources = await astToCtoSources(JSON.stringify(ast));
@@ -53,6 +79,15 @@ describe("astToCtoSources", () => {
       properties: { name: { type: "string" } },
     });
     await expect(astToCtoSources(jsonSchema)).rejects.toThrow(/Not a Concerto metamodel/);
+  });
+
+  it("rejects a single metamodel class without a terminal .Model suffix", async () => {
+    const malformed = JSON.stringify({
+      $class: "concerto.metamodel@1.0.0.ModelExtra",
+      namespace: "org.test@1.0.0",
+      declarations: [],
+    });
+    await expect(astToCtoSources(malformed)).rejects.toThrow(/\.Model/);
   });
 
   it("rejects invalid JSON with a SyntaxError", async () => {
