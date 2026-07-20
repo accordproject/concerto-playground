@@ -19,11 +19,13 @@ interface GraphToolbarProps {
   showText: boolean;
   onToggleText: () => void;
   onImport: () => void;
+  onPasteImport: (text: string) => Promise<void>;
   onExport: () => void;
 }
 
-export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, onOpenSearch, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
+export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, onOpenSearch, showText, onToggleText, onImport, onPasteImport, onExport }: GraphToolbarProps) {
   const [showAddDecl, setShowAddDecl] = useState(false);
+  const [showPasteImport, setShowPasteImport] = useState(false);
 
   return (
     <div style={toolbarStyle}>
@@ -33,6 +35,8 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
         {showText ? TOOLBAR_STRINGS.hideCto : TOOLBAR_STRINGS.showCto}
       </button>
       <button onClick={onImport} style={pillBtn}>{TOOLBAR_STRINGS.importLabel}</button>
+      <button onClick={() => setShowPasteImport(true)} style={pillBtn}
+        title={TOOLBAR_STRINGS.pasteImportTooltip}>{TOOLBAR_STRINGS.pasteImportLabel}</button>
       <button onClick={onExport} style={pillBtn}>{TOOLBAR_STRINGS.exportLabel}</button>
 
       <div style={sep} />
@@ -74,6 +78,13 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
         />
       )}
 
+      {showPasteImport && (
+        <PasteImportDialog
+          onSubmit={onPasteImport}
+          onClose={() => setShowPasteImport(false)}
+        />
+      )}
+
       {activeDialog?.type === 'property' && (
         <AddPropertyDialog
           declName={activeDialog.declName}
@@ -102,6 +113,58 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
           onClose={onCloseDialog}
         />
       )}
+    </div>
+  );
+}
+
+// Paste-import dialog (issue #13): a textarea for metamodel JSON with inline
+// error feedback. Exported for unit tests.
+export function PasteImportDialog({ onSubmit, onClose }: {
+  onSubmit: (text: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onSubmit(text);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={dialogOverlay} onClick={onClose}>
+      <div style={{ ...dialogStyle, width: 480 }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={dialogTitle}>{DIALOG_STRINGS.pasteImportTitle}</h3>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={DIALOG_STRINGS.pasteImportPlaceholder}
+          style={{ ...inputStyle, height: 180, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+          autoFocus
+        />
+        {error && (
+          <div role="alert" style={{ color: '#fc8181', fontSize: 12, whiteSpace: 'pre-wrap', marginBottom: 8 }}>
+            {error}
+          </div>
+        )}
+        <div style={dialogButtons}>
+          <button onClick={handleSubmit} disabled={!text.trim() || busy}
+            style={{ ...btnStyle, background: '#3182ce', opacity: !text.trim() || busy ? 0.5 : 1 }}>
+            {busy ? DIALOG_STRINGS.pasteImportBusy : DIALOG_STRINGS.pasteImportSubmit}
+          </button>
+          <button onClick={onClose} style={btnStyle}>{DIALOG_STRINGS.cancel}</button>
+        </div>
+      </div>
     </div>
   );
 }

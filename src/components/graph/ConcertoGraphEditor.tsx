@@ -45,6 +45,7 @@ interface ConcertoGraphEditorProps {
   showText: boolean;
   onToggleText: () => void;
   onImport: () => void;
+  onPasteImport: (text: string) => Promise<void>;
   onExport: () => void;
   /** When this changes, the graph centers on and highlights the named node. */
   focusRequest?: { name: string; ts: number } | null;
@@ -76,7 +77,7 @@ function useDebouncedError<T>(value: T | null, delay: number): T | null {
   return debounced;
 }
 
-export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onExport, focusRequest, validationError }: ConcertoGraphEditorProps) {
+export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onPasteImport, onExport, focusRequest, validationError }: ConcertoGraphEditorProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -367,6 +368,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         showText={showText}
         onToggleText={onToggleText}
         onImport={onImport}
+        onPasteImport={onPasteImport}
         onExport={onExport}
       />
       <div style={{ flex: 1, position: 'relative' }}>

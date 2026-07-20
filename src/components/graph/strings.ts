@@ -6,6 +6,8 @@ export const TOOLBAR_STRINGS = {
   hideCtoTooltip: 'Hide CTO text',
   showCtoTooltip: 'Show CTO text',
   importLabel: 'Import',
+  pasteImportLabel: 'Paste JSON',
+  pasteImportTooltip: 'Import metamodel JSON by pasting it',
   exportLabel: 'Export',
   addDeclaration: '+ Add',
   undoIcon: '↩',
@@ -39,6 +41,10 @@ export const DIALOG_STRINGS = {
   add: 'Add',
   set: 'Set',
   cancel: 'Cancel',
+  pasteImportTitle: 'Import Metamodel JSON',
+  pasteImportPlaceholder: 'Paste a Concerto metamodel JSON AST here (single Model or a { models: [...] } container)…',
+  pasteImportSubmit: 'Import',
+  pasteImportBusy: 'Importing…',
 } as const;
 
 export const SEARCH_STRINGS = {

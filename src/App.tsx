@@ -8,6 +8,7 @@ import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
+import { astToCtoSources, looksLikeJson } from "./utils/metamodelImport";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
@@ -219,40 +220,22 @@ export default function App() {
     window.location.hash = "";
   }
 
-  // Convert a Concerto metamodel AST (single Model or a { models: [...] }
-  // container) into one or more CTO source strings via the metamodel printer.
-  async function astToCtoSources(json: string): Promise<string[]> {
-    const { Printer } = await import("@accordproject/concerto-cto");
-    const { MetaModel } = await import("@accordproject/concerto-core");
+  // Merge converted CTO sources into the workspace and focus the first one.
+  function addCtoSources(ctoSources: string[]) {
+    if (ctoSources.length === 0) return;
+    const additions: Record<string, string> = {};
+    for (const cto of ctoSources) additions[extractNamespace(cto)] = cto;
+    setModels((prev) => ({ ...prev, ...additions }));
+    setActiveNamespace(extractNamespace(ctoSources[0]));
+  }
 
-    const ast = JSON.parse(json); // SyntaxError for non-JSON
-
-    // Quick pre-check: the top-level object (or the first item in models[])
-    // must carry a concerto.metamodel $class. This catches common cases like
-    // JSON Schema or OpenAPI files being uploaded accidentally and gives a
-    // clearer message than the metamodel validator's property-level errors.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const topClass: unknown = (ast as any)?.["$class"] ?? (ast as any)?.models?.[0]?.["$class"];
-    if (typeof topClass !== "string" || !topClass.startsWith("concerto.metamodel@")) {
-      throw new Error(
-        "Not a Concerto metamodel file. Only JSON AST files (exported from the JSON AST tab) can be imported as .json.",
-      );
+  // Paste-import path: convert pasted metamodel JSON and add it to the
+  // workspace. Errors propagate to the dialog, which displays them inline.
+  async function handlePasteImport(text: string) {
+    if (!looksLikeJson(text)) {
+      throw new Error("Pasted text is not JSON. Paste a metamodel JSON AST, like the one shown in the JSON AST tab.");
     }
-
-    // Normalise to a Models container so validateMetaModel can check the
-    // full structure. A single Model object is wrapped; a container is used
-    // as-is.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const modelsAst: any = Array.isArray(ast?.models)
-      ? ast
-      : { $class: "concerto.metamodel@1.0.0.Models", models: [ast] };
-
-    // Full metamodel validation via Concerto's own validator.
-    // Requires proper $class identifiers and rejects unexpected properties.
-    MetaModel.validateMetaModel(modelsAst);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return modelsAst.models.map((m: any) => Printer.toCTO(m));
+    addCtoSources(await astToCtoSources(text));
   }
 
   function handleImport() {
@@ -282,7 +265,7 @@ export default function App() {
           const text = await readAsText(file);
           const isJson =
             file.name.toLowerCase().endsWith(".json") ||
-            /^\s*[{[]/.test(text);
+            looksLikeJson(text);
           if (isJson) {
             ctoSources.push(...(await astToCtoSources(text)));
           } else {
@@ -295,11 +278,7 @@ export default function App() {
       }
       if (errors.length > 0) setImportError(errors.join("\n"));
 
-      if (ctoSources.length === 0) return;
-      const additions: Record<string, string> = {};
-      for (const cto of ctoSources) additions[extractNamespace(cto)] = cto;
-      setModels((prev) => ({ ...prev, ...additions }));
-      setActiveNamespace(extractNamespace(ctoSources[0]));
+      addCtoSources(ctoSources);
     };
     input.click();
   }
@@ -591,6 +570,7 @@ export default function App() {
                 showText={showCto}
                 onToggleText={() => setShowCto((v) => !v)}
                 onImport={handleImport}
+                onPasteImport={handlePasteImport}
                 onExport={handleExport}
                 focusRequest={focusRequest}
                 validationError={validationError}
