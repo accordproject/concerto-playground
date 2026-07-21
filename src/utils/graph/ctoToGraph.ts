@@ -470,8 +470,13 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
     const propsToEdge = decl.type === 'map'
       ? decl.properties.filter((p) => p.name === '_value')
       : decl.properties;
+    // Resolve each property's edge target once and reuse it for both the
+    // node's edgeProperties list and the edge-building loop below.
+    const propTargets = propsToEdge.map((p) =>
+      isLocal(p.type, p.typeNamespace) ? p.type : registerExternal(p.type, p.typeNamespace)?.id
+    );
     const edgeProperties = propsToEdge
-      .filter((p) => isLocal(p.type, p.typeNamespace) || externalFor(p.type, p.typeNamespace))
+      .filter((_, i) => propTargets[i])
       .map((p) => p.name);
 
     nodes.push({
@@ -502,10 +507,8 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
       }
     }
 
-    for (const prop of propsToEdge) {
-      const propTarget = isLocal(prop.type, prop.typeNamespace)
-        ? prop.type
-        : registerExternal(prop.type, prop.typeNamespace)?.id;
+    propsToEdge.forEach((prop, i) => {
+      const propTarget = propTargets[i];
       if (propTarget) {
         const isRel = prop.isRelationship;
         edges.push({
@@ -527,7 +530,7 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
           labelBgBorderRadius: 4,
         });
       }
-    }
+    });
   });
 
   // Imported types get their own column to the right of the local layout so
