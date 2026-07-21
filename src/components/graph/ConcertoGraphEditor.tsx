@@ -343,7 +343,9 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
       // Imported nodes use namespace-qualified ids; a property created against
       // one references the short name (the import statement already exists).
       const targetNode = nodes.find((n) => n.id === connection.target);
-      const targetId = targetNode?.type === 'importedNode' ? String(targetNode.data.label) : connection.target;
+      const targetId = targetNode?.type === 'importedNode'
+        ? (targetNode.data as { label: string }).label
+        : connection.target;
       setConnectDialog({ sourceId: connection.source, targetId });
     }
   }, [nodes]);
