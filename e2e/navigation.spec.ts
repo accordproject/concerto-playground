@@ -3,10 +3,22 @@ import LZString from 'lz-string';
 
 // Two-namespace workspace: org.child imports a resolvable type from org.base
 // and an unresolvable one from org.missing (not open in the workspace).
+// BaseThing has enough properties that its full-size node is much taller than
+// both the compact (semantic zoom) rendering and the unmeasured fallback size,
+// so a focus computed from the wrong dimensions is visibly off center.
 const BASE_CTO = `namespace org.base@1.0.0
 
 concept BaseThing {
   o String id
+  o String name
+  o String description
+  o Integer count
+  o Double score
+  o Boolean active
+  o DateTime created
+  o DateTime updated
+  o String owner
+  o String tag
 }
 `;
 
@@ -75,6 +87,36 @@ test.describe('Cross-Namespace Navigation', () => {
     // Still on org.child, app alive
     await expect(page.locator('.view-lines').first()).toContainText('org.child');
     await expect(page.locator('.concept-node', { hasText: 'Kid' })).toBeVisible();
+  });
+
+  test('focusing across namespaces centers the node even when zoomed out', async ({ page }) => {
+    // Zoom out until nodes collapse to their compact summary, i.e. below the
+    // semantic zoom threshold where measured node sizes are the compact ones.
+    const zoomOut = page.locator('.react-flow__controls-zoomout');
+    for (let i = 0; i < 20; i++) {
+      await zoomOut.click();
+      if (await page.locator('.graph-node-summary').first().isVisible()) break;
+    }
+    await expect(page.locator('.graph-node-summary').first()).toBeVisible();
+
+    await page.locator('.imported-node', { hasText: 'BaseThing' }).click();
+
+    const node = page.locator('.concept-node.selected', { hasText: 'BaseThing' });
+    await expect(node).toBeVisible({ timeout: 5000 });
+
+    // The viewport must settle with the node centered, not offset by the
+    // difference between its compact/unmeasured size and its full size.
+    const pane = page.locator('.react-flow').first();
+    await expect(async () => {
+      const nodeBox = await node.boundingBox();
+      const paneBox = await pane.boundingBox();
+      expect(nodeBox).not.toBeNull();
+      expect(paneBox).not.toBeNull();
+      const dx = Math.abs(nodeBox!.x + nodeBox!.width / 2 - (paneBox!.x + paneBox!.width / 2));
+      const dy = Math.abs(nodeBox!.y + nodeBox!.height / 2 - (paneBox!.y + paneBox!.height / 2));
+      expect(dx).toBeLessThan(60);
+      expect(dy).toBeLessThan(60);
+    }).toPass({ timeout: 5000 });
   });
 
   test('navigating back and forth keeps both graphs working', async ({ page }) => {
