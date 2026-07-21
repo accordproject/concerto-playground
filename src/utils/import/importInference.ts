@@ -35,6 +35,12 @@ function namespaceMatch(cto: string): RegExpMatchArray | null {
 }
 
 export function extractNamespace(cto: string): string {
+  try {
+    const parsed = Parser.parse(cto) as { namespace?: unknown };
+    if (typeof parsed.namespace === "string") return parsed.namespace;
+  } catch {
+    // Live editor content may be temporarily incomplete.
+  }
   const match = namespaceMatch(cto);
   return match ? match[1] : "org.example.unknown@1.0.0";
 }

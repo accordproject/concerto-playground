@@ -18,6 +18,10 @@ describe("inferCtoFromImportText", () => {
     const result = await inferCtoFromImportText(cto);
 
     expect(result).toEqual({ kind: "cto", ctoSources: [cto] });
+    expect(extractNamespace(cto)).toBe("org.example.pasted@1.0.0");
+    expect(extractNamespace("namespace org.example.editing@1.0.0\n\nconcept Person {")).toBe(
+      "org.example.editing@1.0.0",
+    );
   });
 
   it("rejects invalid text that only resembles CTO", async () => {
