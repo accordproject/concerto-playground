@@ -1,6 +1,7 @@
 import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import { KindBadge } from './KindBadge';
 import './graph.css';
 
 const TYPE_COLORS: Record<string, string> = {
@@ -48,9 +49,7 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
       <div className="concept-node-header">
         <div className="graph-node-header-row">
           <div className="concept-node-kind-group">
-            <span className="graph-node-kind concept-node-kind">
-              {declaration.type}
-            </span>
+            <KindBadge kind={declaration.type} className="concept-node-kind" />
             {declaration.isAbstract && (
               <span className="concept-node-abstract-badge"
                 onClick={() => data.onToggleAbstract?.(declaration.name)} title="Toggle abstract">

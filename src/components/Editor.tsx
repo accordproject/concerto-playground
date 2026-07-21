@@ -2,6 +2,7 @@ import MonacoEditor, { useMonaco, type BeforeMount, type OnMount } from "@monaco
 import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
+import { getConceptHint } from "../utils/conceptHints";
 
 interface EditorProps {
   value: string;
@@ -111,6 +112,33 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
         [/\s+/, "white"],
         [/(\/\/.*)/, "comment"],
       ],
+    },
+  });
+
+  // Contextual hints (US-06): hovering a keyword, declaration kind or
+  // primitive type shows a summary sourced from the metamodel specification.
+  monacoInstance.languages.registerHoverProvider("concerto", {
+    provideHover(model: monaco.editor.ITextModel, position: monaco.Position) {
+      const word = model.getWordAtPosition(position);
+      if (!word) return null;
+      const hint = getConceptHint(word.word);
+      if (!hint) return null;
+      const contents: monaco.IMarkdownString[] = [
+        { value: `**${hint.title}**` },
+        { value: hint.summary },
+      ];
+      if (hint.syntax) {
+        contents.push({ value: "```concerto\n" + hint.syntax + "\n```" });
+      }
+      return {
+        range: new monacoInstance.Range(
+          position.lineNumber,
+          word.startColumn,
+          position.lineNumber,
+          word.endColumn,
+        ),
+        contents,
+      };
     },
   });
 
