@@ -5,7 +5,6 @@ import {
   DEFAULT_IMPORT_NAMESPACE,
   extractNamespace,
   inferCtoFromImportText,
-  isLikelyConcertoJson,
   isLikelyJsonSchema,
 } from "../../utils/import/importInference";
 
@@ -108,19 +107,6 @@ describe("inferCtoFromImportText", () => {
 
     expect(result.kind).toBe("json");
     expect(validateCto(result.ctoSources[0])).toBeNull();
-  });
-
-  it("detects Concerto JSON before JSON Schema", async () => {
-    const metamodel = {
-      ...metamodelFromCto("namespace org.example.priority@1.0.0\n\nconcept Priority {}\n"),
-      properties: {},
-    };
-
-    expect(isLikelyConcertoJson(metamodel)).toBe(true);
-    expect(isLikelyJsonSchema(metamodel)).toBe(true);
-    await expect(inferCtoFromImportText(JSON.stringify(metamodel))).rejects.toThrow(
-      "Unable to import Concerto JSON:",
-    );
   });
 
   it("uses schema namespace inferred from $id when provided", async () => {

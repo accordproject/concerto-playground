@@ -39,13 +39,6 @@ export function extractNamespace(cto: string): string {
   return match ? match[1] : "org.example.unknown@1.0.0";
 }
 
-export function isLikelyConcertoJson(input: unknown): input is JsonRecord {
-  if (!isJsonRecord(input)) return false;
-  const firstModel = Array.isArray(input.models) ? input.models[0] : undefined;
-  const topClass = input.$class ?? (isJsonRecord(firstModel) ? firstModel.$class : undefined);
-  return typeof topClass === "string" && topClass.startsWith("concerto.metamodel@");
-}
-
 export function isLikelyJsonSchema(input: unknown): input is JsonRecord {
   if (!isJsonRecord(input)) return false;
   return (
@@ -112,7 +105,7 @@ export async function inferCtoFromImportText(
     throw new Error(`Invalid JSON or CTO: ${getErrorMessage(error)}`);
   }
 
-  if (isLikelyConcertoJson(parsed)) {
+  if (isJsonRecord(parsed)) {
     try {
       const modelsAst = Array.isArray(parsed.models)
         ? parsed
@@ -122,8 +115,8 @@ export async function inferCtoFromImportText(
         kind: "concerto-json",
         ctoSources: (modelsAst.models as ConcertoModel[]).map((model) => Printer.toCTO(model)),
       };
-    } catch (error) {
-      throw new Error(`Unable to import Concerto JSON: ${getErrorMessage(error)}`);
+    } catch {
+      // Try JSON Schema and plain JSON inference next.
     }
   }
 
