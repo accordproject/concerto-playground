@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
 import { getConceptHint } from "../utils/conceptHints";
-import { tokenTypeAt, tokenizeWithCache } from "../utils/editorTokens";
+import { isReferenceToken, tokenTypeAt, tokenizeWithCache } from "../utils/editorTokens";
 import type { TypeLinkTarget } from "../utils/graph/types";
 
 // Hover hints only make sense on real language tokens; the same words
@@ -301,7 +301,21 @@ export function Editor({
       if (!onNavigateRef.current || !e.event.leftButton) return;
       const pos = e.target.position;
       if (!pos) return;
-      const word = editor.getModel()?.getWordAtPosition(pos);
+      const model = editor.getModel();
+      if (!model) return;
+      // Only navigate from a decorated reference; the same word inside a
+      // comment or string carries no link decoration and must stay inert.
+      const clickRange = {
+        startLineNumber: pos.lineNumber,
+        startColumn: pos.column,
+        endLineNumber: pos.lineNumber,
+        endColumn: pos.column,
+      };
+      const onLink = model
+        .getDecorationsInRange(clickRange)
+        .some((d) => d.options.inlineClassName === LINK_CLASS);
+      if (!onLink) return;
+      const word = model.getWordAtPosition(pos);
       if (!word) return;
       const target = targetsRef.current.get(word.word);
       // Unresolved imports are not navigable; their decoration explains why.
@@ -323,6 +337,15 @@ export function Editor({
       if (!model) return;
       const targets = linkTargets ?? [];
       const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+      // Tokenize once per scan so word matches inside comments, strings and
+      // regex literals can be skipped; only identifier tokens are references.
+      // Must use the loader's monaco instance: the concerto language is
+      // registered there, not on the bundled monaco-editor import.
+      const monacoInstance = monacoRef.current;
+      const tokenLines =
+        targets.length > 0 && monacoInstance
+          ? monacoInstance.editor.tokenize(model.getValue(), model.getLanguageId())
+          : [];
       for (const target of targets) {
         const escaped = target.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const matches = model.findMatches(`\\b${escaped}\\b`, false, true, true, null, false);
@@ -340,6 +363,8 @@ export function Editor({
               },
             };
         for (const m of matches) {
+          const tokenType = tokenTypeAt(tokenLines, m.range.startLineNumber, m.range.startColumn);
+          if (!isReferenceToken(tokenType)) continue;
           decorations.push({ range: m.range, options });
         }
       }
