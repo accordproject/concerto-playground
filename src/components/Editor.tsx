@@ -3,6 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
 import { getConceptHint } from "../utils/conceptHints";
+import { tokenTypeAt } from "../utils/editorTokens";
+
+// Hover hints only make sense on real language tokens; the same words
+// inside comments, strings or regex literals are plain text.
+const HOVERABLE_TOKEN_PREFIXES = ["keyword", "type", "decorator", "relationship"];
+function isHoverableToken(tokenType: string): boolean {
+  return HOVERABLE_TOKEN_PREFIXES.some((p) => tokenType.startsWith(p));
+}
 
 interface EditorProps {
   value: string;
@@ -120,6 +128,10 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
   // the metamodel specification.
   monacoInstance.languages.registerHoverProvider("concerto", {
     provideHover(model: monaco.editor.ITextModel, position: monaco.Position) {
+      const tokenLines = monacoInstance.editor.tokenize(model.getValue(), model.getLanguageId());
+      if (!isHoverableToken(tokenTypeAt(tokenLines, position.lineNumber, position.column))) {
+        return null;
+      }
       const line = model.getLineContent(position.lineNumber);
       const hover = (hint: ReturnType<typeof getConceptHint>, startColumn: number, endColumn: number) => {
         if (!hint) return null;
