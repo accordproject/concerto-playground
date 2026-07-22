@@ -428,6 +428,7 @@
   text-transform: none;
   letter-spacing: normal;
   font-weight: 400;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   text-align: left;
   white-space: normal;
   /* Purely informational: never intercept clicks or node dragging */

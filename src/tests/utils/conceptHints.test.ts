@@ -33,6 +33,11 @@ describe("getConceptHint", () => {
     }
   });
 
+  it("covers decorators and the relationship arrow", () => {
+    expect(getConceptHint("@")?.title).toBe("@decorator");
+    expect(getConceptHint("-->")?.title).toContain("relationship");
+  });
+
   it("matches case-sensitively so user-defined names do not collide", () => {
     // A concept named "Event" must not trigger the "event" keyword hint
     expect(getConceptHint("Event")).toBeUndefined();

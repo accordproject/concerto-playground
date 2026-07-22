@@ -115,30 +115,44 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
     },
   });
 
-  // Contextual hints (US-06): hovering a keyword, declaration kind or
-  // primitive type shows a summary sourced from the metamodel specification.
+  // Contextual hints (US-06): hovering a keyword, declaration kind, primitive
+  // type, decorator or the relationship arrow shows a summary sourced from
+  // the metamodel specification.
   monacoInstance.languages.registerHoverProvider("concerto", {
     provideHover(model: monaco.editor.ITextModel, position: monaco.Position) {
-      const word = model.getWordAtPosition(position);
-      if (!word) return null;
-      const hint = getConceptHint(word.word);
-      if (!hint) return null;
-      const contents: monaco.IMarkdownString[] = [
-        { value: `**${hint.title}**` },
-        { value: hint.summary },
-      ];
-      if (hint.syntax) {
-        contents.push({ value: "```concerto\n" + hint.syntax + "\n```" });
-      }
-      return {
-        range: new monacoInstance.Range(
-          position.lineNumber,
-          word.startColumn,
-          position.lineNumber,
-          word.endColumn,
-        ),
-        contents,
+      const line = model.getLineContent(position.lineNumber);
+      const hover = (hint: ReturnType<typeof getConceptHint>, startColumn: number, endColumn: number) => {
+        if (!hint) return null;
+        const contents: monaco.IMarkdownString[] = [
+          { value: `**${hint.title}**` },
+          { value: hint.summary },
+        ];
+        if (hint.syntax) {
+          contents.push({ value: "```concerto\n" + hint.syntax + "\n```" });
+        }
+        return {
+          range: new monacoInstance.Range(position.lineNumber, startColumn, position.lineNumber, endColumn),
+          contents,
+        };
       };
+
+      const word = model.getWordAtPosition(position);
+      if (word) {
+        // A word directly preceded by @ is a decorator name, which is
+        // free-form; explain decorators in general instead of the name.
+        if (line[word.startColumn - 2] === "@") {
+          return hover(getConceptHint("@"), word.startColumn - 1, word.endColumn);
+        }
+        return hover(getConceptHint(word.word), word.startColumn, word.endColumn);
+      }
+
+      // The relationship arrow is punctuation, so there is no word under the
+      // cursor; look for a --> occurrence covering the hovered column.
+      const arrowIndex = line.lastIndexOf("-->", position.column - 1);
+      if (arrowIndex !== -1 && position.column >= arrowIndex + 1 && position.column <= arrowIndex + 3) {
+        return hover(getConceptHint("-->"), arrowIndex + 1, arrowIndex + 4);
+      }
+      return null;
     },
   });
 

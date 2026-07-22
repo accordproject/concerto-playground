@@ -172,10 +172,28 @@ const PRIMITIVE_HINTS: Record<string, ConceptHint> = {
   },
 };
 
+// Elements without a hoverable word: the decorator marker and the
+// relationship arrow. The editor looks these up by their symbol.
+const SYMBOL_HINTS: Record<string, ConceptHint> = {
+  "@": {
+    title: "@decorator",
+    summary:
+      "Decorators attach metadata to a declaration or property without changing what it means. The name and arguments are free-form; tools read them for documentation, vocabulary terms, UI hints or code generation.",
+    syntax: '@description("A registered customer")\nparticipant Customer identified by email {\n  o String email\n}',
+  },
+  "-->": {
+    title: "--> (relationship)",
+    summary:
+      "A relationship property: points to an asset or participant by its identifier instead of embedding a copy. The referenced instance lives on its own; only identified declarations can be relationship targets.",
+    syntax: "asset Order identified by orderId {\n  o String orderId\n  --> Customer buyer\n}",
+  },
+};
+
 const ALL_HINTS: Record<string, ConceptHint> = {
   ...DECLARATION_HINTS,
   ...KEYWORD_HINTS,
   ...PRIMITIVE_HINTS,
+  ...SYMBOL_HINTS,
 };
 
 /** Kinds shown on graph node headers, in the order the nodes render them. */

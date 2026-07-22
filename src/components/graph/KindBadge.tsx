@@ -1,5 +1,15 @@
-import { getConceptHint } from '../../utils/conceptHints';
+import { getConceptHint, type ConceptHint } from '../../utils/conceptHints';
 import './graph.css';
+
+/** The hint panel itself; render inside an element with concept-hint-anchor. */
+export function HintPopover({ hint }: { hint: ConceptHint }) {
+  return (
+    <span className="concept-hint-pop nodrag">
+      <span className="concept-hint-title">{hint.title}</span>
+      <span className="concept-hint-summary">{hint.summary}</span>
+    </span>
+  );
+}
 
 interface KindBadgeProps {
   /** Declaration kind shown in the node header (concept, asset, enum, ...). */
@@ -23,12 +33,7 @@ export function KindBadge({ kind, className, style }: KindBadgeProps) {
       style={style}
     >
       {kind}
-      {hint && (
-        <span className="concept-hint-pop nodrag">
-          <span className="concept-hint-title">{hint.title}</span>
-          <span className="concept-hint-summary">{hint.summary}</span>
-        </span>
-      )}
+      {hint && <HintPopover hint={hint} />}
     </span>
   );
 }
