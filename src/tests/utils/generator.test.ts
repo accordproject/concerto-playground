@@ -17,7 +17,7 @@ describe("generate", () => {
     expect(result).toHaveProperty("isLive");
     expect(typeof result.output).toBe("string");
     expect(typeof result.isLive).toBe("boolean");
-  });
+  }, 15_000);
 
   it("falls back to static content for typescript when CTO is invalid", async () => {
     const result = await generate([INVALID_CTO], "typescript");

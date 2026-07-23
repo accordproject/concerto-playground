@@ -8,6 +8,8 @@ export interface PropertyValidator {
 export interface Property {
   name: string;
   type: string;
+  /** Namespace of the referenced type when the reference is qualified (e.g. `org.base@1.0.0.Foo`). */
+  typeNamespace?: string;
   isOptional: boolean;
   isArray: boolean;
   isRelationship: boolean;
@@ -31,6 +33,8 @@ export interface Declaration {
   type: 'concept' | 'enum' | 'asset' | 'participant' | 'event' | 'transaction' | 'map' | 'scalar';
   isAbstract: boolean;
   superType?: string;
+  /** Namespace of the superType when the extends clause is qualified. */
+  superTypeNamespace?: string;
   properties: Property[];
   enumValues: string[];
   mapDeclaration?: MapDeclaration;
@@ -54,6 +58,24 @@ export interface ConcertoModel {
   namespace: string;
   imports: ImportStatement[];
   declarations: Declaration[];
+}
+
+/** Where a type referenced from another namespace lives, and whether that
+    namespace is open in the workspace so the reference can be navigated. */
+export interface ExternalTypeInfo {
+  namespace: string;
+  resolved: boolean;
+}
+
+/** Short type name to owning-namespace info, built from a model's imports. */
+export type ExternalTypeMap = Record<string, ExternalTypeInfo>;
+
+/** A clickable type reference in the CTO editor. Local declarations carry no
+    namespace; imported types carry their namespace and resolution status. */
+export interface TypeLinkTarget {
+  name: string;
+  namespace?: string;
+  resolved: boolean;
 }
 
 export const PRIMITIVE_TYPES = new Set([
