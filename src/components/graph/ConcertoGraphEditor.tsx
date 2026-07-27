@@ -24,8 +24,9 @@ import { FloatingEdge } from './FloatingEdge';
 import { GraphToolbar } from './GraphToolbar';
 import { NodeSearch } from './NodeSearch';
 import { useFocusNode } from './useFocusNode';
-import { SHORTCUT_STRINGS } from './strings';
+import { SHORTCUT_STRINGS, TOOLBAR_STRINGS } from './strings';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import { SHORTCUT_COMBOS } from '../../utils/shortcutCombos';
 import { parseCto, declarationsToGraph, describeParseError, type GraphContext } from '../../utils/graph/ctoToGraph';
 import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
@@ -306,13 +307,21 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     else setSearchOpen(false);
   }, [connectDialog, activeDialog]);
 
+  const handleClearCanvas = useCallback(() => {
+    if (modelRef.current.declarations.length === 0) return;
+    if (!window.confirm(TOOLBAR_STRINGS.clearConfirm)) return;
+    nodePositionsRef.current.clear();
+    updateModelAndSync([]);
+  }, [updateModelAndSync]);
+
   useKeyboardShortcuts([
-    { key: 'z', mod: true, description: SHORTCUT_STRINGS.undo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleUndo },
-    { key: 'z', mod: true, shift: true, description: SHORTCUT_STRINGS.redo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleRedo },
-    { key: 'y', mod: true, description: SHORTCUT_STRINGS.redo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleRedo },
-    { key: 'k', mod: true, allowInInput: true, description: SHORTCUT_STRINGS.searchNodes, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setSearchOpen((v) => !v) },
+    { ...SHORTCUT_COMBOS.undo, description: SHORTCUT_STRINGS.undo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleUndo },
+    { ...SHORTCUT_COMBOS.redoPrimary, description: SHORTCUT_STRINGS.redo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleRedo },
+    { ...SHORTCUT_COMBOS.redoAlt, description: SHORTCUT_STRINGS.redo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleRedo },
+    { ...SHORTCUT_COMBOS.clearCanvas, description: SHORTCUT_STRINGS.clearCanvas, category: SHORTCUT_STRINGS.categoryEditing, handler: handleClearCanvas },
+    { ...SHORTCUT_COMBOS.searchNodes, allowInInput: true, description: SHORTCUT_STRINGS.searchNodes, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setSearchOpen((v) => !v) },
     {
-      key: 'Escape',
+      ...SHORTCUT_COMBOS.closeDialog,
       allowInInput: true,
       enabled: searchOpen || activeDialog !== null || connectDialog !== null,
       description: SHORTCUT_STRINGS.closeDialog,
@@ -414,6 +423,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         onSetSuperType={handleSetSuperType}
         activeDialog={activeDialog}
         onCloseDialog={() => setActiveDialog(null)}
+        onClearCanvas={handleClearCanvas}
         onUndo={handleUndo}
         onRedo={handleRedo}
         canUndo={canUndo}

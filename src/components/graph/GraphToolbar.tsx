@@ -3,8 +3,14 @@ import type { Declaration } from '../../utils/graph/types';
 import { DECLARATION_TYPES, ALL_TYPES, getAvailableTypes, getExtendsCandidates, getMapKeyTypes, getMapValueTypes } from '../../utils/graph/types';
 import { TOOLBAR_STRINGS, DIALOG_STRINGS, SHORTCUT_STRINGS } from './strings';
 import { useKeyboardShortcuts, formatShortcut } from '../../hooks/useKeyboardShortcuts';
+import { SHORTCUT_COMBOS } from '../../utils/shortcutCombos';
 
-const searchKbdHint = formatShortcut({ key: 'k', mod: true });
+// Tooltip texts carry the live keybinding, formatted for the platform.
+const searchKbdHint = formatShortcut(SHORTCUT_COMBOS.searchNodes);
+const undoTitle = `${SHORTCUT_STRINGS.undo} (${formatShortcut(SHORTCUT_COMBOS.undo)})`;
+const redoTitle = `${SHORTCUT_STRINGS.redo} (${formatShortcut(SHORTCUT_COMBOS.redoPrimary)})`;
+const searchTitle = `${SHORTCUT_STRINGS.searchNodes} (${searchKbdHint})`;
+const clearTitle = `${SHORTCUT_STRINGS.clearCanvas} (${formatShortcut(SHORTCUT_COMBOS.clearCanvas)})`;
 
 interface GraphToolbarProps {
   declarations: Declaration[];
@@ -14,6 +20,7 @@ interface GraphToolbarProps {
   onSetSuperType: (declName: string, superType: string | undefined) => void;
   activeDialog: { type: 'property' | 'enum-value' | 'inheritance'; declName: string } | null;
   onCloseDialog: () => void;
+  onClearCanvas: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -25,7 +32,7 @@ interface GraphToolbarProps {
   onExport: () => void;
 }
 
-export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, onOpenSearch, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
+export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onClearCanvas, onUndo, onRedo, canUndo, canRedo, onOpenSearch, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
   const [showAddDecl, setShowAddDecl] = useState(false);
 
   // The add-declaration dialog is local to the toolbar, so it handles its
@@ -48,29 +55,30 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
         title={showText ? TOOLBAR_STRINGS.hideCtoTooltip : TOOLBAR_STRINGS.showCtoTooltip}>
         {showText ? TOOLBAR_STRINGS.hideCto : TOOLBAR_STRINGS.showCto}
       </button>
-      <button onClick={onImport} style={pillBtn}>{TOOLBAR_STRINGS.importLabel}</button>
-      <button onClick={onExport} style={pillBtn}>{TOOLBAR_STRINGS.exportLabel}</button>
+      <button onClick={onImport} style={pillBtn} title={TOOLBAR_STRINGS.importTooltip}>{TOOLBAR_STRINGS.importLabel}</button>
+      <button onClick={onExport} style={pillBtn} title={TOOLBAR_STRINGS.exportTooltip}>{TOOLBAR_STRINGS.exportLabel}</button>
 
       <div style={sep} />
 
-      <button onClick={() => setShowAddDecl(true)} style={{ ...pillBtn, background: '#3182ce' }}>{TOOLBAR_STRINGS.addDeclaration}</button>
+      <button onClick={() => setShowAddDecl(true)} style={{ ...pillBtn, background: '#3182ce' }} title={TOOLBAR_STRINGS.addDeclarationTooltip}>{TOOLBAR_STRINGS.addDeclaration}</button>
+      <button onClick={onClearCanvas} style={pillBtn} title={clearTitle}>{TOOLBAR_STRINGS.clearCanvas}</button>
 
       <div style={sep} />
 
       <button onClick={onUndo} disabled={!canUndo}
         style={{ ...arrowBtn, opacity: canUndo ? 1 : 0.25 }}
-        title={TOOLBAR_STRINGS.undoTooltip}>
+        title={undoTitle}>
         {TOOLBAR_STRINGS.undoIcon}
       </button>
       <button onClick={onRedo} disabled={!canRedo}
         style={{ ...arrowBtn, opacity: canRedo ? 1 : 0.25 }}
-        title={TOOLBAR_STRINGS.redoTooltip}>
+        title={redoTitle}>
         {TOOLBAR_STRINGS.redoIcon}
       </button>
 
       <div style={sep} />
 
-      <button onClick={onOpenSearch} style={searchBtn} title={TOOLBAR_STRINGS.searchTooltip}>
+      <button onClick={onOpenSearch} style={searchBtn} title={searchTitle}>
         <span style={{ color: '#38b2ac' }}>{TOOLBAR_STRINGS.searchIcon}</span>
         {TOOLBAR_STRINGS.searchNodes}
         <span style={kbdHint}>{searchKbdHint}</span>

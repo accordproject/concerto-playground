@@ -12,6 +12,7 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof GraphToolb
     onSetSuperType: vi.fn(),
     activeDialog: null,
     onCloseDialog: vi.fn(),
+    onClearCanvas: vi.fn(),
     onUndo: vi.fn(),
     onRedo: vi.fn(),
     canUndo: false,
@@ -56,5 +57,13 @@ describe('GraphToolbar dialog escape handling', () => {
 
     const notPrevented = fireEvent.keyDown(window, { key: 'Escape' });
     expect(notPrevented).toBe(true);
+  });
+
+  it('invokes onClearCanvas from the Clear button', () => {
+    const onClearCanvas = vi.fn();
+    renderToolbar({ onClearCanvas });
+
+    fireEvent.click(screen.getByText('Clear'));
+    expect(onClearCanvas).toHaveBeenCalledTimes(1);
   });
 });

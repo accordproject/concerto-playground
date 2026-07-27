@@ -7,6 +7,10 @@ import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ShortcutsOverlay } from "./components/ShortcutsOverlay";
+import { SHORTCUT_STRINGS } from "./components/graph/strings";
+import { useKeyboardShortcuts, formatShortcut } from "./hooks/useKeyboardShortcuts";
+import { SHORTCUT_COMBOS } from "./utils/shortcutCombos";
 import { validateCto, parseCto, buildExternalTypeMap, type GraphContext } from "./utils/graph/ctoToGraph";
 import type { ImportStatement, TypeLinkTarget } from "./utils/graph/types";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
@@ -85,7 +89,19 @@ export default function App() {
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
   const [importError, setImportError] = useState<string | null>(null);
   const [focusRequest, setFocusRequest] = useState<{ name: string; namespace?: string; ts: number } | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // App-wide shortcuts, active in every view (the graph editor registers its
+  // own on top of these). The cheat sheet overlay documents both sets.
+  useKeyboardShortcuts([
+    { ...SHORTCUT_COMBOS.showOverlay, description: SHORTCUT_STRINGS.showOverlay, category: SHORTCUT_STRINGS.categoryGeneral, handler: () => setShortcutsOpen((v) => !v) },
+    { ...SHORTCUT_COMBOS.showOverlayAlt, description: SHORTCUT_STRINGS.showOverlay, category: SHORTCUT_STRINGS.categoryGeneral, handler: () => setShortcutsOpen((v) => !v) },
+    { ...SHORTCUT_COMBOS.viewGraph, description: SHORTCUT_STRINGS.viewGraph, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setViewMode("graph") },
+    { ...SHORTCUT_COMBOS.viewForm, description: SHORTCUT_STRINGS.viewForm, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setViewMode("form") },
+    { ...SHORTCUT_COMBOS.viewCode, description: SHORTCUT_STRINGS.viewCode, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setViewMode("code") },
+    { ...SHORTCUT_COMBOS.toggleCtoPanel, description: SHORTCUT_STRINGS.toggleCto, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setShowCto((v) => !v) },
+  ]);
 
   // Offer to restore the previous session only when it would change something:
   // a shared link (URL hash) takes precedence over the cache, and a snapshot
@@ -478,7 +494,7 @@ export default function App() {
               border: "none",
               cursor: "pointer",
             }}
-            title={showCto ? "Hide CTO panel" : "Show CTO panel"}
+            title={`${showCto ? "Hide CTO panel" : "Show CTO panel"} (${formatShortcut(SHORTCUT_COMBOS.toggleCtoPanel)})`}
           >
             {showCto ? "◀ CTO" : "▶ CTO"}
           </button>
@@ -492,6 +508,7 @@ export default function App() {
               onClick={() => handleLoadExample(ex.source)}
               className="text-xs px-2.5 py-1 rounded font-semibold transition-colors"
               style={{ background: "#4a5568", color: "#e2e8f0", border: "none", cursor: "pointer" }}
+              title={`Load the ${ex.label} example model`}
             >
               {ex.label}
             </button>
@@ -510,6 +527,7 @@ export default function App() {
                   border: "none",
                   cursor: "pointer",
                 }}
+                title={`Graph view (${formatShortcut(SHORTCUT_COMBOS.viewGraph)})`}
               >
                 Graph
               </button>
@@ -523,6 +541,7 @@ export default function App() {
                   borderLeft: "1px solid #4a5568",
                   cursor: "pointer",
                 }}
+                title={`Form view (${formatShortcut(SHORTCUT_COMBOS.viewForm)})`}
               >
                 Form
               </button>
@@ -536,6 +555,7 @@ export default function App() {
                   borderLeft: "1px solid #4a5568",
                   cursor: "pointer",
                 }}
+                title={`Code view (${formatShortcut(SHORTCUT_COMBOS.viewCode)})`}
               >
                 Code
               </button>
@@ -544,6 +564,7 @@ export default function App() {
             <button
               onClick={handleShare}
               className="text-xs px-3 py-1 rounded border transition-colors"
+              title="Copy a shareable link to this workspace"
               style={{
                 background: "transparent",
                 borderColor: "#4a5568",
@@ -561,9 +582,26 @@ export default function App() {
             >
               {shareLabel}
             </button>
+
+            <button
+              onClick={() => setShortcutsOpen(true)}
+              className="text-xs px-2.5 py-1 rounded border transition-colors"
+              style={{
+                background: "transparent",
+                borderColor: "#4a5568",
+                color: "#a0aec0",
+                cursor: "pointer",
+              }}
+              title={`${SHORTCUT_STRINGS.showOverlay} (?)`}
+              aria-label={SHORTCUT_STRINGS.showOverlay}
+            >
+              ?
+            </button>
           </div>
         </div>
       )}
+
+      {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
 
       {/* Split pane */}
       <div className="flex flex-1 min-h-0">
