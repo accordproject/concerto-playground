@@ -15,7 +15,6 @@ export const TOOLBAR_STRINGS = {
   searchIcon: '⌕',
   searchNodes: 'Search nodes',
   searchTooltip: 'Search nodes (Ctrl+K)',
-  searchKbdHint: '⌘K',
   legendProperty: 'property',
   legendRelationship: 'relationship',
   legendExtends: 'extends',
@@ -39,6 +38,17 @@ export const DIALOG_STRINGS = {
   add: 'Add',
   set: 'Set',
   cancel: 'Cancel',
+} as const;
+
+// Descriptions for the keyboard shortcut registry. The shortcuts overlay
+// and the toolbar hints render these, so keep them short and action-like.
+export const SHORTCUT_STRINGS = {
+  categoryEditing: 'Editing',
+  categoryNavigation: 'Navigation',
+  undo: 'Undo',
+  redo: 'Redo',
+  searchNodes: 'Search nodes',
+  closeDialog: 'Close the open dialog',
 } as const;
 
 export const SEARCH_STRINGS = {

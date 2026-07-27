@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import type { Declaration } from '../../utils/graph/types';
 import { DECLARATION_TYPES, ALL_TYPES, getAvailableTypes, getExtendsCandidates, getMapKeyTypes, getMapValueTypes } from '../../utils/graph/types';
-import { TOOLBAR_STRINGS, DIALOG_STRINGS } from './strings';
+import { TOOLBAR_STRINGS, DIALOG_STRINGS, SHORTCUT_STRINGS } from './strings';
+import { useKeyboardShortcuts, formatShortcut } from '../../hooks/useKeyboardShortcuts';
+
+const searchKbdHint = formatShortcut({ key: 'k', mod: true });
 
 interface GraphToolbarProps {
   declarations: Declaration[];
@@ -24,6 +27,19 @@ interface GraphToolbarProps {
 
 export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, onOpenSearch, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
   const [showAddDecl, setShowAddDecl] = useState(false);
+
+  // The add-declaration dialog is local to the toolbar, so it handles its
+  // own Escape; the graph editor owns Escape for the dialogs it opens.
+  useKeyboardShortcuts([
+    {
+      key: 'Escape',
+      allowInInput: true,
+      enabled: showAddDecl,
+      description: SHORTCUT_STRINGS.closeDialog,
+      category: SHORTCUT_STRINGS.categoryNavigation,
+      handler: () => setShowAddDecl(false),
+    },
+  ]);
 
   return (
     <div style={toolbarStyle}>
@@ -57,7 +73,7 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
       <button onClick={onOpenSearch} style={searchBtn} title={TOOLBAR_STRINGS.searchTooltip}>
         <span style={{ color: '#38b2ac' }}>{TOOLBAR_STRINGS.searchIcon}</span>
         {TOOLBAR_STRINGS.searchNodes}
-        <span style={kbdHint}>{TOOLBAR_STRINGS.searchKbdHint}</span>
+        <span style={kbdHint}>{searchKbdHint}</span>
       </button>
 
       <div style={legendStyle}>
