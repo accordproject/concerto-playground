@@ -118,7 +118,15 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
       ],
       whitespace: [
         [/\s+/, "white"],
+        [/\/\*/, "comment", "@comment"],
         [/(\/\/.*)/, "comment"],
+      ],
+      // Block comments span lines, so they need their own state; Monarch
+      // carries the state across lines during full-document tokenization.
+      comment: [
+        [/[^/*]+/, "comment"],
+        [/\*\//, "comment", "@pop"],
+        [/[/*]/, "comment"],
       ],
     },
   });
