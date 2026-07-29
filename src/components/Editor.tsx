@@ -93,15 +93,31 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
     tokenizer: {
       root: [
         { include: "@whitespace" },
-        // Relationship arrow
-        [/-->/, "relationship"],
+        // Import targets are reference positions, so imported names stay
+        // clickable; the type name (or braced type list) gets its own token
+        // while the namespace path stays a plain identifier.
+        [
+          /(import)(\s+)([\w.]+(?:@[\w.-]+)?\.)(\{)([^}\n]*)(\})/,
+          ["keyword", "white", "identifier", "delimiter", "identifier.reference", "delimiter"],
+        ],
+        [
+          /(import)(\s+)([\w.]+(?:@[\w.-]+)?\.)(\w+)/,
+          ["keyword", "white", "identifier", "identifier.reference"],
+        ],
+        // Relationship arrow: the next identifier is a type reference
+        [/-->/, { token: "relationship", next: "@typeRef" }],
         // Decorators
         [/@\w+/, "decorator"],
-        // Identifiers and keywords
+        // Identifiers and keywords. Only positions that can hold a type
+        // reference switch to typeRef; every other identifier (declaration
+        // names, property names) stays a plain identifier.
         [
           /[a-zA-Z_]\w*/,
           {
             cases: {
+              o: { token: "keyword", next: "@typeRef" },
+              extends: { token: "keyword", next: "@typeRef" },
+              enum: { token: "keyword", next: "@enumDecl" },
               "@keywords": "keyword",
               "@typeKeywords": "type",
               "@default": "identifier",
@@ -115,6 +131,47 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
         [/\d+(\.\d+)?/, "number"],
         // Regex literals (e.g. regex=/\d+/)
         [/\/[^/\n]+\/[gimsuy]*/, "regexp"],
+      ],
+      // The single identifier right after o, --> or extends is a type
+      // reference; primitives keep their type token and anything else is
+      // re-lexed by the root state.
+      typeRef: [
+        [/[ \t]+/, "white"],
+        [
+          /[a-zA-Z_][\w.]*/,
+          {
+            cases: {
+              "@typeKeywords": { token: "type", next: "@pop" },
+              "@keywords": { token: "keyword", next: "@pop" },
+              "@default": { token: "identifier.reference", next: "@pop" },
+            },
+          },
+        ],
+        [/./, { token: "@rematch", next: "@pop" }],
+      ],
+      // Enum bodies hold values, not type references: an "o Person" inside an
+      // enum declares a value named Person, so o must not switch to typeRef.
+      enumDecl: [
+        { include: "@whitespace" },
+        [/[a-zA-Z_]\w*/, "identifier"],
+        [/\{/, { token: "delimiter", switchTo: "@enumBody" }],
+        [/./, { token: "@rematch", next: "@pop" }],
+      ],
+      enumBody: [
+        { include: "@whitespace" },
+        [/@\w+/, "decorator"],
+        [/"/, "string", "@string"],
+        [
+          /[a-zA-Z_]\w*/,
+          {
+            cases: {
+              "@keywords": "keyword",
+              "@default": "identifier",
+            },
+          },
+        ],
+        [/\d+(\.\d+)?/, "number"],
+        [/\}/, { token: "delimiter", next: "@pop" }],
       ],
       string: [
         [/[^\\"]+/, "string"],

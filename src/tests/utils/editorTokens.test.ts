@@ -102,8 +102,13 @@ describe("tokenizeWithCache", () => {
 });
 
 describe("isReferenceToken", () => {
-  it("accepts identifier tokens", () => {
-    expect(isReferenceToken("identifier.concerto")).toBe(true);
+  it("accepts only the context-specific reference tokens", () => {
+    expect(isReferenceToken("identifier.reference.concerto")).toBe(true);
+  });
+
+  it("rejects plain identifiers such as declaration names, property names and enum values", () => {
+    // A property or enum value named like a type must not become a link
+    expect(isReferenceToken("identifier.concerto")).toBe(false);
   });
 
   it("rejects comments, strings, regex literals, keywords and numbers", () => {
@@ -112,6 +117,7 @@ describe("isReferenceToken", () => {
     expect(isReferenceToken("regexp.concerto")).toBe(false);
     expect(isReferenceToken("keyword.concerto")).toBe(false);
     expect(isReferenceToken("number.concerto")).toBe(false);
+    expect(isReferenceToken("type.concerto")).toBe(false);
     expect(isReferenceToken("")).toBe(false);
   });
 });

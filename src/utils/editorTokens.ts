@@ -32,11 +32,14 @@ export function tokenTypeAt(
 
 /**
  * True when the token type marks a spot where a declared type can actually
- * be referenced. Only identifier tokens qualify; comments, strings, regex
- * literals, numbers and keywords are excluded.
+ * be referenced. Only the context-specific identifier.reference tokens the
+ * tokenizer emits for type positions (after o, --> and extends, and inside
+ * import targets) qualify; plain identifiers such as declaration names,
+ * property names and enum values are excluded, as are comments, strings,
+ * regex literals, numbers and keywords.
  */
 export function isReferenceToken(tokenType: string): boolean {
-  return tokenType.startsWith("identifier");
+  return tokenType.startsWith("identifier.reference");
 }
 
 /** The slice of monaco.editor.ITextModel the tokenization cache needs. */
