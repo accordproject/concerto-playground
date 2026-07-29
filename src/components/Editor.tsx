@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
 import { getConceptHint } from "../utils/conceptHints";
-import { tokenTypeAt } from "../utils/editorTokens";
+import { tokenTypeAt, tokenizeWithCache } from "../utils/editorTokens";
 
 // Hover hints only make sense on real language tokens; the same words
 // inside comments, strings or regex literals are plain text.
@@ -136,7 +136,9 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
   // the metamodel specification.
   monacoInstance.languages.registerHoverProvider("concerto", {
     provideHover(model: monaco.editor.ITextModel, position: monaco.Position) {
-      const tokenLines = monacoInstance.editor.tokenize(model.getValue(), model.getLanguageId());
+      const tokenLines = tokenizeWithCache(model, (text, languageId) =>
+        monacoInstance.editor.tokenize(text, languageId),
+      );
       if (!isHoverableToken(tokenTypeAt(tokenLines, position.lineNumber, position.column))) {
         return null;
       }

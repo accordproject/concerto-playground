@@ -38,3 +38,35 @@ export function tokenTypeAt(
 export function isReferenceToken(tokenType: string): boolean {
   return tokenType.startsWith("identifier");
 }
+
+/** The slice of monaco.editor.ITextModel the tokenization cache needs. */
+export interface TokenizableModel {
+  getVersionId(): number;
+  getValue(): string;
+  getLanguageId(): string;
+}
+
+const tokenLinesCache = new WeakMap<
+  TokenizableModel,
+  { versionId: number; lines: TokenLike[][] }
+>();
+
+/**
+ * Tokenizes the whole document through the given tokenizer, caching the
+ * result per model until its version changes. Full-document tokenization
+ * keeps multiline lexical state correct (block comments), but is O(model
+ * size), which is too costly to repeat on every hover; getVersionId()
+ * increments on any edit, so cached lines are reused between edits.
+ */
+export function tokenizeWithCache(
+  model: TokenizableModel,
+  tokenize: (text: string, languageId: string) => TokenLike[][],
+): TokenLike[][] {
+  const cached = tokenLinesCache.get(model);
+  if (cached && cached.versionId === model.getVersionId()) {
+    return cached.lines;
+  }
+  const lines = tokenize(model.getValue(), model.getLanguageId());
+  tokenLinesCache.set(model, { versionId: model.getVersionId(), lines });
+  return lines;
+}

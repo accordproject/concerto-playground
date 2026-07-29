@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { tokenTypeAt, isReferenceToken, type TokenLike } from "../../utils/editorTokens";
+import {
+  tokenTypeAt,
+  isReferenceToken,
+  tokenizeWithCache,
+  type TokenLike,
+} from "../../utils/editorTokens";
 
 // Mirrors the shape monaco.editor.tokenize returns for:
 //   o Person owner // Person lives here
@@ -36,6 +41,63 @@ describe("tokenTypeAt", () => {
 
   it("returns the last token for a column past the end of the line", () => {
     expect(tokenTypeAt([LINE], 1, 200)).toBe("comment.concerto");
+  });
+});
+
+describe("tokenizeWithCache", () => {
+  // Minimal stand-in for monaco's ITextModel: text is fixed, the version
+  // bumps the way real edits bump getVersionId()
+  function makeModel() {
+    let versionId = 1;
+    return {
+      model: {
+        getVersionId: () => versionId,
+        getValue: () => "concept A {}",
+        getLanguageId: () => "concerto",
+      },
+      edit: () => {
+        versionId += 1;
+      },
+    };
+  }
+
+  function makeTokenizer() {
+    const calls = { count: 0 };
+    const tokenize = (): TokenLike[][] => {
+      calls.count += 1;
+      return [[{ offset: 0, type: "keyword.concerto" }]];
+    };
+    return { calls, tokenize };
+  }
+
+  it("tokenizes once per version and serves repeat hovers from the cache", () => {
+    const { model } = makeModel();
+    const { calls, tokenize } = makeTokenizer();
+    const first = tokenizeWithCache(model, tokenize);
+    const second = tokenizeWithCache(model, tokenize);
+    expect(calls.count).toBe(1);
+    expect(second).toBe(first);
+  });
+
+  it("re-tokenizes after an edit changes the model version", () => {
+    const { model, edit } = makeModel();
+    const { calls, tokenize } = makeTokenizer();
+    tokenizeWithCache(model, tokenize);
+    edit();
+    tokenizeWithCache(model, tokenize);
+    tokenizeWithCache(model, tokenize);
+    expect(calls.count).toBe(2);
+  });
+
+  it("caches per model instance, not globally", () => {
+    const a = makeModel();
+    const b = makeModel();
+    const { calls, tokenize } = makeTokenizer();
+    tokenizeWithCache(a.model, tokenize);
+    tokenizeWithCache(b.model, tokenize);
+    tokenizeWithCache(a.model, tokenize);
+    tokenizeWithCache(b.model, tokenize);
+    expect(calls.count).toBe(2);
   });
 });
 
