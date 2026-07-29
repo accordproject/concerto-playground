@@ -2,6 +2,7 @@ import MonacoEditor, { useMonaco, type BeforeMount, type OnMount } from "@monaco
 import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
+import type { TypeLinkTarget } from "../utils/graph/types";
 
 interface EditorProps {
   value: string;
@@ -11,14 +12,17 @@ interface EditorProps {
   height?: string;
   /** Validation error string — shown as a red squiggle at the reported line/column */
   error?: string | null;
-  /** Declared type names to render as clickable references. */
-  linkTargets?: string[];
-  /** Called with the type name when a clickable reference is clicked. */
-  onNavigate?: (name: string) => void;
+  /** Type names to render as clickable references. Imported types carry the
+      namespace to navigate to; unresolved ones render a warning instead. */
+  linkTargets?: TypeLinkTarget[];
+  /** Called with the type name (and its namespace, when the type is imported
+      from another open namespace) when a clickable reference is clicked. */
+  onNavigate?: (name: string, namespace?: string) => void;
 }
 
-// Inject the underline style for clickable type references once.
+// Inject the underline styles for clickable type references once.
 const LINK_CLASS = "concerto-type-link";
+const UNRESOLVED_LINK_CLASS = "concerto-type-link-unresolved";
 // Delay before re-scanning the model for clickable references, so the
 // full-document scan does not run on every keystroke.
 const LINK_DECORATION_DEBOUNCE_MS = 200;
@@ -26,7 +30,9 @@ function ensureLinkStyle() {
   if (typeof document === "undefined" || document.getElementById("concerto-type-link-style")) return;
   const el = document.createElement("style");
   el.id = "concerto-type-link-style";
-  el.textContent = `.${LINK_CLASS} { text-decoration: underline dotted #38b2ac; text-underline-offset: 3px; cursor: pointer; }`;
+  el.textContent =
+    `.${LINK_CLASS} { text-decoration: underline dotted #38b2ac; text-underline-offset: 3px; cursor: pointer; }\n` +
+    `.${UNRESOLVED_LINK_CLASS} { text-decoration: underline wavy #ed8936; text-underline-offset: 3px; cursor: help; }`;
   document.head.appendChild(el);
 }
 
@@ -216,11 +222,11 @@ export function Editor({
   const monacoInstance = useMonaco();
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const decorationsRef = useRef<string[]>([]);
-  const targetsRef = useRef<Set<string>>(new Set());
+  const targetsRef = useRef<Map<string, TypeLinkTarget>>(new Map());
   const onNavigateRef = useRef(onNavigate);
   const [editorReady, setEditorReady] = useState(false);
 
-  targetsRef.current = new Set(linkTargets ?? []);
+  targetsRef.current = new Map((linkTargets ?? []).map((t) => [t.name, t]));
   onNavigateRef.current = onNavigate;
 
   const handleMount: OnMount = (editor) => {
@@ -231,8 +237,11 @@ export function Editor({
       const pos = e.target.position;
       if (!pos) return;
       const word = editor.getModel()?.getWordAtPosition(pos);
-      if (word && targetsRef.current.has(word.word)) {
-        onNavigateRef.current(word.word);
+      if (!word) return;
+      const target = targetsRef.current.get(word.word);
+      // Unresolved imports are not navigable; their decoration explains why.
+      if (target?.resolved) {
+        onNavigateRef.current(target.name, target.namespace);
       }
     });
   };
@@ -249,11 +258,24 @@ export function Editor({
       if (!model) return;
       const targets = linkTargets ?? [];
       const decorations: monaco.editor.IModelDeltaDecoration[] = [];
-      for (const name of targets) {
-        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      for (const target of targets) {
+        const escaped = target.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const matches = model.findMatches(`\\b${escaped}\\b`, false, true, true, null, false);
+        const options: monaco.editor.IModelDecorationOptions = target.resolved
+          ? {
+              inlineClassName: LINK_CLASS,
+              hoverMessage: target.namespace
+                ? { value: `Imported from \`${target.namespace}\` (click to open)` }
+                : undefined,
+            }
+          : {
+              inlineClassName: UNRESOLVED_LINK_CLASS,
+              hoverMessage: {
+                value: `Namespace unresolved: \`${target.namespace ?? "unknown"}\` is not open in this workspace`,
+              },
+            };
         for (const m of matches) {
-          decorations.push({ range: m.range, options: { inlineClassName: LINK_CLASS } });
+          decorations.push({ range: m.range, options });
         }
       }
       decorationsRef.current = editor.deltaDecorations(decorationsRef.current, decorations);

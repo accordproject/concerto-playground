@@ -80,7 +80,9 @@ function declarationToAst(decl: Declaration): any {
   };
 
   if (decl.superType) {
-    result.superType = { name: decl.superType };
+    result.superType = decl.superTypeNamespace
+      ? { name: decl.superType, namespace: decl.superTypeNamespace }
+      : { name: decl.superType };
   }
 
   if (decl.identified === 'identified-by' && decl.identifiedBy) {
@@ -103,12 +105,18 @@ const PRIMITIVE_TO_CLASS: Record<string, string> = {
   DateTime: 'DateTimeProperty',
 };
 
+function typeIdentifierToAst(prop: Property): any {
+  return prop.typeNamespace
+    ? { name: prop.type, namespace: prop.typeNamespace }
+    : { name: prop.type };
+}
+
 function propertyToAst(prop: Property): any {
   if (prop.isRelationship) {
     return {
       $class: `${META}.RelationshipProperty`,
       name: prop.name,
-      type: { name: prop.type },
+      type: typeIdentifierToAst(prop),
       isArray: prop.isArray,
       isOptional: prop.isOptional,
     };
@@ -129,7 +137,7 @@ function propertyToAst(prop: Property): any {
   const result: any = {
     $class: `${META}.ObjectProperty`,
     name: prop.name,
-    type: { name: prop.type },
+    type: typeIdentifierToAst(prop),
     isArray: prop.isArray,
     isOptional: prop.isOptional,
   };

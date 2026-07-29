@@ -53,10 +53,13 @@ test.describe('Graph layout actions', () => {
     await page.getByRole('button', { name: 'Save layout' }).click();
 
     const savedTransforms = await getNodeTransforms(page);
-    await expect.poll(() => page.url()).toContain('#');
     await expect(page.locator('.monaco-editor')).toContainText('@Position(');
+    await expect
+      .poll(() => page.evaluate(() => window.localStorage.getItem('workspace.v1')?.includes('@Position(')))
+      .toBe(true);
 
     await page.reload();
+    await page.getByRole('button', { name: 'Restore' }).click();
     await expect(page.locator('.react-flow__node')).toHaveCount(8, { timeout: 15000 });
     expect(await getNodeTransforms(page)).toEqual(savedTransforms);
   });

@@ -20,11 +20,12 @@ import { ConceptNode } from './ConceptNode';
 import { EnumNode } from './EnumNode';
 import { MapNode } from './MapNode';
 import { ScalarNode } from './ScalarNode';
+import { ImportedNode } from './ImportedNode';
 import { FloatingEdge } from './FloatingEdge';
 import { GraphToolbar } from './GraphToolbar';
 import { NodeSearch } from './NodeSearch';
 import { useFocusNode } from './useFocusNode';
-import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, parseCto, withDeclarationPositions } from '../../utils/graph/ctoToGraph';
+import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, parseCto, withDeclarationPositions, type GraphContext } from '../../utils/graph/ctoToGraph';
 import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel } from '../../utils/graph/types';
@@ -35,6 +36,7 @@ const nodeTypes: NodeTypes = {
   enumNode: EnumNode,
   mapNode: MapNode,
   scalarNode: ScalarNode,
+  importedNode: ImportedNode,
 };
 
 const edgeTypes: EdgeTypes = {
@@ -48,10 +50,15 @@ interface ConcertoGraphEditorProps {
   onToggleText: () => void;
   onImport: () => void;
   onExport: () => void;
-  /** When this changes, the graph centers on and highlights the named node. */
-  focusRequest?: { name: string; ts: number } | null;
+  /** When this changes, the graph centers on and highlights the named node.
+      A namespace means the focus waits until that namespace's graph loaded. */
+  focusRequest?: { name: string; namespace?: string; ts: number } | null;
   /** Semantic validation error for the current model (from validateCto). */
   validationError?: string | null;
+  /** Workspace info used to render imported (foreign namespace) type nodes. */
+  graphContext?: GraphContext;
+  /** Called when an imported node is clicked, to switch to its namespace. */
+  onNavigateToType?: (name: string, namespace: string) => void;
 }
 
 interface HistoryEntry {
@@ -78,7 +85,7 @@ function useDebouncedError<T>(value: T | null, delay: number): T | null {
   return debounced;
 }
 
-export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onExport, focusRequest, validationError }: ConcertoGraphEditorProps) {
+export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onExport, focusRequest, validationError, graphContext, onNavigateToType }: ConcertoGraphEditorProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -114,6 +121,14 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   }, [validationError, cto]);
   const semanticError = useDebouncedError(rawSemanticError, 600);
 
+  // Latest workspace context, readable from callbacks without re-creating them.
+  const graphContextRef = useRef(graphContext);
+  graphContextRef.current = graphContext;
+  // Tracks the last CTO pushed to history so a graphContext-only change
+  // (e.g. a peer namespace appearing) refreshes the graph without adding a
+  // duplicate undo entry.
+  const lastHistoryCtoRef = useRef<string | null>(null);
+
   useEffect(() => {
     for (const node of nodes) {
       nodePositionsRef.current.set(node.id, { ...node.position });
@@ -138,18 +153,19 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     try {
       const parsed = parseCto(cto);
       setModel(parsed);
-      const graph = declarationsToGraph(parsed.declarations);
+      const graph = declarationsToGraph(parsed.declarations, graphContext);
       const nodesWithPositions = graph.nodes.map((node) => {
         const savedPos = nodePositionsRef.current.get(node.id);
-        const declaration = node.data.declaration as Declaration;
-        return declaration.decorators.some((decorator) => decorator.name === 'Position') || !savedPos
+        const declaration = node.data.declaration as Declaration | undefined;
+        return declaration?.decorators.some((decorator) => decorator.name === 'Position') || !savedPos
           ? node
           : { ...node, position: savedPos };
       });
       setNodes(nodesWithPositions);
       setEdges(graph.edges);
-      if (!isUndoRedo.current) {
+      if (!isUndoRedo.current && lastHistoryCtoRef.current !== cto) {
         pushHistory({ model: parsed, nodes: nodesWithPositions, edges: graph.edges });
+        lastHistoryCtoRef.current = cto;
       }
       isUndoRedo.current = false;
       setRawParseError(null);
@@ -165,18 +181,18 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         snippet: position ? buildSnippet(cto, position.line, position.column) : null,
       });
     }
-  }, [cto, setNodes, setEdges]);
+  }, [cto, graphContext, setNodes, setEdges]);
 
   const updateModelAndSync = useCallback((newDeclarations: Declaration[]) => {
     const cur = modelRef.current;
     const newModel = { ...cur, declarations: newDeclarations };
     const newCto = declarationsToCto(newModel);
     setModel(newModel);
-    const graph = declarationsToGraph(newDeclarations);
+    const graph = declarationsToGraph(newDeclarations, graphContextRef.current);
     const nodesWithPositions = graph.nodes.map((node) => {
       const savedPos = nodePositionsRef.current.get(node.id);
-      const declaration = node.data.declaration as Declaration;
-      return declaration.decorators.some((decorator) => decorator.name === 'Position') || !savedPos
+      const declaration = node.data.declaration as Declaration | undefined;
+      return declaration?.decorators.some((decorator) => decorator.name === 'Position') || !savedPos
         ? node
         : { ...node, position: savedPos };
     });
@@ -186,6 +202,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     // A graph edit regenerates the CTO from the last valid model, so any
     // pending text parse error is now stale.
     setRawParseError(null);
+    lastHistoryCtoRef.current = newCto;
     updatingFromGraph.current = true;
     onModelChange?.(newCto);
   }, [setModel, setNodes, setEdges, onModelChange, pushHistory]);
@@ -266,7 +283,9 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     }
     setRawParseError(null);
     updatingFromGraph.current = true;
-    onModelChange?.(declarationsToCto(entry.model));
+    const entryCto = declarationsToCto(entry.model);
+    lastHistoryCtoRef.current = entryCto;
+    onModelChange?.(entryCto);
   }, [history, historyIndex, setNodes, setEdges, onModelChange]);
 
   const handleRedo = useCallback(() => {
@@ -283,7 +302,9 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     }
     setRawParseError(null);
     updatingFromGraph.current = true;
-    onModelChange?.(declarationsToCto(entry.model));
+    const entryCto = declarationsToCto(entry.model);
+    lastHistoryCtoRef.current = entryCto;
+    onModelChange?.(entryCto);
   }, [history, historyIndex, setNodes, setEdges, onModelChange]);
 
   useEffect(() => {
@@ -365,9 +386,15 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
 
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source && connection.target && connection.source !== connection.target) {
-      setConnectDialog({ sourceId: connection.source, targetId: connection.target });
+      // Imported nodes use namespace-qualified ids; a property created against
+      // one references the short name (the import statement already exists).
+      const targetNode = nodes.find((n) => n.id === connection.target);
+      const targetId = targetNode?.type === 'importedNode'
+        ? (targetNode.data as { label: string }).label
+        : connection.target;
+      setConnectDialog({ sourceId: connection.source, targetId });
     }
-  }, []);
+  }, [nodes]);
 
   const handleConnectSubmit = useCallback((connType: 'property' | 'relationship' | 'extends', propName: string) => {
     if (!connectDialog) return;
@@ -391,6 +418,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
       onSetInheritance: (declName: string) => setActiveDialog({ type: 'inheritance', declName }),
       onAddEnumValue: (declName: string) => setActiveDialog({ type: 'enum-value', declName }),
       onDeleteEnumValue: handleDeleteEnumValue,
+      onNavigateToType,
     },
   }));
 
@@ -471,7 +499,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           </div>
         )}
 
-        <FocusController focusRequest={focusRequest} />
+        <FocusController focusRequest={focusRequest} currentNamespace={model.namespace} />
 
         {searchOpen && (
           <NodeSearch
@@ -495,15 +523,22 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
 }
 
 /** Centers/highlights a node whenever focusRequest changes (e.g. a CTO link click). */
-function FocusController({ focusRequest }: { focusRequest?: { name: string; ts: number } | null }) {
+function FocusController({ focusRequest, currentNamespace }: {
+  focusRequest?: { name: string; namespace?: string; ts: number } | null;
+  currentNamespace: string;
+}) {
   const focusNode = useFocusNode();
   const lastTs = useRef<number>(0);
   useEffect(() => {
     if (!focusRequest || focusRequest.ts === lastTs.current) return;
+    // A cross-namespace request waits until the target namespace's graph is
+    // loaded, otherwise the old graph's same-named node would be centered.
+    // The effect re-runs when currentNamespace catches up.
+    if (focusRequest.namespace && focusRequest.namespace !== currentNamespace) return;
     lastTs.current = focusRequest.ts;
     const id = requestAnimationFrame(() => focusNode(focusRequest.name));
     return () => cancelAnimationFrame(id);
-  }, [focusRequest, focusNode]);
+  }, [focusRequest, currentNamespace, focusNode]);
   return null;
 }
 

@@ -7,8 +7,15 @@ import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { validateCto, parseCto } from "./utils/graph/ctoToGraph";
+import { validateCto, parseCto, buildExternalTypeMap, type GraphContext } from "./utils/graph/ctoToGraph";
+import type { ImportStatement, TypeLinkTarget } from "./utils/graph/types";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
+import {
+  areWorkspaceModelsEqual,
+  clearWorkspaceSnapshot,
+  loadWorkspaceSnapshot,
+  useWorkspacePersistence,
+} from "./hooks/useWorkspacePersistence";
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from "./examples/nda.cto";
 import {
   generate,
@@ -78,6 +85,11 @@ function replaceLocationHash(hash: string) {
   window.history.replaceState(null, "", url);
 }
 
+// Captured before the App mounts: the persistence hook starts overwriting the
+// stored snapshot shortly after the first render, so the previous session has
+// to be read here, not in an effect.
+const _savedSnapshot = loadWorkspaceSnapshot();
+
 export default function App() {
   const [models, setModels] = useState<Record<string, string>>(_initialModels);
   const [activeNamespace, setActiveNamespace] = useState<string>(() => Object.keys(_initialModels)[0]);
@@ -87,34 +99,97 @@ export default function App() {
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
   const [importError, setImportError] = useState<string | null>(null);
-  const [focusRequest, setFocusRequest] = useState<{ name: string; ts: number } | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ name: string; namespace?: string; ts: number } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Offer to restore the previous session only when it would change something:
+  // a shared link (URL hash) takes precedence over the cache, and a snapshot
+  // identical to what already loaded has nothing to restore.
+  const [showRestore, setShowRestore] = useState(
+    () =>
+      _savedSnapshot !== null &&
+      !window.location.hash.slice(1) &&
+      !areWorkspaceModelsEqual(_savedSnapshot.models, _initialModels),
+  );
+  // Do not overwrite a recoverable snapshot until the user chooses Restore or
+  // Dismiss on the restore prompt.
+  const { lastSaved, saveError, dismissSaveError } = useWorkspacePersistence(models, !showRestore);
+
+  function handleRestoreSession() {
+    if (_savedSnapshot) {
+      setModels(_savedSnapshot.models);
+      setActiveNamespace(Object.keys(_savedSnapshot.models)[0]);
+    }
+    setShowRestore(false);
+  }
+
+  function handleDismissRestore() {
+    clearWorkspaceSnapshot();
+    setShowRestore(false);
+  }
 
   // The "active" source for single-model views (graph editor, CTO editor)
   const source = models[activeNamespace] ?? "";
 
-  // Single parse of the active model per keystroke; everything below that
-  // needs the AST derives from this memo instead of re-parsing.
-  const parsedModel = useMemo(() => {
+  // Declared type names per open namespace. Used to resolve imported type
+  // references (clickable links, foreign-namespace graph nodes).
+  const workspaceDeclarations = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    for (const [ns, cto] of Object.entries(models)) {
+      if (!cto) continue;
+      try {
+        result[ns] = parseCto(cto).declarations.map((d) => d.name);
+      } catch {
+        // Unparseable model: treat its types as unavailable until it parses again
+      }
+    }
+    return result;
+  }, [models]);
+
+  // Declarations and imports of the active model.
+  const activeModel = useMemo(() => {
     try {
-      return parseCto(source);
+      const parsed = parseCto(source);
+      return { declarations: parsed.declarations, imports: parsed.imports };
     } catch {
-      return null;
+      return { declarations: [] as { name: string }[], imports: [] as ImportStatement[] };
     }
   }, [source]);
 
-  // Declared type names in the active model — used to render clickable
-  // references in the CTO editor.
-  const declaredTypes = useMemo(
-    () => parsedModel?.declarations.map((d) => d.name) ?? [],
-    [parsedModel],
+  // Types the active model pulls in from other namespaces, with resolution
+  // status (resolved = the namespace is open and declares the type).
+  const externalTypes = useMemo(
+    () => buildExternalTypeMap(activeModel.imports, workspaceDeclarations),
+    [activeModel, workspaceDeclarations],
   );
 
-  // Jump to a declaration's node in the graph (from a CTO reference click).
-  const handleFocusNode = useCallback((name: string) => {
+  const graphContext = useMemo<GraphContext>(
+    () => ({ externalTypes, workspaceDeclarations }),
+    [externalTypes, workspaceDeclarations],
+  );
+
+  // Clickable references in the CTO editor: local declarations plus imported
+  // types. Local names win when an import shadows them.
+  const linkTargets = useMemo<TypeLinkTarget[]>(() => {
+    const local: TypeLinkTarget[] = activeModel.declarations.map((d) => ({ name: d.name, resolved: true }));
+    const localNames = new Set(local.map((t) => t.name));
+    const imported: TypeLinkTarget[] = Object.entries(externalTypes)
+      .filter(([name]) => !localNames.has(name))
+      .map(([name, info]) => ({ name, namespace: info.namespace, resolved: info.resolved }));
+    return [...local, ...imported];
+  }, [activeModel, externalTypes]);
+
+  // Jump to a declaration's node in the graph (from a CTO reference click or
+  // an imported node click). A namespace argument means the type lives in
+  // another open namespace: switch the workspace there first, then focus.
+  const handleFocusNode = useCallback((name: string, namespace?: string) => {
+    if (namespace) {
+      if (models[namespace] === undefined) return; // unresolved namespace: nothing to navigate to
+      if (namespace !== activeNamespace) setActiveNamespace(namespace);
+    }
     setViewMode("graph");
-    setFocusRequest({ name, ts: Date.now() });
-  }, []);
+    setFocusRequest({ name, namespace, ts: Date.now() });
+  }, [models, activeNamespace]);
 
   const validationError = useMemo(() => {
     const peers = Object.values(models).filter((s) => s && s !== source);
@@ -146,13 +221,6 @@ export default function App() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [models, runGeneration]);
-
-  useEffect(() => {
-    const nextHash = encodeModelsHash(models);
-    if (window.location.hash.slice(1) !== nextHash) {
-      replaceLocationHash(nextHash);
-    }
-  }, [models]);
 
   // Update a specific namespace's CTO. Empty string = delete.
   function handleModelChange(ns: string, newCto: string) {
@@ -354,6 +422,44 @@ export default function App() {
   return (
     <div className={`flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden ${_initialUrlOptions.headless ? "" : "pt-16"}`}>
       {!_initialUrlOptions.headless && <Header />}
+
+      {/* Restore previous session prompt */}
+      {showRestore && _savedSnapshot && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-[#2a4365] border-b border-[#2c5282] text-xs text-blue-100 shrink-0">
+          <span className="flex-1">
+            Restore previous session? Work saved in this browser on{" "}
+            {new Date(_savedSnapshot.savedAt).toLocaleString()} was found.
+          </span>
+          <button
+            onClick={handleRestoreSession}
+            className="shrink-0 text-xs px-2.5 py-1 rounded font-semibold"
+            style={{ background: "#3182ce", color: "#e2e8f0", border: "none", cursor: "pointer" }}
+          >
+            Restore
+          </button>
+          <button
+            onClick={handleDismissRestore}
+            className="shrink-0 text-xs px-2.5 py-1 rounded"
+            style={{ background: "transparent", color: "#90cdf4", border: "1px solid #2c5282", cursor: "pointer" }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Storage failure banner */}
+      {saveError && (
+        <div role="alert" className="flex items-start gap-2 px-4 py-2 bg-amber-900 bg-opacity-60 border-b border-amber-700 text-xs text-amber-100 shrink-0">
+          <span className="flex-1">{saveError}</span>
+          <button
+            onClick={dismissSaveError}
+            className="shrink-0 text-amber-300 hover:text-white leading-none"
+            aria-label="Dismiss storage warning"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Import error banner */}
       {importError && (
@@ -583,7 +689,7 @@ export default function App() {
             </div>
             <div className="flex-1 min-h-0">
               <ErrorBoundary label="Text Editor" resetKeys={[source]}>
-                <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={declaredTypes} onNavigate={handleFocusNode} />
+                <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={linkTargets} onNavigate={handleFocusNode} />
               </ErrorBoundary>
             </div>
           </div>
@@ -611,6 +717,8 @@ export default function App() {
                 onExport={handleExport}
                 focusRequest={focusRequest}
                 validationError={validationError}
+                graphContext={graphContext}
+                onNavigateToType={handleFocusNode}
               />
             </ErrorBoundary>
           ) : (
@@ -629,6 +737,9 @@ export default function App() {
       <div className="flex items-center justify-between px-4 py-1 text-white text-xs shrink-0" style={{ background: "#007acc" }}>
         <span>Accord Project — Concerto Playground</span>
         <div className="flex items-center gap-4">
+          {lastSaved !== null && (
+            <span className="opacity-80">Last saved: {new Date(lastSaved).toLocaleTimeString()}</span>
+          )}
           <a
             href="https://concerto.accordproject.org/docs/intro"
             target="_blank"
