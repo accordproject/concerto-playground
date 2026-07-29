@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { ConcertoModel } from '../../utils/graph/types';
 import type { FormSel } from './FormView';
 import { COLOR } from './theme';
+import { FORM_STRINGS } from '../../constants/ui';
 
 interface PropertyTreeProps {
   models: Record<string, ConcertoModel>;
@@ -85,11 +86,11 @@ export function PropertyTree({
         }}
       >
         <span style={{ fontSize: 11, fontWeight: 700, color: COLOR.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Model Tree
+          {FORM_STRINGS.treeTitle}
         </span>
         <button
           onClick={onAddNamespace}
-          title="Add namespace"
+          title={FORM_STRINGS.addNamespaceTitle}
           style={{
             background: COLOR.blue,
             color: COLOR.text,
@@ -166,7 +167,7 @@ export function PropertyTree({
                     padding: '0 2px',
                     lineHeight: 1,
                   }}
-                  title="Remove namespace"
+                  title={FORM_STRINGS.removeNamespaceTitle}
                 >
                   ×
                 </button>
@@ -192,7 +193,7 @@ export function PropertyTree({
                       textAlign: 'left',
                     }}
                   >
-                    + add declaration
+                    {FORM_STRINGS.addDeclaration}
                   </button>
                 </div>
 
@@ -235,7 +236,7 @@ export function PropertyTree({
                             textAlign: 'left',
                           }}
                         >
-                          + {isEnum ? 'add value' : 'add property'}
+                          + {isEnum ? FORM_STRINGS.addValue : FORM_STRINGS.addProperty}
                         </button>
                       </div>
 

@@ -9,6 +9,7 @@
 // on top; they never change the validation semantics.
 
 import { Identifiers } from '@accordproject/concerto-util';
+import { VALIDATION_STRINGS } from '../../constants/ui';
 
 const { ID_REGEX } = Identifiers;
 
@@ -20,12 +21,12 @@ const VERSION_RE = /^\d+\.\d+\.\d+(-[A-Za-z0-9.-]+)?$/;
  * (declaration name, property name, enum value), or null if it is valid.
  */
 export function identifierError(name: string): string | null {
-  if (!name) return 'Name is required.';
+  if (!name) return VALIDATION_STRINGS.nameRequired;
   if (/\s/.test(name)) {
-    return `Names cannot contain spaces. Write "${suggestIdentifier(name)}" instead of "${name}".`;
+    return VALIDATION_STRINGS.nameNoSpaces(suggestIdentifier(name), name);
   }
   if (!ID_REGEX.test(name)) {
-    return 'Names must be a single word starting with a letter, "_" or "$" (e.g. "myCarName").';
+    return VALIDATION_STRINGS.nameFormat;
   }
   return null;
 }
@@ -35,13 +36,13 @@ export function identifierError(name: string): string | null {
  * (dot-separated identifiers plus optional @semver), or null if it is valid.
  */
 export function namespaceError(ns: string): string | null {
-  if (!ns) return 'Namespace is required.';
+  if (!ns) return VALIDATION_STRINGS.namespaceRequired;
   const at = ns.indexOf('@');
   const name = at === -1 ? ns : ns.slice(0, at);
   const version = at === -1 ? null : ns.slice(at + 1);
   const segmentsValid = name.split('.').every((segment) => ID_REGEX.test(segment));
   if (!segmentsValid || (version !== null && !VERSION_RE.test(version))) {
-    return 'Namespaces must be dot-separated words with no spaces, plus an optional version, e.g. "org.example@1.0.0".';
+    return VALIDATION_STRINGS.namespaceFormat;
   }
   return null;
 }

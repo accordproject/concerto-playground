@@ -7,6 +7,7 @@ import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { FormSel } from './FormView';
 import { identifierError, namespaceError } from './validation';
 import { COLOR } from './theme';
+import { FORM_STRINGS } from '../../constants/ui';
 
 const cardStyle: React.CSSProperties = {
   background: COLOR.panel,
@@ -163,7 +164,7 @@ function NameField({ label, field, placeholder }: { label: string; field: Valida
 function Placeholder() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: COLOR.muted, fontSize: 14 }}>
-      Select an item from the tree
+      {FORM_STRINGS.placeholder}
     </div>
   );
 }
@@ -196,10 +197,10 @@ function NamespaceForm({
 
   return (
     <div style={cardStyle}>
-      <NameField label="Namespace" field={name} placeholder="org.example@1.0.0" />
+      <NameField label={FORM_STRINGS.sectionNamespace} field={name} placeholder={FORM_STRINGS.namespacePlaceholder} />
       <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-        <button style={btnPrimary} onClick={handleSave}>Save</button>
-        <button style={btnDanger} onClick={() => onRemoveNamespace(ns)}>Delete</button>
+        <button style={btnPrimary} onClick={handleSave}>{FORM_STRINGS.save}</button>
+        <button style={btnDanger} onClick={() => onRemoveNamespace(ns)}>{FORM_STRINGS.delete}</button>
       </div>
     </div>
   );
@@ -240,17 +241,17 @@ function EnumForm({
   return (
     <div>
       <div style={cardStyle}>
-        <NameField label="Name" field={name} placeholder="EnumName" />
+        <NameField label={FORM_STRINGS.fieldName} field={name} placeholder={FORM_STRINGS.enumNamePlaceholder} />
         <div style={{ display: 'flex', gap: 8 }}>
-          <button style={btnPrimary} onClick={handleSave}>Save</button>
-          <button style={btnDanger} onClick={handleDelete}>Delete</button>
+          <button style={btnPrimary} onClick={handleSave}>{FORM_STRINGS.save}</button>
+          <button style={btnDanger} onClick={handleDelete}>{FORM_STRINGS.delete}</button>
         </div>
       </div>
 
       <div style={cardStyle}>
-        <span style={labelStyle}>Enum Values</span>
+        <span style={labelStyle}>{FORM_STRINGS.enumValuesLabel}</span>
         {decl.enumValues.length === 0 && (
-          <div style={{ color: COLOR.muted, fontSize: 12, padding: '4px 0' }}>No values yet</div>
+          <div style={{ color: COLOR.muted, fontSize: 12, padding: '4px 0' }}>{FORM_STRINGS.noValuesYet}</div>
         )}
         {decl.enumValues.map((val) => (
           <div key={val} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: `1px solid ${COLOR.border}` }}>
@@ -319,29 +320,29 @@ function ConceptForm({
 
   return (
     <div style={cardStyle}>
-      <NameField label="Name" field={name} placeholder="ConceptName" />
+      <NameField label={FORM_STRINGS.fieldName} field={name} placeholder={FORM_STRINGS.conceptNamePlaceholder} />
 
-      <Field label="Type">
+      <Field label={FORM_STRINGS.fieldType}>
         <span style={{ fontSize: 13, color: COLOR.muted, textTransform: 'capitalize' }}>{decl.type}</span>
       </Field>
 
-      <Field label="Extends">
+      <Field label={FORM_STRINGS.fieldExtends}>
         <select style={selectStyle} value={superType} onChange={(e) => setSuperType(e.target.value)}>
-          <option value="">(none)</option>
+          <option value="">{FORM_STRINGS.extendsNone}</option>
           {extendsCandidates.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </Field>
 
-      <Field label="Identified">
+      <Field label={FORM_STRINGS.fieldIdentified}>
         <select style={selectStyle} value={identified} onChange={(e) => setIdentified(e.target.value as typeof identified)}>
-          <option value="none">None</option>
-          <option value="identified">System identifier</option>
-          <option value="identified-by">Identified by field</option>
+          <option value="none">{FORM_STRINGS.identifiedNone}</option>
+          <option value="identified">{FORM_STRINGS.identifiedSystem}</option>
+          <option value="identified-by">{FORM_STRINGS.identifiedByField}</option>
         </select>
       </Field>
 
       {identified === 'identified-by' && (
-        <NameField label="Identified by field" field={identifiedBy} placeholder="fieldName" />
+        <NameField label={FORM_STRINGS.fieldIdentifiedBy} field={identifiedBy} placeholder={FORM_STRINGS.identifiedByPlaceholder} />
       )}
 
       <div style={{ ...checkboxRowStyle, marginBottom: 12 }}>
@@ -352,12 +353,12 @@ function ConceptForm({
           onChange={(e) => setIsAbstract(e.target.checked)}
           style={{ width: 14, height: 14, accentColor: COLOR.blue }}
         />
-        <label htmlFor={abstractId} style={{ cursor: 'pointer' }}>Abstract</label>
+        <label htmlFor={abstractId} style={{ cursor: 'pointer' }}>{FORM_STRINGS.abstract}</label>
       </div>
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <button style={btnPrimary} onClick={handleSave}>Save</button>
-        <button style={btnDanger} onClick={handleDelete}>Delete</button>
+        <button style={btnPrimary} onClick={handleSave}>{FORM_STRINGS.save}</button>
+        <button style={btnDanger} onClick={handleDelete}>{FORM_STRINGS.delete}</button>
       </div>
     </div>
   );
@@ -419,9 +420,9 @@ function PropertyForm({
 
   return (
     <div style={cardStyle}>
-      <NameField label="Name" field={name} placeholder="propertyName" />
+      <NameField label={FORM_STRINGS.fieldName} field={name} placeholder={FORM_STRINGS.propertyNamePlaceholder} />
 
-      <Field label="Type">
+      <Field label={FORM_STRINGS.fieldType}>
         <select style={selectStyle} value={type} onChange={(e) => { setType(e.target.value); if (PRIMITIVE_TYPES.has(e.target.value)) setIsRelationship(false); }}>
           {availableTypes.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -435,7 +436,7 @@ function PropertyForm({
             onChange={(e) => setIsOptional(e.target.checked)}
             style={{ width: 14, height: 14, accentColor: COLOR.blue }}
           />
-          Optional
+          {FORM_STRINGS.optional}
         </label>
 
         <label style={checkboxRowStyle}>
@@ -445,7 +446,7 @@ function PropertyForm({
             onChange={(e) => setIsArray(e.target.checked)}
             style={{ width: 14, height: 14, accentColor: COLOR.blue }}
           />
-          Array
+          {FORM_STRINGS.array}
         </label>
 
         {!isPrimitive && (
@@ -456,14 +457,14 @@ function PropertyForm({
               onChange={(e) => setIsRelationship(e.target.checked)}
               style={{ width: 14, height: 14, accentColor: COLOR.blue }}
             />
-            Relationship
+            {FORM_STRINGS.relationship}
           </label>
         )}
       </div>
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <button style={btnPrimary} onClick={handleSave}>Save</button>
-        <button style={btnDanger} onClick={handleDelete}>Delete</button>
+        <button style={btnPrimary} onClick={handleSave}>{FORM_STRINGS.save}</button>
+        <button style={btnDanger} onClick={handleDelete}>{FORM_STRINGS.delete}</button>
       </div>
     </div>
   );
@@ -506,10 +507,10 @@ function EnumValueForm({
 
   return (
     <div style={cardStyle}>
-      <NameField label="Value name" field={name} placeholder="ENUM_VALUE" />
+      <NameField label={FORM_STRINGS.fieldValueName} field={name} placeholder={FORM_STRINGS.enumValuePlaceholder} />
       <div style={{ display: 'flex', gap: 8 }}>
-        <button style={btnPrimary} onClick={handleSave}>Save</button>
-        <button style={btnDanger} onClick={handleDelete}>Delete</button>
+        <button style={btnPrimary} onClick={handleSave}>{FORM_STRINGS.save}</button>
+        <button style={btnDanger} onClick={handleDelete}>{FORM_STRINGS.delete}</button>
       </div>
     </div>
   );
@@ -546,7 +547,7 @@ export function PropertySheet({ selection, models, onModelChange, onRemoveNamesp
     if (!model) return <div style={containerStyle}><Placeholder /></div>;
     return (
       <div style={containerStyle}>
-        <div style={{ fontSize: 13, color: COLOR.muted, marginBottom: 12 }}>Namespace</div>
+        <div style={{ fontSize: 13, color: COLOR.muted, marginBottom: 12 }}>{FORM_STRINGS.sectionNamespace}</div>
         <NamespaceForm key={ns} ns={ns} model={model} onModelChange={onModelChange} onRemoveNamespace={onRemoveNamespace} />
       </div>
     );
@@ -562,7 +563,7 @@ export function PropertySheet({ selection, models, onModelChange, onRemoveNamesp
     return (
       <div style={containerStyle}>
         <div style={{ fontSize: 13, color: COLOR.muted, marginBottom: 12 }}>
-          {decl.type === 'enum' ? 'Enum' : 'Declaration'}
+          {decl.type === 'enum' ? FORM_STRINGS.sectionEnum : FORM_STRINGS.sectionDeclaration}
         </div>
         {decl.type === 'enum'
           ? <EnumForm key={`${ns}:${decl.name}`} ns={ns} decl={decl} model={model} onModelChange={onModelChange} />
@@ -583,7 +584,7 @@ export function PropertySheet({ selection, models, onModelChange, onRemoveNamesp
 
     return (
       <div style={containerStyle}>
-        <div style={{ fontSize: 13, color: COLOR.muted, marginBottom: 12 }}>Property</div>
+        <div style={{ fontSize: 13, color: COLOR.muted, marginBottom: 12 }}>{FORM_STRINGS.sectionProperty}</div>
         <PropertyForm key={`${ns}:${decl.name}:${prop.name}`} ns={ns} decl={decl} prop={prop} model={model} onModelChange={onModelChange} />
       </div>
     );
@@ -598,7 +599,7 @@ export function PropertySheet({ selection, models, onModelChange, onRemoveNamesp
 
     return (
       <div style={containerStyle}>
-        <div style={{ fontSize: 13, color: COLOR.muted, marginBottom: 12 }}>Enum Value</div>
+        <div style={{ fontSize: 13, color: COLOR.muted, marginBottom: 12 }}>{FORM_STRINGS.sectionEnumValue}</div>
         <EnumValueForm key={`${ns}:${decl.name}:${value}`} ns={ns} decl={decl} value={value} model={model} onModelChange={onModelChange} />
       </div>
     );

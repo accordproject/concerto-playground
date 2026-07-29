@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Declaration } from '../../utils/graph/types';
+import type { Declaration, DeclarationDialogKind } from '../../utils/graph/types';
 import { DECLARATION_TYPES, ALL_TYPES, getAvailableTypes, getExtendsCandidates, getMapKeyTypes, getMapValueTypes } from '../../utils/graph/types';
 import { TOOLBAR_STRINGS, DIALOG_STRINGS, SHORTCUT_STRINGS } from './strings';
 import { useKeyboardShortcuts, formatShortcut } from '../../hooks/useKeyboardShortcuts';
@@ -18,7 +18,7 @@ interface GraphToolbarProps {
   onAddProperty: (declName: string, propName: string, propType: string, isOptional: boolean, isArray: boolean, isRelationship: boolean) => void;
   onAddEnumValue: (declName: string, value: string) => void;
   onSetSuperType: (declName: string, superType: string | undefined) => void;
-  activeDialog: { type: 'property' | 'enum-value' | 'inheritance'; declName: string } | null;
+  activeDialog: { type: DeclarationDialogKind; declName: string } | null;
   onCloseDialog: () => void;
   onClearCanvas: () => void;
   onUndo: () => void;

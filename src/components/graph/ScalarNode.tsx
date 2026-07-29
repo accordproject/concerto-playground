@@ -1,5 +1,6 @@
 import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import { HANDLE_ID } from '../../utils/graph/types';
 import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
 import { DETAIL_ROW_HEIGHT, HANDLE_SIZE, PROPERTY_ROW_GAP } from '../../utils/graph/nodeLayout';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
@@ -30,8 +31,8 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
         : '0 4px 16px rgba(0,0,0,0.3)',
       transition: 'border-color 0.2s, box-shadow 0.2s',
     }}>
-      <Handle type="target" position={Position.Top} id="top" style={handleStyle} />
-      <Handle type="target" position={Position.Left} id="left" style={handleStyle} />
+      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} style={handleStyle} />
+      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} style={handleStyle} />
       {incomingHandles.map((handle) => (
         <Handle
           key={handle.id}

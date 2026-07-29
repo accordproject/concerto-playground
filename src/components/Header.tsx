@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { HEADER_STRINGS } from "../constants/ui";
 
 // Inline SVG icons — avoids adding react-icons / @ant-design/icons as deps
 
@@ -61,16 +62,16 @@ export function Header() {
         {/* Wide logo on md+, icon-only on small */}
         <img
           src="/logo.png"
-          alt="Accord Project"
+          alt={HEADER_STRINGS.logoAlt}
           className="hidden md:block h-6 max-w-[184px] object-contain"
         />
         <img
           src="/accord_logo.png"
-          alt="Accord Project"
+          alt={HEADER_STRINGS.logoAlt}
           className="block md:hidden h-6 w-auto object-contain"
         />
         <span className="hidden lg:block text-white text-sm font-medium">
-          Concerto Playground
+          {HEADER_STRINGS.appName}
         </span>
       </a>
 
@@ -83,10 +84,10 @@ export function Header() {
           className={itemClasses("discord") + " text-white no-underline"}
           onMouseEnter={() => setHovered("discord")}
           onMouseLeave={() => setHovered(null)}
-          title="Join our Discord"
+          title={HEADER_STRINGS.discordTitle}
         >
           <DiscordIcon className="text-xl mr-0 sm:mr-1.5" />
-          <span className="hidden sm:inline text-sm">Discord</span>
+          <span className="hidden sm:inline text-sm">{HEADER_STRINGS.discord}</span>
         </a>
 
         <a
@@ -96,10 +97,10 @@ export function Header() {
           className={itemClasses("github") + " text-white no-underline"}
           onMouseEnter={() => setHovered("github")}
           onMouseLeave={() => setHovered(null)}
-          title="View on GitHub"
+          title={HEADER_STRINGS.githubTitle}
         >
           <GithubIcon className="text-xl mr-0 sm:mr-1.5" />
-          <span className="hidden sm:inline text-sm">GitHub</span>
+          <span className="hidden sm:inline text-sm">{HEADER_STRINGS.github}</span>
         </a>
       </div>
     </header>

@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
+import { HANDLE_ID } from '../../utils/graph/types';
 import './graph.css';
 
 interface ImportedNodeData {
@@ -24,8 +25,8 @@ export function ImportedNode({ data, selected }: { data: ImportedNodeData; selec
       style={clickable ? { cursor: 'pointer' } : undefined}
       title={resolved ? `Open ${namespace}` : `Namespace unresolved: ${namespace}`}
     >
-      <Handle type="target" position={Position.Top} id="top" className="graph-node-handle imported-node-handle" />
-      <Handle type="target" position={Position.Left} id="left" className="graph-node-handle imported-node-handle" />
+      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} className="graph-node-handle imported-node-handle" />
+      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} className="graph-node-handle imported-node-handle" />
 
       <div className="imported-node-header">
         <span className="graph-node-kind imported-node-kind">imported</span>

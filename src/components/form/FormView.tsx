@@ -7,6 +7,7 @@ import { declarationsToCto } from '../../utils/graph/graphToCto';
 import { PropertyTree } from './PropertyTree';
 import { PropertySheet } from './PropertySheet';
 import { COLOR } from './theme';
+import { FORM_STRINGS } from '../../constants/ui';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -153,7 +154,7 @@ export function FormView({ models, onModelChange, onAddNamespace, onRemoveNamesp
               lineHeight: 1.5,
             }}
           >
-            Not saved, Concerto rejected the change: {saveError}
+            {FORM_STRINGS.notSaved(saveError)}
           </div>
         )}
         <PropertySheet
