@@ -45,28 +45,74 @@ function matchesEvent(e: KeyboardEvent, s: ShortcutDef): boolean {
   return true;
 }
 
+export interface ShortcutLayerOptions {
+  /**
+   * A modal layer consumes every key press: while it is mounted, no
+   * shortcut in a layer below it can fire. Use for dialogs that must make
+   * the background inert, like the shortcuts overlay.
+   */
+  modal?: boolean;
+}
+
+interface ShortcutLayer {
+  getShortcuts: () => ShortcutDef[];
+  getModal: () => boolean;
+}
+
+// All mounted hook instances share one window listener and one layer stack.
+// Later-mounted layers sit on top, which matches visual stacking: dialogs
+// and overlays mount after the surfaces they cover.
+const layerStack: ShortcutLayer[] = [];
+
+function dispatchKeyDown(e: KeyboardEvent) {
+  const inEditable = isEditableTarget(e.target);
+  for (let i = layerStack.length - 1; i >= 0; i--) {
+    const layer = layerStack[i];
+    for (const shortcut of layer.getShortcuts()) {
+      if (shortcut.enabled === false) continue;
+      if (inEditable && !shortcut.allowInInput) continue;
+      if (!matchesEvent(e, shortcut)) continue;
+      e.preventDefault();
+      shortcut.handler(e);
+      return;
+    }
+    // A modal layer swallows the event even without a match, so background
+    // shortcuts stay disabled while it is open.
+    if (layer.getModal()) return;
+  }
+}
+
 /**
- * Installs a single window keydown listener for the given shortcuts.
- * The first matching shortcut wins and the browser default is prevented.
+ * Registers a shortcut layer on the shared dispatcher. Within a layer the
+ * first matching shortcut wins; across layers the topmost (most recently
+ * mounted) layer wins, and a modal layer disables every layer below it.
+ * The browser default is prevented for handled keys.
  */
-export function useKeyboardShortcuts(shortcuts: ShortcutDef[]): void {
+export function useKeyboardShortcuts(
+  shortcuts: ShortcutDef[],
+  options?: ShortcutLayerOptions,
+): void {
   const shortcutsRef = useRef(shortcuts);
   shortcutsRef.current = shortcuts;
+  const modalRef = useRef(options?.modal ?? false);
+  modalRef.current = options?.modal ?? false;
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const inEditable = isEditableTarget(e.target);
-      for (const shortcut of shortcutsRef.current) {
-        if (shortcut.enabled === false) continue;
-        if (inEditable && !shortcut.allowInInput) continue;
-        if (!matchesEvent(e, shortcut)) continue;
-        e.preventDefault();
-        shortcut.handler(e);
-        return;
+    const layer: ShortcutLayer = {
+      getShortcuts: () => shortcutsRef.current,
+      getModal: () => modalRef.current,
+    };
+    layerStack.push(layer);
+    if (layerStack.length === 1) {
+      window.addEventListener('keydown', dispatchKeyDown);
+    }
+    return () => {
+      const index = layerStack.indexOf(layer);
+      if (index !== -1) layerStack.splice(index, 1);
+      if (layerStack.length === 0) {
+        window.removeEventListener('keydown', dispatchKeyDown);
       }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 }
 

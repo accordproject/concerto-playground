@@ -139,6 +139,66 @@ describe('useKeyboardShortcuts', () => {
   });
 });
 
+describe('shortcut layers', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('the most recently mounted layer wins for the same combo', () => {
+    const below = vi.fn();
+    const above = vi.fn();
+    mount([{ key: 'Escape', description: 'Close search', handler: below }]);
+    mount([{ key: 'Escape', description: 'Close overlay', handler: above }]);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(above).toHaveBeenCalledTimes(1);
+    expect(below).not.toHaveBeenCalled();
+  });
+
+  it('a modal layer suppresses non-matching shortcuts in layers below it', () => {
+    const search = vi.fn();
+    const close = vi.fn();
+    mount([{ key: 'k', mod: true, description: 'Search', handler: search }]);
+    renderHook(() =>
+      useKeyboardShortcuts([{ key: 'Escape', description: 'Close', handler: close }], {
+        modal: true,
+      }),
+    );
+
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('a non-modal layer lets unmatched keys fall through to layers below', () => {
+    const search = vi.fn();
+    const close = vi.fn();
+    mount([{ key: 'k', mod: true, description: 'Search', handler: search }]);
+    mount([{ key: 'Escape', description: 'Close', handler: close }]);
+
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
+  it('unmounting the top layer re-enables the layers below', () => {
+    const search = vi.fn();
+    const close = vi.fn();
+    mount([{ key: 'k', mod: true, description: 'Search', handler: search }]);
+    const top = renderHook(() =>
+      useKeyboardShortcuts([{ key: 'Escape', description: 'Close', handler: close }], {
+        modal: true,
+      }),
+    );
+
+    top.unmount();
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('formatShortcut', () => {
   it('renders Ctrl-style combos on Windows/Linux', () => {
     expect(formatShortcut({ key: 'z', mod: true, shift: true }, false)).toBe('Ctrl+Shift+Z');

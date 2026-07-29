@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useKeyboardShortcuts, formatShortcut } from '../hooks/useKeyboardShortcuts';
 import { SHORTCUT_COMBOS, type ShortcutCombo } from '../utils/shortcutCombos';
 import { SHORTCUT_STRINGS } from './graph/strings';
@@ -38,32 +39,79 @@ export const SHORTCUTS_CATALOG: CatalogSection[] = [
   {
     category: SHORTCUT_STRINGS.categoryGeneral,
     items: [
-      { description: SHORTCUT_STRINGS.showOverlay, combos: [{ key: '?' }] },
+      { description: SHORTCUT_STRINGS.showOverlay, combos: [{ key: '?' }, SHORTCUT_COMBOS.showOverlayAlt] },
       { description: SHORTCUT_STRINGS.closeDialog, combos: [SHORTCUT_COMBOS.closeDialog] },
     ],
   },
 ];
 
+const FOCUSABLE_SELECTOR =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
 export function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
-  useKeyboardShortcuts([
-    {
-      ...SHORTCUT_COMBOS.closeDialog,
-      allowInInput: true,
-      description: SHORTCUT_STRINGS.closeDialog,
-      category: SHORTCUT_STRINGS.categoryGeneral,
-      handler: onClose,
-    },
-  ]);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // A modal layer: Escape (or the open combos again) closes the overlay and
+  // every other shortcut is swallowed so the background stays inert.
+  useKeyboardShortcuts(
+    [
+      {
+        ...SHORTCUT_COMBOS.closeDialog,
+        allowInInput: true,
+        description: SHORTCUT_STRINGS.closeDialog,
+        category: SHORTCUT_STRINGS.categoryGeneral,
+        handler: onClose,
+      },
+      { ...SHORTCUT_COMBOS.showOverlay, description: SHORTCUT_STRINGS.showOverlay, handler: onClose },
+      { ...SHORTCUT_COMBOS.showOverlayAlt, description: SHORTCUT_STRINGS.showOverlay, handler: onClose },
+    ],
+    { modal: true },
+  );
+
+  // Modal focus behavior: focus moves into the dialog on open and returns
+  // to the element that opened it on close.
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const firstFocusable = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    (firstFocusable ?? panelRef.current)?.focus();
+    return () => opener?.focus();
+  }, []);
+
+  // Keep Tab and Shift+Tab cycling inside the dialog.
+  const trapTab = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    if (focusables.length === 0) {
+      e.preventDefault();
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+    const inside = active instanceof HTMLElement && panel.contains(active);
+    if (e.shiftKey) {
+      if (!inside || active === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else if (!inside || active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   return (
     <div
       style={overlayStyle}
       onClick={onClose}
+      onKeyDown={trapTab}
       role="dialog"
       aria-modal="true"
       aria-label={SHORTCUT_STRINGS.overlayTitle}
     >
-      <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
+      <div ref={panelRef} tabIndex={-1} style={panelStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <h3 style={titleStyle}>{SHORTCUT_STRINGS.overlayTitle}</h3>
           <button onClick={onClose} style={closeBtnStyle} aria-label={SHORTCUT_STRINGS.overlayCloseLabel}>
