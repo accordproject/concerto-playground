@@ -227,6 +227,63 @@
   text-align: center;
 }
 
+/* Imported (foreign namespace) node */
+
+.imported-node {
+  border: 2px dashed #718096;
+  min-width: 200px;
+  padding: 10px 14px 12px;
+  background: #1a2030;
+}
+
+.imported-node.selected {
+  border-color: #fff;
+  box-shadow: 0 0 20px #71809644, 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.imported-node.unresolved {
+  border-color: #ed893666;
+}
+
+.imported-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.imported-node-kind {
+  color: #a0aec0;
+}
+
+.imported-node-warning {
+  font-size: 9px;
+  font-weight: 700;
+  color: #fbd38d;
+  background: #fbd38d22;
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.imported-node-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #cbd5e0;
+  margin-top: 4px;
+}
+
+.imported-node-namespace {
+  font-size: 10px;
+  color: #718096;
+  margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.react-flow__handle.imported-node-handle {
+  background: #718096;
+}
+
 /* Enum node */
 
 .enum-node {
