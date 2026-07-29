@@ -48,6 +48,14 @@ describe("getConceptHint", () => {
     expect(hint.syntax).toContain("concept Person identified by id");
   });
 
+  it("describes DateTime as accepting date-only and date-time values", () => {
+    // Spec: DateTime is an ISO 8601 / RFC 3339 compatible date or dateTime
+    // instance with a UTC offset; date-only values like YYYY-MM-DD are valid.
+    const hint = getConceptHint("DateTime")!;
+    expect(hint.summary).toContain("date or date-time");
+    expect(hint.summary).toContain("Date-only");
+  });
+
   it("matches case-sensitively so user-defined names do not collide", () => {
     // A concept named "Event" must not trigger the "event" keyword hint
     expect(getConceptHint("Event")).toBeUndefined();

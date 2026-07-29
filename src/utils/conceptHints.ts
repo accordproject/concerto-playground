@@ -168,7 +168,8 @@ const PRIMITIVE_HINTS: Record<string, ConceptHint> = {
   },
   DateTime: {
     title: "DateTime",
-    summary: "An ISO-8601 timestamp with date, time and timezone offset.",
+    summary:
+      "An ISO 8601 / RFC 3339 date or date-time value with a UTC offset. Date-only values like 2024-01-31 are accepted alongside full timestamps.",
   },
 };
 
