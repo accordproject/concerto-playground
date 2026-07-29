@@ -49,7 +49,7 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
   ]);
 
   return (
-    <div style={toolbarStyle}>
+    <div data-tour="graph-toolbar" style={toolbarStyle}>
       {onToggleText && (
         <button onClick={onToggleText}
           style={{ ...pillBtn, background: showText ? '#3182ce' : '#4a5568' }}

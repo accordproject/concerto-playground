@@ -13,3 +13,26 @@ html, body, #root {
 .react-flow__controls-button {
   color: #000000 !important;
 }
+
+/* Onboarding tour popover: wide enough for the welcome title on one line */
+.driver-popover.concerto-tour {
+  max-width: 360px;
+}
+
+/* Onboarding tour popover: buttons match the app's blue actions */
+.concerto-tour .driver-popover-footer button {
+  background-color: #3182ce;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-weight: 600;
+  text-shadow: none;
+}
+.concerto-tour .driver-popover-footer button:hover {
+  background-color: #4299e1;
+}
+.concerto-tour .driver-popover-footer button:disabled,
+.concerto-tour .driver-popover-footer .driver-popover-btn-disabled {
+  opacity: 0.5;
+}
