@@ -137,4 +137,37 @@ test.describe('Graph hint popovers', () => {
     expect(popBox.y).toBeGreaterThanOrEqual(0);
     expect(popBox.y + popBox.height).toBeLessThanOrEqual(viewport.height);
   });
+
+  test('the hint opens on keyboard focus and Escape dismisses it', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByText('Concerto Schema')).toBeVisible({ timeout: 15000 });
+    const node = page.locator('.react-flow__node').first();
+    await expect(node).toBeVisible({ timeout: 15000 });
+
+    const badge = node.locator('.concept-hint-anchor').first();
+    const pop = node.locator('.concept-hint-pop').first();
+
+    await badge.focus();
+    await expect(pop).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(pop).toBeHidden();
+  });
+
+  test('the pointer can move over the panel without closing it', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByText('Concerto Schema')).toBeVisible({ timeout: 15000 });
+    const node = page.locator('.react-flow__node').first();
+    await expect(node).toBeVisible({ timeout: 15000 });
+
+    const badge = node.locator('.concept-hint-anchor').first();
+    await badge.hover();
+    const pop = node.locator('.concept-hint-pop').first();
+    await expect(pop).toBeVisible();
+
+    const popBox = await pop.boundingBox();
+    if (!popBox) throw new Error('popover has no bounding box');
+    await page.mouse.move(popBox.x + popBox.width / 2, popBox.y + popBox.height / 2, { steps: 5 });
+    await expect(pop).toBeVisible();
+  });
 });

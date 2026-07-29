@@ -431,12 +431,25 @@
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   text-align: left;
   white-space: normal;
-  /* Purely informational: never intercept clicks or node dragging */
-  pointer-events: none;
+  /* Hoverable (WCAG 1.4.13): the pointer can move over the panel to read
+     longer text; the nodrag class keeps node dragging from starting in it. */
+  pointer-events: auto;
+  cursor: default;
 }
 
 .concept-hint-anchor:hover .concept-hint-pop {
   display: block;
+}
+
+/* The hint is reachable without a mouse: the anchor is focusable and the
+   panel opens on keyboard focus too. */
+.concept-hint-anchor:focus .concept-hint-pop {
+  display: block;
+}
+
+.concept-hint-anchor:focus-visible {
+  outline: 2px solid #38b2ac;
+  outline-offset: 2px;
 }
 
 /* Flipped placements, set by keepHintInViewport when the default placement
@@ -449,6 +462,12 @@
 .concept-hint-anchor[data-hint-flip-y] .concept-hint-pop {
   top: auto;
   bottom: calc(100% + 8px);
+}
+
+/* Dismissible (WCAG 1.4.13): Escape hides the panel until the pointer or
+   focus leaves the anchor. Kept last so it wins over the hover/focus rules. */
+.concept-hint-anchor[data-hint-dismissed] .concept-hint-pop {
+  display: none;
 }
 
 .concept-hint-title {

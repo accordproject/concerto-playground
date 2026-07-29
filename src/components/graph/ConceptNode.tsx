@@ -1,7 +1,7 @@
 import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
-import { KindBadge, HintPopover, keepHintInViewport } from './KindBadge';
+import { KindBadge, HintAnchor } from './KindBadge';
 import { getConceptHint } from '../../utils/conceptHints';
 import './graph.css';
 
@@ -75,12 +75,16 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
           <div className="concept-node-decorators">
             {declaration.decorators.map((d) => {
               const decoratorHint = getConceptHint('@');
+              const label = `@${d.name}${d.args.length > 0 ? `(${d.args.join(', ')})` : ''}`;
+              if (!decoratorHint) {
+                return (
+                  <span key={d.name} className="concept-node-decorator">{label}</span>
+                );
+              }
               return (
-                <span key={d.name} className="concept-node-decorator concept-hint-anchor"
-                  onMouseEnter={keepHintInViewport}>
-                  @{d.name}{d.args.length > 0 ? `(${d.args.join(', ')})` : ''}
-                  {decoratorHint && <HintPopover hint={decoratorHint} />}
-                </span>
+                <HintAnchor key={d.name} hint={decoratorHint} className="concept-node-decorator">
+                  {label}
+                </HintAnchor>
               );
             })}
           </div>
