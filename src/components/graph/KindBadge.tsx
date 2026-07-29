@@ -11,6 +11,29 @@ export function HintPopover({ hint }: { hint: ConceptHint }) {
   );
 }
 
+/**
+ * Mouseenter handler for concept-hint-anchor elements: measures the popover
+ * at its default placement (below the anchor, extending right) and flips it
+ * left and/or above when it would leave the viewport, e.g. after panning a
+ * node against the screen edge. The CSS placement alone cannot know where
+ * the viewport ends.
+ */
+export function keepHintInViewport(event: React.MouseEvent<HTMLElement>) {
+  const anchor = event.currentTarget;
+  const pop = anchor.querySelector<HTMLElement>('.concept-hint-pop');
+  if (!pop) return;
+  delete anchor.dataset.hintFlipX;
+  delete anchor.dataset.hintFlipY;
+  const rect = pop.getBoundingClientRect();
+  if (rect.width === 0) return;
+  if (rect.right > window.innerWidth) {
+    anchor.dataset.hintFlipX = 'true';
+  }
+  if (rect.bottom > window.innerHeight) {
+    anchor.dataset.hintFlipY = 'true';
+  }
+}
+
 interface KindBadgeProps {
   /** Declaration kind shown in the node header (concept, asset, enum, ...). */
   kind: string;
@@ -31,6 +54,7 @@ export function KindBadge({ kind, className, style }: KindBadgeProps) {
     <span
       className={`graph-node-kind concept-hint-anchor${className ? ` ${className}` : ''}`}
       style={style}
+      onMouseEnter={keepHintInViewport}
     >
       {kind}
       {hint && <HintPopover hint={hint} />}

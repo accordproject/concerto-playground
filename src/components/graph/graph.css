@@ -439,6 +439,18 @@
   display: block;
 }
 
+/* Flipped placements, set by keepHintInViewport when the default placement
+   would leave the viewport: open leftwards and/or above the anchor. */
+.concept-hint-anchor[data-hint-flip-x] .concept-hint-pop {
+  left: auto;
+  right: -6px;
+}
+
+.concept-hint-anchor[data-hint-flip-y] .concept-hint-pop {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
 .concept-hint-title {
   display: block;
   font-size: 11px;

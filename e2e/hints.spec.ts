@@ -106,3 +106,35 @@ test.describe('Contextual hints and block comments', () => {
     await expect(hint).toContainText('identifiable declaration');
   });
 });
+
+test.describe('Graph hint popovers', () => {
+  test('the badge popover stays inside the viewport near the right edge', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByText('Concerto Schema')).toBeVisible({ timeout: 15000 });
+    const node = page.locator('.react-flow__node').first();
+    await expect(node).toBeVisible({ timeout: 15000 });
+
+    // Drag the node against the right viewport edge, the situation the
+    // review reproduced by panning; the default popover placement extends
+    // rightwards from the badge and would leave the screen.
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error('viewport size is not set');
+    const box = await node.boundingBox();
+    if (!box) throw new Error('node has no bounding box');
+    await page.mouse.move(box.x + box.width / 2, box.y + 12);
+    await page.mouse.down();
+    await page.mouse.move(viewport.width - 20, box.y + 12, { steps: 15 });
+    await page.mouse.up();
+
+    const badge = node.locator('.graph-node-kind').first();
+    await badge.hover();
+    const pop = node.locator('.concept-hint-pop').first();
+    await expect(pop).toBeVisible();
+    const popBox = await pop.boundingBox();
+    if (!popBox) throw new Error('popover has no bounding box');
+    expect(popBox.x).toBeGreaterThanOrEqual(0);
+    expect(popBox.x + popBox.width).toBeLessThanOrEqual(viewport.width);
+    expect(popBox.y).toBeGreaterThanOrEqual(0);
+    expect(popBox.y + popBox.height).toBeLessThanOrEqual(viewport.height);
+  });
+});
