@@ -114,9 +114,9 @@ test.describe('Graph hint popovers', () => {
     const node = page.locator('.react-flow__node').first();
     await expect(node).toBeVisible({ timeout: 15000 });
 
-    // Drag the node against the right viewport edge, the situation the
-    // review reproduced by panning; the default popover placement extends
-    // rightwards from the badge and would leave the screen.
+    // Drag the node against the right viewport edge, as after panning the
+    // graph; the default popover placement extends rightwards from the
+    // badge and would leave the screen.
     const viewport = page.viewportSize();
     if (!viewport) throw new Error('viewport size is not set');
     const box = await node.boundingBox();
