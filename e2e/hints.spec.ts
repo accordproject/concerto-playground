@@ -49,6 +49,24 @@ const COMMENT_COLUMN = ' * The concept'.indexOf('concept') + 3;
 const DECLARATION_LINE = 6;
 const DECLARATION_COLUMN = 'con'.length;
 
+const CTO_WITH_IDENTIFIED_CONCEPT = [
+  'namespace org.rel@1.0.0',
+  '',
+  'concept Person identified by id {',
+  '  o String id',
+  '}',
+  '',
+  'asset Order identified by orderId {',
+  '  o String orderId',
+  '  --> Person buyer',
+  '}',
+  '',
+].join('\n');
+
+// The middle of the --> arrow on '  --> Person buyer' (columns are 1-based).
+const ARROW_LINE = 9;
+const ARROW_COLUMN = '  --'.length;
+
 test.describe('Contextual hints and block comments', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -71,5 +89,20 @@ test.describe('Contextual hints and block comments', () => {
     await hoverEditorPosition(page, DECLARATION_LINE, DECLARATION_COLUMN);
     await expect(hint).toBeVisible({ timeout: 5000 });
     await expect(hint).toContainText('general-purpose class of the metamodel');
+  });
+
+  test('the --> hint matches the spec: any identifiable type is a valid target', async ({ page }) => {
+    // A relationship to an identified concept is valid per the model
+    // relationships specification, so the model must render a graph and the
+    // hint must not restrict targets to assets and participants.
+    await setEditorText(page, CTO_WITH_IDENTIFIED_CONCEPT);
+
+    await expect(page.getByRole('alert').filter({ hasText: 'Schema' })).toBeHidden();
+    await expect(page.locator('.react-flow__node', { hasText: 'Order' })).toBeVisible({ timeout: 10000 });
+
+    await hoverEditorPosition(page, ARROW_LINE, ARROW_COLUMN);
+    const hint = page.locator('.monaco-hover').filter({ hasText: 'relationship' });
+    await expect(hint).toBeVisible({ timeout: 5000 });
+    await expect(hint).toContainText('identifiable declaration');
   });
 });

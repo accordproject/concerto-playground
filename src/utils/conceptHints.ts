@@ -184,8 +184,8 @@ const SYMBOL_HINTS: Record<string, ConceptHint> = {
   "-->": {
     title: "--> (relationship)",
     summary:
-      "A relationship property: points to an asset or participant by its identifier instead of embedding a copy. The referenced instance lives on its own; only identified declarations can be relationship targets.",
-    syntax: "asset Order identified by orderId {\n  o String orderId\n  --> Customer buyer\n}",
+      "A relationship property: points to an identifiable declaration by its identifier instead of embedding a copy. The referenced instance lives on its own; any type declared with 'identified by' or 'identified' can be a target, including concepts.",
+    syntax: "concept Person identified by id {\n  o String id\n}\n\nasset Order identified by orderId {\n  o String orderId\n  --> Person buyer\n}",
   },
 };
 

@@ -38,6 +38,16 @@ describe("getConceptHint", () => {
     expect(getConceptHint("-->")?.title).toContain("relationship");
   });
 
+  it("describes relationships as targeting any identifiable declaration", () => {
+    // The specification allows a relationship to target any identifiable
+    // type (declared with 'identified by' or 'identified'), not only assets
+    // and participants: an identified concept is a valid target.
+    const hint = getConceptHint("-->")!;
+    expect(hint.summary).toContain("identifiable declaration");
+    expect(hint.summary).not.toMatch(/asset or participant/);
+    expect(hint.syntax).toContain("concept Person identified by id");
+  });
+
   it("matches case-sensitively so user-defined names do not collide", () => {
     // A concept named "Event" must not trigger the "event" keyword hint
     expect(getConceptHint("Event")).toBeUndefined();
