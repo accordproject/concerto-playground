@@ -3,7 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
 import { getConceptHint } from "../utils/conceptHints";
-import { isReferenceToken, tokenTypeAt, tokenizeWithCache } from "../utils/editorTokens";
+import {
+  isDeclarationToken,
+  isReferenceToken,
+  tokenTypeAt,
+  tokenizeWithCache,
+} from "../utils/editorTokens";
 import type { TypeLinkTarget } from "../utils/graph/types";
 
 // Hover hints only make sense on real language tokens; the same words
@@ -32,6 +37,9 @@ interface EditorProps {
 // Inject the underline styles for clickable type references once.
 const LINK_CLASS = "concerto-type-link";
 const UNRESOLVED_LINK_CLASS = "concerto-type-link-unresolved";
+// Declaration names are navigable too, but styled apart from references so
+// definitions and usages stay visually distinct.
+const DECL_CLASS = "concerto-type-decl";
 // Delay before re-scanning the model for clickable references, so the
 // full-document scan does not run on every keystroke.
 const LINK_DECORATION_DEBOUNCE_MS = 200;
@@ -41,7 +49,8 @@ function ensureLinkStyle() {
   el.id = "concerto-type-link-style";
   el.textContent =
     `.${LINK_CLASS} { text-decoration: underline dotted #38b2ac; text-underline-offset: 3px; cursor: pointer; }\n` +
-    `.${UNRESOLVED_LINK_CLASS} { text-decoration: underline wavy #ed8936; text-underline-offset: 3px; cursor: help; }`;
+    `.${UNRESOLVED_LINK_CLASS} { text-decoration: underline wavy #ed8936; text-underline-offset: 3px; cursor: help; }\n` +
+    `.${DECL_CLASS} { text-decoration: underline dotted #63b3ed; text-underline-offset: 3px; cursor: pointer; }`;
   document.head.appendChild(el);
 }
 
@@ -108,9 +117,9 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
         [/-->/, { token: "relationship", next: "@typeRef" }],
         // Decorators
         [/@\w+/, "decorator"],
-        // Identifiers and keywords. Only positions that can hold a type
-        // reference switch to typeRef; every other identifier (declaration
-        // names, property names) stays a plain identifier.
+        // Identifiers and keywords. Positions that can hold a type reference
+        // switch to typeRef, declaration keywords switch to declName for the
+        // declared name; other identifiers (property names) stay plain.
         [
           /[a-zA-Z_]\w*/,
           {
@@ -118,6 +127,13 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
               o: { token: "keyword", next: "@typeRef" },
               extends: { token: "keyword", next: "@typeRef" },
               enum: { token: "keyword", next: "@enumDecl" },
+              concept: { token: "keyword", next: "@declName" },
+              asset: { token: "keyword", next: "@declName" },
+              participant: { token: "keyword", next: "@declName" },
+              transaction: { token: "keyword", next: "@declName" },
+              event: { token: "keyword", next: "@declName" },
+              scalar: { token: "keyword", next: "@declName" },
+              map: { token: "keyword", next: "@declName" },
               "@keywords": "keyword",
               "@typeKeywords": "type",
               "@default": "identifier",
@@ -149,11 +165,28 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
         ],
         [/./, { token: "@rematch", next: "@pop" }],
       ],
+      // The identifier right after a declaration keyword is the declared
+      // name. It gets its own token so it can be decorated as navigable
+      // (clicking it selects its node in the graph).
+      declName: [
+        [/[ \t]+/, "white"],
+        [
+          /[a-zA-Z_]\w*/,
+          {
+            cases: {
+              "@typeKeywords": { token: "type", next: "@pop" },
+              "@keywords": { token: "keyword", next: "@pop" },
+              "@default": { token: "identifier.declaration", next: "@pop" },
+            },
+          },
+        ],
+        [/./, { token: "@rematch", next: "@pop" }],
+      ],
       // Enum bodies hold values, not type references: an "o Person" inside an
       // enum declares a value named Person, so o must not switch to typeRef.
       enumDecl: [
         { include: "@whitespace" },
-        [/[a-zA-Z_]\w*/, "identifier"],
+        [/[a-zA-Z_]\w*/, "identifier.declaration"],
         [/\{/, { token: "delimiter", switchTo: "@enumBody" }],
         [/./, { token: "@rematch", next: "@pop" }],
       ],
@@ -360,8 +393,9 @@ export function Editor({
       if (!pos) return;
       const model = editor.getModel();
       if (!model) return;
-      // Only navigate from a decorated reference; the same word inside a
-      // comment or string carries no link decoration and must stay inert.
+      // Only navigate from a decorated reference or declaration name; the
+      // same word inside a comment or string carries no decoration and must
+      // stay inert.
       const clickRange = {
         startLineNumber: pos.lineNumber,
         startColumn: pos.column,
@@ -370,7 +404,11 @@ export function Editor({
       };
       const onLink = model
         .getDecorationsInRange(clickRange)
-        .some((d) => d.options.inlineClassName === LINK_CLASS);
+        .some(
+          (d) =>
+            d.options.inlineClassName === LINK_CLASS ||
+            d.options.inlineClassName === DECL_CLASS,
+        );
       if (!onLink) return;
       const word = model.getWordAtPosition(pos);
       if (!word) return;
@@ -419,10 +457,19 @@ export function Editor({
                 value: `Namespace unresolved: \`${target.namespace ?? "unknown"}\` is not open in this workspace`,
               },
             };
+        // Declaration names navigate too (to their own node in the graph),
+        // but with a distinct style so definitions and usages stay apart.
+        const declOptions: monaco.editor.IModelDecorationOptions = {
+          inlineClassName: DECL_CLASS,
+          hoverMessage: { value: `Declaration of \`${target.name}\` (click to view it in the graph)` },
+        };
         for (const m of matches) {
           const tokenType = tokenTypeAt(tokenLines, m.range.startLineNumber, m.range.startColumn);
-          if (!isReferenceToken(tokenType)) continue;
-          decorations.push({ range: m.range, options });
+          if (isReferenceToken(tokenType)) {
+            decorations.push({ range: m.range, options });
+          } else if (target.resolved && isDeclarationToken(tokenType)) {
+            decorations.push({ range: m.range, options: declOptions });
+          }
         }
       }
       decorationsRef.current = editor.deltaDecorations(decorationsRef.current, decorations);

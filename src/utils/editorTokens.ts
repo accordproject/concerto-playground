@@ -73,3 +73,14 @@ export function tokenizeWithCache(
   tokenLinesCache.set(model, { versionId: model.getVersionId(), lines });
   return lines;
 }
+
+/**
+ * True when the token type marks the declared name in a declaration header
+ * (the identifier right after concept, asset, participant, transaction,
+ * event, scalar, map or enum). Declaration names are navigable like
+ * references, but they select their own graph node instead of jumping to
+ * another declaration.
+ */
+export function isDeclarationToken(tokenType: string): boolean {
+  return tokenType.startsWith("identifier.declaration");
+}
