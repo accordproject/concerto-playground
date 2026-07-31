@@ -25,7 +25,7 @@ import { FloatingEdge } from './FloatingEdge';
 import { GraphToolbar } from './GraphToolbar';
 import { NodeSearch } from './NodeSearch';
 import { useFocusNode } from './useFocusNode';
-import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, parseCto, withDeclarationPositions, type GraphContext } from '../../utils/graph/ctoToGraph';
+import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, parseCto, withSourcePositions, type GraphContext } from '../../utils/graph/ctoToGraph';
 import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel } from '../../utils/graph/types';
@@ -381,8 +381,14 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     const positions = new Map<string, { x: number; y: number }>(
       nodes.map((node) => [node.id, { ...node.position }]),
     );
-    updateModelAndSync(withDeclarationPositions(modelRef.current.declarations, positions));
-  }, [nodes, updateModelAndSync]);
+    const newCto = withSourcePositions(cto, positions);
+    const newModel = parseCto(newCto);
+    setModel(newModel);
+    pushHistory({ model: newModel, nodes, edges });
+    lastHistoryCtoRef.current = newCto;
+    updatingFromGraph.current = true;
+    onModelChange?.(newCto);
+  }, [cto, edges, nodes, onModelChange, pushHistory, setModel]);
 
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source && connection.target && connection.source !== connection.target) {
@@ -454,7 +460,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeDragStop={onNodeDragStop}
-          onInit={(instance) => { fitViewRef.current = () => { void instance.fitView({ padding: 0.3 }); }; }}
+          onInit={(instance) => { fitViewRef.current = () => { void instance.fitView({ padding: 0.3, minZoom: 0.2 }); }; }}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView

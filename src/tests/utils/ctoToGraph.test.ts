@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { declarationsToCto } from "../../utils/graph/graphToCto";
-import { buildExternalTypeMap, computeAutoLayoutPositions, declarationsToGraph, describeParseError, getDeclarationPosition, parseCto, validateCto, withDeclarationPositions } from "../../utils/graph/ctoToGraph";
+import { buildExternalTypeMap, computeAutoLayoutPositions, declarationsToGraph, describeParseError, getDeclarationPosition, parseCto, validateCto, withDeclarationPositions, withSourcePositions } from "../../utils/graph/ctoToGraph";
 import { estimateNodeHeight, getNodeWidth } from "../../utils/graph/nodeLayout";
 import { routeGraphEdges } from "../../utils/graph/routeGraphEdges";
 import type { Declaration } from "../../utils/graph/types";
@@ -568,6 +568,38 @@ concept Warranty {
 });
 
 describe("position decorator persistence", () => {
+  it("updates positions without changing documentation or other decorators", () => {
+    const source = `namespace org.test@1.0.0
+
+/**
+ * Person documentation.
+ */
+@Audited
+concept Person {
+  o String name
+}`;
+
+    const output = withSourcePositions(
+      source,
+      new Map([["Person", { x: 120, y: 340 }]]),
+    );
+
+    expect(output).toBe(`namespace org.test@1.0.0
+
+/**
+ * Person documentation.
+ */
+@Audited
+@Position(120, 340)
+concept Person {
+  o String name
+}`);
+
+    const moved = withSourcePositions(output, new Map([["Person", { x: 12.5, y: 34.5 }]]));
+    expect(moved).toContain("@Audited\n@Position(12.5, 34.5)\nconcept Person");
+    expect(moved.match(/@Position/g)).toHaveLength(1);
+  });
+
   it("writes Position decorators into CTO", () => {
     const { declarations, namespace, imports } = parseCto(SIMPLE_CTO);
     const updated = withDeclarationPositions(

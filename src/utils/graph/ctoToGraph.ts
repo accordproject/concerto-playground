@@ -1,7 +1,6 @@
 import type { Node, Edge } from '@xyflow/react';
 import type { Declaration, ConcertoModel, ImportStatement, Property, PropertyValidator, Decorator, IdentifiedKind, ExternalTypeMap } from './types';
 import { PRIMITIVE_TYPES } from './types';
-import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkNode, ElkPort } from 'elkjs/lib/elk-api';
 import {
   HANDLE_SIZE,
@@ -17,8 +16,6 @@ import { Parser as ParserModule } from '@accordproject/concerto-cto';
 import { ModelManager } from '@accordproject/concerto-core';
 const META = 'concerto.metamodel@1.0.0';
 const HANDLE_RADIUS = HANDLE_SIZE / 2;
-const elk = new ELK();
-
 type LayoutPositions = Map<string, { x: number; y: number }>;
 type GraphShape = { nodes: Node[]; edges: Edge[] };
 type NodeDimensions = Map<string, { width: number; height: number }>;
@@ -350,6 +347,49 @@ export function withDeclarationPositions(
 
     return { ...decl, decorators };
   });
+}
+
+export function withSourcePositions(
+  source: string,
+  positions: Map<string, { x: number; y: number }>,
+): string {
+  const ast = ParserModule.parse(source, undefined, { skipLocationNodes: false }) as any;
+  const newline = source.includes('\r\n') ? '\r\n' : '\n';
+  const edits: Array<{ start: number; end: number; text: string }> = [];
+
+  for (const declaration of ast.declarations ?? []) {
+    const position = positions.get(declaration.name);
+    if (!position) continue;
+
+    const x = Number(position.x.toFixed(2));
+    const y = Number(position.y.toFixed(2));
+    const text = `@Position(${x}, ${y})`;
+    const existing = declaration.decorators?.find((decorator: any) => decorator.name === 'Position');
+    if (existing?.location) {
+      edits.push({
+        start: existing.location.start.offset,
+        end: existing.location.end.offset,
+        text,
+      });
+      continue;
+    }
+
+    const decorators = declaration.decorators ?? [];
+    const lastDecorator = decorators[decorators.length - 1];
+    const offset = lastDecorator?.location?.end?.offset ?? declaration.location.start.offset;
+    edits.push({
+      start: offset,
+      end: offset,
+      text: lastDecorator ? `${newline}${text}` : `${text}${newline}`,
+    });
+  }
+
+  return edits
+    .sort((left, right) => right.start - left.start)
+    .reduce(
+      (updated, edit) => updated.slice(0, edit.start) + edit.text + updated.slice(edit.end),
+      source,
+    );
 }
 
 function computeTreeLayout(declarations: Declaration[]): Map<string, { x: number; y: number }> {
@@ -707,6 +747,7 @@ async function computeElkLayout(
   graph: GraphShape,
   nodeDimensions: NodeDimensions,
 ): Promise<LayoutPositions> {
+  const { default: ELK } = await import('elkjs/lib/elk.bundled.js');
   const graphNodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const elkNodeNames = new Set(graph.nodes.map((node) => node.id));
   const elkGraph: ElkNode = {
@@ -737,7 +778,7 @@ async function computeElkLayout(
     })),
   };
 
-  const layoutedGraph = await elk.layout(elkGraph);
+  const layoutedGraph = await new ELK().layout(elkGraph);
   const positions: LayoutPositions = new Map();
 
   for (const child of layoutedGraph.children ?? []) {

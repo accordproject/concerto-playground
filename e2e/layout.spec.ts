@@ -1,4 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
+import LZString from 'lz-string';
+
 async function getNodeTransforms(page: Page): Promise<string[]> {
   return page.locator('.react-flow__node').evaluateAll((elements) =>
     elements.map((element) => element.getAttribute('style') || ''),
@@ -24,9 +26,9 @@ test.describe('Graph layout actions', () => {
       .not.toBe(JSON.stringify(before));
     await page.waitForTimeout(250);
 
-    const ownerNode = page.locator('.react-flow__node[data-id="Owner"]');
-    const beforeDrag = await ownerNode.getAttribute('style');
-    const box = await ownerNode.boundingBox();
+    const vehicleNode = page.locator('.react-flow__node[data-id="Vehicle"]');
+    const beforeDrag = await vehicleNode.getAttribute('style');
+    const box = await vehicleNode.boundingBox();
     if (!box) {
       throw new Error('Expected a graph node bounding box');
     }
@@ -42,7 +44,7 @@ test.describe('Graph layout actions', () => {
     await page.mouse.up();
 
     await expect
-      .poll(async () => await ownerNode.getAttribute('style'))
+      .poll(async () => await vehicleNode.getAttribute('style'))
       .not.toBe(beforeDrag);
   });
 
@@ -62,5 +64,29 @@ test.describe('Graph layout actions', () => {
     await page.getByRole('button', { name: 'Restore' }).click();
     await expect(page.locator('.react-flow__node')).toHaveCount(8, { timeout: 15000 });
     expect(await getNodeTransforms(page)).toEqual(savedTransforms);
+  });
+
+  test('keeps a 25-node layout at a readable zoom', async ({ page }) => {
+    const declarations = Array.from({ length: 25 }, (_, index) => {
+      const properties = [
+        index < 24 ? `  o Node${index + 1} next` : '',
+        index < 22 ? `  o Node${index + 2} alternate` : '',
+      ].filter(Boolean).join('\n');
+      return `concept Node${index} {\n${properties}\n}`;
+    }).join('\n\n');
+    const cto = `namespace org.layout@1.0.0\n\n${declarations}`;
+
+    await page.goto('/#' + LZString.compressToEncodedURIComponent(JSON.stringify([cto])));
+    await page.reload();
+    await expect(page.locator('.react-flow__node')).toHaveCount(25, { timeout: 15000 });
+
+    const autoLayoutButton = page.getByRole('button', { name: 'Auto layout' });
+    await autoLayoutButton.click();
+    await expect(autoLayoutButton).toBeEnabled();
+    await expect
+      .poll(() => page.locator('.react-flow__viewport').evaluate((element) =>
+        new DOMMatrix(getComputedStyle(element).transform).a
+      ))
+      .toBeGreaterThanOrEqual(0.2);
   });
 });
