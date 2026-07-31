@@ -1,8 +1,10 @@
-import MonacoEditor, { useMonaco, type BeforeMount, type OnMount } from "@monaco-editor/react";
+import MonacoEditor, { loader, useMonaco, type BeforeMount, type OnMount } from "@monaco-editor/react";
 import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
 import type { TypeLinkTarget } from "../utils/graph/types";
+
+loader.config({ monaco });
 
 interface EditorProps {
   value: string;
