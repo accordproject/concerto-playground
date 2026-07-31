@@ -5,6 +5,7 @@ import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
 import type { TypeLinkTarget } from "../utils/graph/types";
 
 loader.config({ monaco });
+if (typeof window !== "undefined") Object.assign(window, { monaco });
 
 interface EditorProps {
   value: string;

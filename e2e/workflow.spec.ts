@@ -1,4 +1,14 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+async function prependEditorComment(page: Page, text: string) {
+  const editor = page.locator('.monaco-editor').first();
+  await expect(editor).toBeVisible({ timeout: 10000 });
+  await page.evaluate((suffix) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const editor = (window as any).monaco.editor.getEditors()[0];
+    editor.getModel().setValue(`// ${suffix}\n${editor.getValue()}`);
+  }, text);
+}
 
 test.describe('CTO Panel Toggle', () => {
   test.beforeEach(async ({ page }) => {
@@ -87,18 +97,16 @@ test.describe('Loading Examples', () => {
 
   test('loading an example keeps a freshly added namespace', async ({ page }) => {
     await page.locator('button[title="Add namespace"]').click();
-    await expect(page.getByText('org.example.new', { exact: false })).toBeVisible({ timeout: 5000 });
+    const userNamespaceTab = page.locator('div[title^="org.example.new"]');
+    await expect(userNamespaceTab).toBeVisible({ timeout: 5000 });
 
     await page.getByRole('button', { name: 'NDA' }).click();
 
-    await expect(page.getByText('org.example.new', { exact: false })).toBeVisible();
+    await expect(userNamespaceTab).toBeVisible();
   });
 
   test('re-clicking the same example keeps local edits', async ({ page }) => {
-    const editor = page.locator('.monaco-editor').first();
-    await expect(editor).toBeVisible({ timeout: 10000 });
-    await editor.click();
-    await page.keyboard.type('MYEDIT');
+    await prependEditorComment(page, 'MYEDIT');
     await expect(page.locator('.view-lines').first()).toContainText('MYEDIT');
 
     await page.getByRole('button', { name: 'NDA' }).click();
@@ -107,10 +115,7 @@ test.describe('Loading Examples', () => {
   });
 
   test('edits survive a round trip through another example', async ({ page }) => {
-    const editor = page.locator('.monaco-editor').first();
-    await expect(editor).toBeVisible({ timeout: 10000 });
-    await editor.click();
-    await page.keyboard.type('MYEDIT');
+    await prependEditorComment(page, 'MYEDIT');
     await expect(page.locator('.view-lines').first()).toContainText('MYEDIT');
 
     await page.getByRole('button', { name: 'Vehicles' }).click();
@@ -123,16 +128,12 @@ test.describe('Loading Examples', () => {
   test('edits made in both examples are kept across switches', async ({ page }) => {
     // Edit NDA, switch to Vehicles, edit it too, then bounce back and forth:
     // each example must show its own edited version.
-    const editor = page.locator('.monaco-editor').first();
-    await expect(editor).toBeVisible({ timeout: 10000 });
-    await editor.click();
-    await page.keyboard.type('NDAEDIT');
+    await prependEditorComment(page, 'NDAEDIT');
     await expect(page.locator('.view-lines').first()).toContainText('NDAEDIT');
 
     await page.getByRole('button', { name: 'Vehicles' }).click();
     await expect(page.locator('.view-lines').first()).toContainText('sample.vehicles', { timeout: 5000 });
-    await editor.click();
-    await page.keyboard.type('VEHEDIT');
+    await prependEditorComment(page, 'VEHEDIT');
     await expect(page.locator('.view-lines').first()).toContainText('VEHEDIT');
 
     await page.getByRole('button', { name: 'NDA' }).click();
@@ -145,10 +146,7 @@ test.describe('Loading Examples', () => {
   test('edited example stays open as a visible tab after switching away', async ({ page }) => {
     // No hidden state: work in progress must stay visible in the tab strip,
     // so share/export/codegen include it.
-    const editor = page.locator('.monaco-editor').first();
-    await expect(editor).toBeVisible({ timeout: 10000 });
-    await editor.click();
-    await page.keyboard.type('MYEDIT');
+    await prependEditorComment(page, 'MYEDIT');
     await expect(page.locator('.view-lines').first()).toContainText('MYEDIT');
 
     await page.getByRole('button', { name: 'Vehicles' }).click();
@@ -168,10 +166,7 @@ test.describe('Loading Examples', () => {
   });
 
   test('closing an edited example tab resets it to pristine on next load', async ({ page }) => {
-    const editor = page.locator('.monaco-editor').first();
-    await expect(editor).toBeVisible({ timeout: 10000 });
-    await editor.click();
-    await page.keyboard.type('MYEDIT');
+    await prependEditorComment(page, 'MYEDIT');
     await expect(page.locator('.view-lines').first()).toContainText('MYEDIT');
 
     // Switching away keeps the edited NDA open; closing its tab discards it
@@ -189,13 +184,14 @@ test.describe('Loading Examples', () => {
 
   test('user namespace stays open while switching between examples', async ({ page }) => {
     await page.locator('button[title="Add namespace"]').click();
-    await expect(page.getByText('org.example.new', { exact: false })).toBeVisible({ timeout: 5000 });
+    const userNamespaceTab = page.locator('div[title^="org.example.new"]');
+    await expect(userNamespaceTab).toBeVisible({ timeout: 5000 });
 
     await page.getByRole('button', { name: 'Vehicles' }).click();
-    await expect(page.getByText('org.example.new', { exact: false })).toBeVisible();
+    await expect(userNamespaceTab).toBeVisible();
 
     await page.getByRole('button', { name: 'NDA' }).click();
-    await expect(page.getByText('org.example.new', { exact: false })).toBeVisible();
+    await expect(userNamespaceTab).toBeVisible();
   });
 
   test('example buttons persist across view mode switches', async ({ page }) => {
