@@ -1,4 +1,4 @@
-import MonacoEditor, { useMonaco, type BeforeMount, type OnMount } from "@monaco-editor/react";
+import MonacoEditor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
 import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
@@ -219,7 +219,7 @@ export function Editor({
   linkTargets,
   onNavigate,
 }: EditorProps) {
-  const monacoInstance = useMonaco();
+  const monacoRef = useRef<typeof monaco | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const decorationsRef = useRef<string[]>([]);
   const targetsRef = useRef<Map<string, TypeLinkTarget>>(new Map());
@@ -229,7 +229,8 @@ export function Editor({
   targetsRef.current = new Map((linkTargets ?? []).map((t) => [t.name, t]));
   onNavigateRef.current = onNavigate;
 
-  const handleMount: OnMount = (editor) => {
+  const handleMount: OnMount = (editor, monacoInstance) => {
+    monacoRef.current = monacoInstance;
     editorRef.current = editor;
     setEditorReady(true);
     editor.onMouseDown((e) => {
@@ -283,8 +284,9 @@ export function Editor({
     return () => window.clearTimeout(timer);
   }, [value, linkTargets, editorReady]);
 
-  // Apply error markers whenever the error prop or monaco instance changes
+  // Apply error markers whenever the error changes or the editor becomes ready.
   useEffect(() => {
+    const monacoInstance = monacoRef.current;
     if (!monacoInstance) return;
     const model = editorRef.current?.getModel();
     if (!model) return;
@@ -294,7 +296,7 @@ export function Editor({
       "concerto",
       error ? buildErrorMarkers(error, model) : [],
     );
-  }, [error, monacoInstance, editorReady]);
+  }, [error, editorReady]);
 
   return (
     <MonacoEditor

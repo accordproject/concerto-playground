@@ -1,6 +1,16 @@
 import { test, expect, type Page } from "@playwright/test";
 import { Parser } from "@accordproject/concerto-cto";
 
+test("loads the editor without uncaught errors", async ({ page }) => {
+  const errors: Error[] = [];
+  page.on("pageerror", (error) => errors.push(error));
+
+  await page.goto("/");
+  await expect(page.getByText("Concerto Schema")).toBeVisible({ timeout: 15000 });
+
+  expect(errors).toEqual([]);
+});
+
 async function openImportDialog(page: Page) {
   await page.getByRole("button", { name: "Import" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
@@ -72,7 +82,7 @@ test.describe("Import Dialog", () => {
 
     await expect(page.getByRole("dialog")).toBeHidden();
     await expect(page.getByText("PastedModel").first()).toBeVisible();
-    await expect(page.getByText("org.example.pasted@1.", { exact: false })).toBeVisible();
+    await expect(page.getByText("org.example.pasted@1.0.0", { exact: true })).toBeVisible();
   });
 
   test("imports pasted Concerto JSON AST", async ({ page }) => {
