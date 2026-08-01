@@ -192,6 +192,7 @@ export default function App() {
   }, [activeTab]);
 
   useEffect(() => {
+    if (viewMode !== "code") return;
     setResults({});
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const allSources = Object.values(models).filter(Boolean);
@@ -201,7 +202,7 @@ export default function App() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [models, runGeneration]);
+  }, [models, runGeneration, viewMode]);
 
   // Update a specific namespace's CTO. Empty string = delete.
   function handleModelChange(ns: string, newCto: string) {
