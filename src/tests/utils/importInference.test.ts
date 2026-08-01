@@ -134,6 +134,26 @@ describe("inferCtoFromImportText", () => {
     expect(extractNamespace(result.ctoSources[0])).toBe("com.example.contracts@1.0.0");
   });
 
+  it("normalizes invalid identifier characters in $id namespaces", async () => {
+    const result = await inferCtoFromImportText(JSON.stringify({
+      $id: "https://api.example.com/customer-data/v1",
+      title: "CustomerData",
+      type: "object",
+      properties: { customerId: { type: "string" } },
+    }));
+
+    expect(extractNamespace(result.ctoSources[0])).toBe(
+      "com.example.api.customer_data.v1@1.0.0",
+    );
+    expect(validateCto(result.ctoSources[0])).toBeNull();
+  });
+
+  it("rejects generated CTO that cannot be parsed", async () => {
+    await expect(inferCtoFromImportText('{"bad-name":"value"}')).rejects.toThrow(
+      "Unable to infer Concerto model from JSON sample:",
+    );
+  });
+
   it("uses active and default namespace fallbacks", async () => {
     const active = await inferCtoFromImportText('{"productName":"Widget"}', {
       fallbackNamespace: "org.example.active@1.0.0",

@@ -20,10 +20,19 @@ export function ImportDialog({
   const [source, setSource] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      returnFocusRef.current = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+      sourceRef.current?.focus();
+      return () => returnFocusRef.current?.focus();
+    } else {
       setSource("");
       setError(null);
       setIsSubmitting(false);
@@ -64,6 +73,30 @@ export function ImportDialog({
     }
   }
 
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const controls = dialogRef.current?.querySelectorAll<HTMLElement>(
+      "button:not([disabled]), textarea:not([disabled])",
+    );
+    if (!controls?.length) return;
+
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   return (
     <div
       role="dialog"
@@ -71,8 +104,9 @@ export function ImportDialog({
       aria-labelledby="import-model-title"
       style={overlayStyle}
       onClick={onClose}
+      onKeyDown={handleKeyDown}
     >
-      <div style={dialogStyle} onClick={(event) => event.stopPropagation()}>
+      <div ref={dialogRef} style={dialogStyle} onClick={(event) => event.stopPropagation()}>
         <div style={headerStyle}>
           <div>
             <h2 id="import-model-title" style={titleStyle}>Import Model</h2>
@@ -88,6 +122,7 @@ export function ImportDialog({
         <div style={panelStyle}>
           <label htmlFor="import-source" style={fieldLabelStyle}>Model input</label>
           <textarea
+            ref={sourceRef}
             id="import-source"
             value={source}
             onChange={(event) => setSource(event.target.value)}
@@ -202,7 +237,6 @@ const textAreaStyle: React.CSSProperties = {
   fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace",
   fontSize: 13,
   lineHeight: 1.6,
-  outline: "none",
   boxSizing: "border-box",
 };
 

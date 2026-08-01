@@ -1,6 +1,6 @@
-import { CodeGen } from "@accordproject/concerto-codegen";
 import { MetaModel } from "@accordproject/concerto-core";
 import { Parser, Printer } from "@accordproject/concerto-cto";
+import { Identifiers } from "@accordproject/concerto-util";
 
 const META_MODEL_NAMESPACE = "concerto.metamodel@1.0.0";
 
@@ -63,10 +63,13 @@ function inferNamespaceFromSchemaId(schemaId: unknown): string | null {
 
   try {
     const url = new URL(schemaId);
-    let namespace = url.hostname.split(".").reverse().join(".");
+    const namespaceParts = url.hostname.split(".").reverse();
     const pathParts = url.pathname.split("/").filter(Boolean);
     if (pathParts[pathParts.length - 1]?.includes(".")) pathParts.pop();
-    if (pathParts.length > 0) namespace += `.${pathParts.join(".")}`;
+    namespaceParts.push(...pathParts);
+    const namespace = namespaceParts
+      .map((part) => Identifiers.normalizeIdentifier(part))
+      .join(".");
     return namespace ? `${namespace}@1.0.0` : null;
   } catch {
     return null;
@@ -129,14 +132,17 @@ export async function inferCtoFromImportText(
   if (isLikelyJsonSchema(parsed)) {
     try {
       const namespace = getSchemaNamespace(parsed, options);
+      const { CodeGen } = await import("@accordproject/concerto-codegen");
       const Visitor = CodeGen.JSONSchemaToConcertoVisitor;
       const concertoJson = new Visitor().visit(Visitor.parse(parsed), {
         metaModelNamespace: META_MODEL_NAMESPACE,
         namespace,
       });
+      const cto = Printer.toCTO(concertoJson.models[0]);
+      Parser.parse(cto);
       return {
         kind: "json-schema",
-        ctoSources: [Printer.toCTO(concertoJson.models[0])],
+        ctoSources: [cto],
       };
     } catch (error) {
       throw new Error(`Unable to infer Concerto model from JSON Schema: ${getErrorMessage(error)}`);
@@ -157,9 +163,11 @@ export async function inferCtoFromImportText(
       "@accordproject/concerto-codegen/lib/codegen/fromjson/cto/inferModel"
     );
     const inferModel = inferModelModule.default;
+    const cto = inferModel(namespace, rootTypeName, parsed);
+    Parser.parse(cto);
     return {
       kind: "json",
-      ctoSources: [inferModel(namespace, rootTypeName, parsed)],
+      ctoSources: [cto],
     };
   } catch (error) {
     throw new Error(`Unable to infer Concerto model from JSON sample: ${getErrorMessage(error)}`);

@@ -27,9 +27,33 @@ test.describe("Import Dialog", () => {
     await expect(page.getByText("Root").first()).toBeVisible();
   });
 
+  test("keeps focus inside the dialog and restores it on Escape", async ({ page }) => {
+    const trigger = page.getByRole("button", { name: "Import" });
+    await trigger.click();
+
+    const dialog = page.getByRole("dialog");
+    const source = page.locator("#import-source");
+    const close = page.getByRole("button", { name: "Close import dialog" });
+    const submit = dialog.getByRole("button", { name: "Import", exact: true });
+    await expect(source).toBeFocused();
+    await expect(source).not.toHaveCSS("outline-style", "none");
+
+    await page.keyboard.press("Shift+Tab");
+    await expect(close).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(submit).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(close).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
   test("imports a JSON Schema document", async ({ page }) => {
     await importText(page, JSON.stringify({
       $schema: "https://json-schema.org/draft/2020-12/schema",
+      $id: "https://api.example.com/customer-data/v1",
       title: "Customer",
       type: "object",
       properties: { firstName: { type: "string" }, loyaltyNumber: { type: "string" } },
@@ -87,7 +111,7 @@ test.describe("Import Dialog", () => {
       },
     ]);
 
-    const alert = page.getByRole("alert");
+    const alert = page.getByRole("dialog").getByRole("alert");
     await expect(alert).toContainText("invalid.json: Invalid JSON or CTO:");
     await expect(alert).toContainText("also-invalid.json: Invalid JSON or CTO:");
     await expect(alert).toHaveCSS("white-space", "pre-wrap");
@@ -114,11 +138,13 @@ test.describe("Import Dialog", () => {
     await expect(page.getByText("NDAData").first()).toBeHidden();
   });
 
-  test("shows invalid input without changing the current model", async ({ page }) => {
+  test("rejects invalid generated CTO without changing the current model", async ({ page }) => {
     await expect(page.getByText("NDAData").first()).toBeVisible();
-    await importText(page, "{ this is not json }");
+    await importText(page, '{"bad-name":"value"}');
 
-    await expect(page.getByRole("alert")).toContainText("Invalid JSON or CTO");
+    await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+      "Unable to infer Concerto model from JSON sample",
+    );
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByRole("button", { name: "Close import dialog" }).click();
     await expect(page.getByText("NDAData").first()).toBeVisible();
