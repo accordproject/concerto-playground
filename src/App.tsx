@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { Profiler, useCallback, useMemo, useState } from "react";
+import type { ProfilerOnRenderCallback } from "react";
 import LZString from "lz-string";
 import JSZip from "jszip";
 import { Header } from "./components/Header";
@@ -41,6 +42,30 @@ import { NDA_EXAMPLE } from "./examples/nda.cto";
 
 // How long the Share button shows its feedback label before reverting.
 const SHARE_FEEDBACK_MS = 2000;
+
+// Render instrumentation for performance measurements (US-07). Every React
+// commit that touches an instrumented subtree is appended to
+// window.__us07PerfLog, where e2e/perf.spec.ts (and anyone in the browser
+// console) can read it, and echoed as a console line. Profiler callbacks only
+// fire in development builds, so production behavior is unchanged.
+interface PerfLogEntry {
+  id: string;
+  phase: "mount" | "update" | "nested-update";
+  actualDuration: number;
+  baseDuration: number;
+  commitTime: number;
+}
+const perfLog: PerfLogEntry[] = [];
+(window as unknown as { __us07PerfLog: PerfLogEntry[] }).__us07PerfLog = perfLog;
+const logRender: ProfilerOnRenderCallback = (id, phase, actualDuration, baseDuration, _startTime, commitTime) => {
+  perfLog.push({ id, phase, actualDuration, baseDuration, commitTime });
+  // Cap memory during long sessions; measurements read the log right away.
+  if (perfLog.length > 10000) perfLog.splice(0, 5000);
+  console.log(
+    `[profiler:${id}] ${phase} actual=${actualDuration.toFixed(1)}ms base=${baseDuration.toFixed(1)}ms`,
+  );
+};
+
 
 // Evaluated once at module load — avoids parsing the URL hash twice for the
 // two separate state initialisers that need models and activeNamespace.
@@ -633,7 +658,9 @@ export default function App() {
             </div>
             <div className="flex-1 min-h-0">
               <ErrorBoundary label={PANEL_LABELS.textEditor} resetKeys={[source]}>
-                <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={linkTargets} onNavigate={handleFocusNode} />
+                <Profiler id="cto-editor" onRender={logRender}>
+                  <Editor value={source} onChange={setSource} language="concerto" error={validationError} linkTargets={linkTargets} onNavigate={handleFocusNode} />
+                </Profiler>
               </ErrorBoundary>
             </div>
           </div>
@@ -652,21 +679,23 @@ export default function App() {
             </ErrorBoundary>
           ) : viewMode === "graph" ? (
             <ErrorBoundary label={PANEL_LABELS.graphCanvas} resetKeys={[source]}>
-              <ConcertoGraphEditor
-                cto={source}
-                onModelChange={setSource}
-                onRegisterClearCanvas={registerClearCanvas}
-                showText={showCto}
-                onToggleText={_initialUrlOptions.showToolbar
-                  ? undefined
-                  : () => setShowCto((v) => !v)}
-                onImport={() => setIsImportDialogOpen(true)}
-                onExport={handleExport}
-                focusRequest={focusRequest}
-                validationError={validationError}
-                graphContext={graphContext}
-                onNavigateToType={handleFocusNode}
-              />
+              <Profiler id="graph" onRender={logRender}>
+                <ConcertoGraphEditor
+                  cto={source}
+                  onModelChange={setSource}
+                  onRegisterClearCanvas={registerClearCanvas}
+                  showText={showCto}
+                  onToggleText={_initialUrlOptions.showToolbar
+                    ? undefined
+                    : () => setShowCto((v) => !v)}
+                  onImport={() => setIsImportDialogOpen(true)}
+                  onExport={handleExport}
+                  focusRequest={focusRequest}
+                  validationError={validationError}
+                  graphContext={graphContext}
+                  onNavigateToType={handleFocusNode}
+                />
+              </Profiler>
             </ErrorBoundary>
           ) : (
             <ErrorBoundary label={PANEL_LABELS.codeOutput} resetKeys={[results, activeTab]}>

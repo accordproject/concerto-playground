@@ -10,7 +10,10 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "perf:parse": "vitest run -c vitest.perf.config.ts",
+    "perf:e2e": "playwright test -c playwright.perf.config.ts",
+    "perf_test": "npm run perf:parse && npm run perf:e2e"
   },
   "dependencies": {
     "@accordproject/concertino": "^4.1.3",

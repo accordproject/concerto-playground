@@ -2,6 +2,9 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  // The report-only performance spec runs via playwright.perf.config.ts
+  // (npm run perf:e2e), not as part of the regular e2e suite.
+  testIgnore: '**/perf.spec.ts',
   fullyParallel: !process.env.CI,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
