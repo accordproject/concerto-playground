@@ -1,4 +1,4 @@
-import { Profiler, useCallback, useMemo, useRef, useState } from "react";
+import { Profiler, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ProfilerOnRenderCallback } from "react";
 import LZString from "lz-string";
 import JSZip from "jszip";
@@ -63,6 +63,10 @@ const logRender: ProfilerOnRenderCallback = (id, phase, actualDuration, baseDura
   if (perfLog.length > 10000) perfLog.splice(0, 5000);
 };
 
+// How long the model must stay unchanged before semantic validation runs.
+// Runs after the editor's own 300ms debounce, so mid-word states are never
+// validated and the expensive ModelManager pass fires once per pause.
+const VALIDATION_DEBOUNCE_MS = 600;
 
 // Evaluated once at module load — avoids parsing the URL hash twice for the
 // two separate state initialisers that need models and activeNamespace.
@@ -289,15 +293,34 @@ export default function App() {
     setFocusRequest({ name, namespace, ts: Date.now() });
   }, [setActiveNamespace]);
 
-  const validationError = useMemo(() => {
+  // Semantic validation builds a full ModelManager with every peer namespace,
+  // the most expensive step on the editing path. It is decoupled from the
+  // parse: it waits until the model has been stable for a while (validation
+  // feedback is not useful mid-word) and skips the run entirely when the
+  // workspace content is identical to the last validated one.
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const lastValidationRef = useRef<{ key: string; result: string | null } | null>(null);
+  useEffect(() => {
     const peers = Object.values(models).filter((s) => s && s !== source);
-    // validateCto reports problems as a return value; if it throws anyway,
-    // surface the message instead of silently pretending the model is valid.
-    try {
-      return validateCto(source, peers);
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e);
+    const key = source + "\u0000" + peers.join("\u0000");
+    const cached = lastValidationRef.current;
+    if (cached && cached.key === key) {
+      setValidationError(cached.result);
+      return;
     }
+    const timer = window.setTimeout(() => {
+      // validateCto reports problems as a return value; if it throws anyway,
+      // surface the message instead of silently pretending the model is valid.
+      let result: string | null;
+      try {
+        result = validateCto(source, peers);
+      } catch (e) {
+        result = e instanceof Error ? e.message : String(e);
+      }
+      lastValidationRef.current = { key, result };
+      setValidationError(result);
+    }, VALIDATION_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
   }, [source, models]);
 
   // Called by the graph editor / CTO text editor for the active model
