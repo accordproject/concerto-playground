@@ -601,6 +601,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
           edgeTypes={edgeTypes}
           fitView
           fitViewOptions={{ padding: 0.3 }}
+          onlyRenderVisibleElements
           style={{ background: '#1a202c' }}
           connectionLineStyle={{ stroke: '#63b3ed', strokeWidth: 2 }}
           minZoom={0.05}

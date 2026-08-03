@@ -1,5 +1,6 @@
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useStore } from '@xyflow/react';
 import { HANDLE_ID } from '../../utils/graph/types';
+import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 import { NODE_STRINGS } from './strings';
 import './graph.css';
 
@@ -18,6 +19,10 @@ interface ImportedNodeData {
 export function ImportedNode({ data, selected }: { data: ImportedNodeData; selected?: boolean }) {
   const { label, namespace, resolved } = data;
   const clickable = resolved && !!data.onNavigateToType;
+  // Same semantic zoom as the other node types: below the threshold only the
+  // kind badge and the name render; the namespace line and warning collapse
+  // (the tooltip still carries the full information).
+  const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
 
   return (
     <div
@@ -31,12 +36,12 @@ export function ImportedNode({ data, selected }: { data: ImportedNodeData; selec
 
       <div className="imported-node-header">
         <span className="graph-node-kind imported-node-kind">{NODE_STRINGS.importedBadge}</span>
-        {!resolved && (
+        {showFull && !resolved && (
           <span className="imported-node-warning">{NODE_STRINGS.unresolvedBadge}</span>
         )}
       </div>
       <div className="imported-node-name">{label}</div>
-      <div className="imported-node-namespace">{namespace}</div>
+      {showFull && <div className="imported-node-namespace">{namespace}</div>}
     </div>
   );
 }
