@@ -31,6 +31,7 @@ import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, pa
 import { DIALOG_STRINGS, SHORTCUT_STRINGS, TOOLBAR_STRINGS } from './strings';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { SHORTCUT_COMBOS } from '../../utils/shortcutCombos';
+import { useRafBatchedNodeChanges } from '../../hooks/useRafBatchedNodeChanges';
 import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel, DeclarationDialogKind } from '../../utils/graph/types';
@@ -104,6 +105,9 @@ function useDebouncedError<T>(value: T | null, delay: number): T | null {
 export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, onRegisterClearCanvas, showText, onToggleText, focusRequest, validationError, graphContext, onNavigateToType }: ConcertoGraphEditorProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  // Dragging emits several node changes per frame; batch them so React
+  // commits once per drawn frame instead of once per pointer move.
+  const handleNodesChange = useRafBatchedNodeChanges(onNodesChange);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [model, setModelState] = useState<ConcertoModel>({ namespace: 'org.example@1.0.0', imports: [], declarations: [] });
   const modelRef = useRef(model);
@@ -529,7 +533,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
         <ReactFlow
           nodes={nodesWithCallbacks}
           edges={renderedEdges}
-          onNodesChange={onNodesChange}
+          onNodesChange={handleNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onConnectStart={() => setIsConnecting(true)}
