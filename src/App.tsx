@@ -273,14 +273,21 @@ export default function App() {
   // Jump to a declaration's node in the graph (from a CTO reference click or
   // an imported node click). A namespace argument means the type lives in
   // another open namespace: switch the workspace there first, then focus.
+  // Reads workspace state through refs so its identity stays stable: it is
+  // injected into every graph node's data, where a new identity per edit
+  // would defeat the nodes' memoization.
+  const modelsRef = useRef(models);
+  modelsRef.current = models;
+  const activeNamespaceRef = useRef(activeNamespace);
+  activeNamespaceRef.current = activeNamespace;
   const handleFocusNode = useCallback((name: string, namespace?: string) => {
     if (namespace) {
-      if (models[namespace] === undefined) return; // unresolved namespace: nothing to navigate to
-      if (namespace !== activeNamespace) setActiveNamespace(namespace);
+      if (modelsRef.current[namespace] === undefined) return; // unresolved namespace: nothing to navigate to
+      if (namespace !== activeNamespaceRef.current) setActiveNamespace(namespace);
     }
     setViewMode("graph");
     setFocusRequest({ name, namespace, ts: Date.now() });
-  }, [models, activeNamespace, setActiveNamespace]);
+  }, [setActiveNamespace]);
 
   const validationError = useMemo(() => {
     const peers = Object.values(models).filter((s) => s && s !== source);
