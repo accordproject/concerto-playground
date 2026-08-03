@@ -1,4 +1,4 @@
-import { Profiler, useCallback, useMemo, useState } from "react";
+import { Profiler, useCallback, useMemo, useRef, useState } from "react";
 import type { ProfilerOnRenderCallback } from "react";
 import LZString from "lz-string";
 import JSZip from "jszip";
@@ -179,16 +179,46 @@ export default function App() {
 
   // Declared type names per open namespace. Used to resolve imported type
   // references (clickable links, foreign-namespace graph nodes).
+  //
+  // Parsing is cached per namespace, keyed by the exact source string, so an
+  // edit in one namespace does not re-parse every other open namespace. The
+  // memo also preserves references at every level (name arrays, the record
+  // itself) whenever content is unchanged, so downstream memos and effects
+  // that depend on this value do not fire for identity-only churn.
+  const parseCacheRef = useRef(new Map<string, { source: string; names: string[] }>());
+  const prevWorkspaceDeclarationsRef = useRef<Record<string, string[]>>({});
   const workspaceDeclarations = useMemo(() => {
+    const cache = parseCacheRef.current;
     const result: Record<string, string[]> = {};
     for (const [ns, cto] of Object.entries(models)) {
       if (!cto) continue;
+      const hit = cache.get(ns);
+      if (hit && hit.source === cto) {
+        result[ns] = hit.names;
+        continue;
+      }
       try {
-        result[ns] = parseCto(cto).declarations.map((d) => d.name);
+        let names = parseCto(cto).declarations.map((d) => d.name);
+        // Same declared names as before (e.g. a property edit): keep the old
+        // array reference so consumers see it as unchanged.
+        if (hit && names.length === hit.names.length && names.every((n, i) => n === hit.names[i])) {
+          names = hit.names;
+        }
+        cache.set(ns, { source: cto, names });
+        result[ns] = names;
       } catch {
         // Unparseable model: treat its types as unavailable until it parses again
       }
     }
+    for (const ns of cache.keys()) {
+      if (!(ns in models)) cache.delete(ns);
+    }
+    const prev = prevWorkspaceDeclarationsRef.current;
+    const keys = Object.keys(result);
+    if (keys.length === Object.keys(prev).length && keys.every((k) => prev[k] === result[k])) {
+      return prev;
+    }
+    prevWorkspaceDeclarationsRef.current = result;
     return result;
   }, [models]);
 
@@ -204,10 +234,25 @@ export default function App() {
 
   // Types the active model pulls in from other namespaces, with resolution
   // status (resolved = the namespace is open and declares the type).
-  const externalTypes = useMemo(
-    () => buildExternalTypeMap(activeModel.imports, workspaceDeclarations),
-    [activeModel, workspaceDeclarations],
-  );
+  //
+  // activeModel changes on every accepted edit, but the imports it produces
+  // rarely do; returning the previous map when the content is identical keeps
+  // graphContext referentially stable so the graph does not resync for
+  // edits that cannot affect it.
+  const prevExternalTypesRef = useRef<ReturnType<typeof buildExternalTypeMap>>({});
+  const externalTypes = useMemo(() => {
+    const next = buildExternalTypeMap(activeModel.imports, workspaceDeclarations);
+    const prev = prevExternalTypesRef.current;
+    const keys = Object.keys(next);
+    const unchanged =
+      keys.length === Object.keys(prev).length &&
+      keys.every(
+        (k) => prev[k] && prev[k].namespace === next[k].namespace && prev[k].resolved === next[k].resolved,
+      );
+    if (unchanged) return prev;
+    prevExternalTypesRef.current = next;
+    return next;
+  }, [activeModel, workspaceDeclarations]);
 
   const graphContext = useMemo<GraphContext>(
     () => ({ externalTypes, workspaceDeclarations }),
