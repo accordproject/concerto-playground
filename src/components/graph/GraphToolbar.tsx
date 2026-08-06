@@ -38,9 +38,9 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
       <button onClick={onImport} style={pillBtn}>{TOOLBAR_STRINGS.importLabel}</button>
       <button onClick={onExport} style={pillBtn}>{TOOLBAR_STRINGS.exportLabel}</button>
       <button onClick={onAutoLayout} disabled={isAutoLayouting} style={{ ...pillBtn, opacity: isAutoLayouting ? 0.6 : 1 }}>
-        {isAutoLayouting ? 'Layout...' : 'Auto layout'}
+        {isAutoLayouting ? TOOLBAR_STRINGS.layoutInProgress : TOOLBAR_STRINGS.autoLayout}
       </button>
-      <button onClick={onSaveLayout} style={pillBtn}>Save layout</button>
+      <button onClick={onSaveLayout} style={pillBtn}>{TOOLBAR_STRINGS.saveLayout}</button>
 
       <div style={sep} />
 
