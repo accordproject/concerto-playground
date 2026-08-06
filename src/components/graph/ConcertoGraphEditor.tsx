@@ -460,7 +460,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeDragStop={onNodeDragStop}
-          onInit={(instance) => { fitViewRef.current = () => { void instance.fitView({ padding: 0.3, minZoom: 0.2 }); }; }}
+          onInit={(instance) => { fitViewRef.current = () => { void instance.fitView({ padding: 0.1, minZoom: 0.5, maxZoom: 1 }); }; }}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView

@@ -87,6 +87,49 @@ test.describe('Graph layout actions', () => {
       .poll(() => page.locator('.react-flow__viewport').evaluate((element) =>
         new DOMMatrix(getComputedStyle(element).transform).a
       ))
-      .toBeGreaterThanOrEqual(0.2);
+      .toBeGreaterThanOrEqual(0.5);
+
+    const metrics = await page.evaluate(() => {
+      const viewport = document.querySelector('.react-flow__viewport');
+      const nodeElements = Array.from(document.querySelectorAll('.react-flow__node'));
+      if (!viewport || nodeElements.length === 0) throw new Error('Expected a rendered graph');
+
+      const zoom = new DOMMatrix(getComputedStyle(viewport).transform).a;
+      const nodes = nodeElements.map((element) => element.getBoundingClientRect());
+      let overlapCount = 0;
+
+      for (let index = 0; index < nodes.length; index += 1) {
+        for (let other = index + 1; other < nodes.length; other += 1) {
+          const first = nodes[index];
+          const second = nodes[other];
+          if (
+            first.left < second.right && first.right > second.left &&
+            first.top < second.bottom && first.bottom > second.top
+          ) {
+            overlapCount += 1;
+          }
+        }
+      }
+
+      return {
+        edgeCount: document.querySelectorAll('.react-flow__edge').length,
+        overlapCount,
+        minRenderedNodeWidth: Math.min(...nodes.map((node) => node.width)),
+        layoutWidth: (
+          Math.max(...nodes.map((node) => node.right)) -
+          Math.min(...nodes.map((node) => node.left))
+        ) / zoom,
+        layoutHeight: (
+          Math.max(...nodes.map((node) => node.bottom)) -
+          Math.min(...nodes.map((node) => node.top))
+        ) / zoom,
+      };
+    });
+
+    expect(metrics.edgeCount).toBe(46);
+    expect(metrics.overlapCount).toBe(0);
+    expect(metrics.minRenderedNodeWidth).toBeGreaterThanOrEqual(120);
+    expect(metrics.layoutWidth).toBeLessThanOrEqual(2500);
+    expect(metrics.layoutHeight).toBeLessThanOrEqual(2500);
   });
 });

@@ -658,15 +658,19 @@ function buildElkLayoutOptions(graph: GraphShape, nodeDimensions: NodeDimensions
   );
   const paddingX = Math.max(40, Math.floor(maxNodeWidth * 0.2));
   const paddingY = Math.max(40, Math.floor(maxNodeHeight * 0.2));
+  const betweenLayerSpacing = Math.min(60, Math.max(40, Math.floor(maxNodeWidth * 0.2)));
+  const nodeSpacing = Math.min(40, Math.max(24, Math.floor(maxNodeHeight * 0.25)));
 
   return {
     'elk.algorithm': 'layered',
     'elk.direction': 'RIGHT',
     'elk.edgeRouting': 'ORTHOGONAL',
-    'elk.layered.spacing.nodeNodeBetweenLayers': String(Math.max(220, maxNodeWidth + 80)),
-    'elk.spacing.nodeNode': String(Math.max(110, Math.floor(maxNodeHeight * 0.45))),
-    'elk.spacing.edgeNode': '40',
+    'elk.layered.spacing.nodeNodeBetweenLayers': String(betweenLayerSpacing),
+    'elk.spacing.nodeNode': String(nodeSpacing),
+    'elk.spacing.edgeNode': '16',
     'elk.padding': `[top=${paddingY},left=${paddingX},bottom=${paddingY},right=${paddingX}]`,
+    'org.eclipse.elk.layered.wrapping.strategy': 'MULTI_EDGE',
+    'org.eclipse.elk.aspectRatio': '1.6',
     'org.eclipse.elk.layered.considerModelOrder.portModelOrder': 'true',
     'org.eclipse.elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
     'org.eclipse.elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
