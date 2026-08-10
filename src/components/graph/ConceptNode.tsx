@@ -1,6 +1,8 @@
 import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import { KindBadge, HintAnchor } from './KindBadge';
+import { getConceptHint } from '../../utils/conceptHints';
 import './graph.css';
 
 const TYPE_COLORS: Record<string, string> = {
@@ -48,9 +50,7 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
       <div className="concept-node-header">
         <div className="graph-node-header-row">
           <div className="concept-node-kind-group">
-            <span className="graph-node-kind concept-node-kind">
-              {declaration.type}
-            </span>
+            <KindBadge kind={declaration.type} className="concept-node-kind" />
             {declaration.isAbstract && (
               <span className="concept-node-abstract-badge"
                 onClick={() => data.onToggleAbstract?.(declaration.name)} title="Toggle abstract">
@@ -73,11 +73,20 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
         </div>
         {declaration.decorators?.length > 0 && (
           <div className="concept-node-decorators">
-            {declaration.decorators.map((d) => (
-              <span key={d.name} className="concept-node-decorator">
-                @{d.name}{d.args.length > 0 ? `(${d.args.join(', ')})` : ''}
-              </span>
-            ))}
+            {declaration.decorators.map((d) => {
+              const decoratorHint = getConceptHint('@');
+              const label = `@${d.name}${d.args.length > 0 ? `(${d.args.join(', ')})` : ''}`;
+              if (!decoratorHint) {
+                return (
+                  <span key={d.name} className="concept-node-decorator">{label}</span>
+                );
+              }
+              return (
+                <HintAnchor key={d.name} hint={decoratorHint} className="concept-node-decorator">
+                  {label}
+                </HintAnchor>
+              );
+            })}
           </div>
         )}
         <div className="concept-node-name">

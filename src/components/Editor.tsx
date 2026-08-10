@@ -2,7 +2,16 @@ import MonacoEditor, { useMonaco, type BeforeMount, type OnMount } from "@monaco
 import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
+import { getConceptHint } from "../utils/conceptHints";
+import { tokenTypeAt, tokenizeWithCache } from "../utils/editorTokens";
 import type { TypeLinkTarget } from "../utils/graph/types";
+
+// Hover hints only make sense on real language tokens; the same words
+// inside comments, strings or regex literals are plain text.
+const HOVERABLE_TOKEN_PREFIXES = ["keyword", "type", "decorator", "relationship"];
+function isHoverableToken(tokenType: string): boolean {
+  return HOVERABLE_TOKEN_PREFIXES.some((p) => tokenType.startsWith(p));
+}
 
 interface EditorProps {
   value: string;
@@ -115,8 +124,63 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
       ],
       whitespace: [
         [/\s+/, "white"],
+        [/\/\*/, "comment", "@comment"],
         [/(\/\/.*)/, "comment"],
       ],
+      // Block comments span lines, so they need their own state; Monarch
+      // carries the state across lines during full-document tokenization.
+      comment: [
+        [/[^/*]+/, "comment"],
+        [/\*\//, "comment", "@pop"],
+        [/[/*]/, "comment"],
+      ],
+    },
+  });
+
+  // Contextual hints (US-06): hovering a keyword, declaration kind, primitive
+  // type, decorator or the relationship arrow shows a summary sourced from
+  // the metamodel specification.
+  monacoInstance.languages.registerHoverProvider("concerto", {
+    provideHover(model: monaco.editor.ITextModel, position: monaco.Position) {
+      const tokenLines = tokenizeWithCache(model, (text, languageId) =>
+        monacoInstance.editor.tokenize(text, languageId),
+      );
+      if (!isHoverableToken(tokenTypeAt(tokenLines, position.lineNumber, position.column))) {
+        return null;
+      }
+      const line = model.getLineContent(position.lineNumber);
+      const hover = (hint: ReturnType<typeof getConceptHint>, startColumn: number, endColumn: number) => {
+        if (!hint) return null;
+        const contents: monaco.IMarkdownString[] = [
+          { value: `**${hint.title}**` },
+          { value: hint.summary },
+        ];
+        if (hint.syntax) {
+          contents.push({ value: "```concerto\n" + hint.syntax + "\n```" });
+        }
+        return {
+          range: new monacoInstance.Range(position.lineNumber, startColumn, position.lineNumber, endColumn),
+          contents,
+        };
+      };
+
+      const word = model.getWordAtPosition(position);
+      if (word) {
+        // A word directly preceded by @ is a decorator name, which is
+        // free-form; explain decorators in general instead of the name.
+        if (line[word.startColumn - 2] === "@") {
+          return hover(getConceptHint("@"), word.startColumn - 1, word.endColumn);
+        }
+        return hover(getConceptHint(word.word), word.startColumn, word.endColumn);
+      }
+
+      // The relationship arrow is punctuation, so there is no word under the
+      // cursor; look for a --> occurrence covering the hovered column.
+      const arrowIndex = line.lastIndexOf("-->", position.column - 1);
+      if (arrowIndex !== -1 && position.column >= arrowIndex + 1 && position.column <= arrowIndex + 3) {
+        return hover(getConceptHint("-->"), arrowIndex + 1, arrowIndex + 4);
+      }
+      return null;
     },
   });
 
