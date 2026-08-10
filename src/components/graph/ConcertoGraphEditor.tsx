@@ -637,7 +637,6 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
           connectionLineStyle={{ stroke: '#63b3ed', strokeWidth: 2 }}
           minZoom={0.05}
           maxZoom={4}
-          onlyRenderVisibleElements
           panActivationKeyCode={null}
           proOptions={{ hideAttribution: true }}
         >

@@ -24,6 +24,21 @@ const viteConfig = defineViteConfig({
       "elkjs/lib/elk.bundled.js",
     ],
   },
+  worker: {
+    format: "es",
+    // The validation worker bundles concerto-core too, so it needs the same
+    // Node polyfills as the main bundle.
+    plugins: () => [
+      nodePolyfills({
+        include: ["buffer", "process", "util", "stream", "events", "path"],
+        globals: {
+          Buffer: true,
+          global: true,
+          process: true,
+        },
+      }),
+    ],
+  },
   build: {
     target: "es2020",
   },

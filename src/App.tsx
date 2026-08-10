@@ -23,13 +23,14 @@ import {
 import { EXAMPLES } from "./examples/catalog";
 import { useWorkspace } from "./hooks/useWorkspace";
 import { useCodeGeneration } from "./hooks/useCodeGeneration";
+import { validateInBackground } from "./utils/validationClient";
 import {
   DEFAULT_IMPORT_NAMESPACE,
   DEFAULT_ROOT_TYPE_NAME,
   extractNamespace,
   inferCtoFromImportText,
 } from "./utils/import/importInference";
-import { validateCto, parseCto, buildExternalTypeMap, type GraphContext } from "./utils/graph/ctoToGraph";
+import { parseCto, buildExternalTypeMap, type GraphContext } from "./utils/graph/ctoToGraph";
 import type { ImportStatement, TypeLinkTarget } from "./utils/graph/types";
 import { parsePlaygroundUrlOptions, type ViewMode } from "./utils/urlOptions";
 import {
@@ -296,11 +297,16 @@ export default function App() {
   // Semantic validation builds a full ModelManager with every peer namespace,
   // the most expensive step on the editing path. It is decoupled from the
   // parse: it waits until the model has been stable for a while (validation
-  // feedback is not useful mid-word) and skips the run entirely when the
-  // workspace content is identical to the last validated one.
+  // feedback is not useful mid-word), skips the run entirely when the
+  // workspace content is identical to the last validated one, and runs in a
+  // Web Worker so the page keeps painting while the ModelManager works.
   const [validationError, setValidationError] = useState<string | null>(null);
   const lastValidationRef = useRef<{ key: string; result: string | null } | null>(null);
+  const validationRequestRef = useRef(0);
   useEffect(() => {
+    // Every content change invalidates whatever is still in flight, including
+    // runs whose timer already fired and are busy inside the worker.
+    const requestId = ++validationRequestRef.current;
     const peers = Object.values(models).filter((s) => s && s !== source);
     const key = source + "\u0000" + peers.join("\u0000");
     const cached = lastValidationRef.current;
@@ -309,16 +315,13 @@ export default function App() {
       return;
     }
     const timer = window.setTimeout(() => {
-      // validateCto reports problems as a return value; if it throws anyway,
-      // surface the message instead of silently pretending the model is valid.
-      let result: string | null;
-      try {
-        result = validateCto(source, peers);
-      } catch (e) {
-        result = e instanceof Error ? e.message : String(e);
-      }
-      lastValidationRef.current = { key, result };
-      setValidationError(result);
+      validateInBackground(source, peers).then((result) => {
+        // A result for content the editor has since moved past would show
+        // errors for text that is no longer there; only the newest run wins.
+        if (validationRequestRef.current !== requestId) return;
+        lastValidationRef.current = { key, result };
+        setValidationError(result);
+      });
     }, VALIDATION_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [source, models]);
