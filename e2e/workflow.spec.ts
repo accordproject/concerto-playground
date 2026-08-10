@@ -62,6 +62,23 @@ test.describe('View Mode Switching', () => {
   test('Graph button is visible in the toolbar', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Graph' }).first()).toBeVisible();
   });
+
+  test('should show and navigate with the graph minimap', async ({ page }) => {
+    const minimap = page.locator('.react-flow__minimap');
+    await expect(minimap).toBeVisible();
+
+    const viewport = page.locator('.react-flow__viewport');
+    const beforeZoom = await viewport.getAttribute('style');
+    await minimap.hover();
+    await page.mouse.wheel(0, -120);
+    await expect.poll(() => viewport.getAttribute('style')).not.toBe(beforeZoom);
+
+    await page.getByRole('button', { name: 'Form' }).click();
+    await expect(minimap).toBeHidden();
+
+    await page.getByRole('button', { name: 'Graph' }).first().click();
+    await expect(minimap).toBeVisible();
+  });
 });
 
 test.describe('Loading Examples', () => {
