@@ -393,23 +393,15 @@ export function Editor({
       if (!pos) return;
       const model = editor.getModel();
       if (!model) return;
-      // Only navigate from a decorated reference or declaration name; the
-      // same word inside a comment or string carries no decoration and must
-      // stay inert.
-      const clickRange = {
-        startLineNumber: pos.lineNumber,
-        startColumn: pos.column,
-        endLineNumber: pos.lineNumber,
-        endColumn: pos.column,
-      };
-      const onLink = model
-        .getDecorationsInRange(clickRange)
-        .some(
-          (d) =>
-            d.options.inlineClassName === LINK_CLASS ||
-            d.options.inlineClassName === DECL_CLASS,
-        );
-      if (!onLink) return;
+      // Only navigate from a reference or declaration-name token; the same
+      // word inside a comment or string is plain text and must stay inert.
+      // The token is checked directly instead of the link decoration, which
+      // is applied by a debounced scan and may not exist yet at click time.
+      const tokenLines = tokenizeWithCache(model, (text, languageId) =>
+        monacoInstance.editor.tokenize(text, languageId),
+      );
+      const tokenType = tokenTypeAt(tokenLines, pos.lineNumber, pos.column);
+      if (!isReferenceToken(tokenType) && !isDeclarationToken(tokenType)) return;
       const word = model.getWordAtPosition(pos);
       if (!word) return;
       const target = targetsRef.current.get(word.word);
