@@ -24,6 +24,9 @@ import { FloatingEdge } from './FloatingEdge';
 import { GraphToolbar } from './GraphToolbar';
 import { NodeSearch } from './NodeSearch';
 import { useFocusNode } from './useFocusNode';
+import { SHORTCUT_STRINGS, TOOLBAR_STRINGS } from './strings';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import { SHORTCUT_COMBOS } from '../../utils/shortcutCombos';
 import { parseCto, declarationsToGraph, describeParseError, type GraphContext } from '../../utils/graph/ctoToGraph';
 import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
@@ -296,32 +299,36 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     onModelChange?.(entryCto);
   }, [history, historyIndex, setNodes, setEdges, onModelChange]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        if (e.shiftKey) {
-          e.preventDefault();
-          handleRedo();
-        } else {
-          e.preventDefault();
-          handleUndo();
-        }
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-        e.preventDefault();
-        handleRedo();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setSearchOpen((v) => !v);
-      }
-      if (e.key === 'Escape') {
-        setSearchOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [handleUndo, handleRedo]);
+  // Escape closes the topmost overlay only: dialogs render above the search
+  // panel, so they go first.
+  const closeTopOverlay = useCallback(() => {
+    if (connectDialog) setConnectDialog(null);
+    else if (activeDialog) setActiveDialog(null);
+    else setSearchOpen(false);
+  }, [connectDialog, activeDialog]);
+
+  const handleClearCanvas = useCallback(() => {
+    if (modelRef.current.declarations.length === 0) return;
+    if (!window.confirm(TOOLBAR_STRINGS.clearConfirm)) return;
+    nodePositionsRef.current.clear();
+    updateModelAndSync([]);
+  }, [updateModelAndSync]);
+
+  useKeyboardShortcuts([
+    { ...SHORTCUT_COMBOS.undo, description: SHORTCUT_STRINGS.undo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleUndo },
+    { ...SHORTCUT_COMBOS.redoPrimary, description: SHORTCUT_STRINGS.redo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleRedo },
+    { ...SHORTCUT_COMBOS.redoAlt, description: SHORTCUT_STRINGS.redo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleRedo },
+    { ...SHORTCUT_COMBOS.clearCanvas, description: SHORTCUT_STRINGS.clearCanvas, category: SHORTCUT_STRINGS.categoryEditing, handler: handleClearCanvas },
+    { ...SHORTCUT_COMBOS.searchNodes, allowInInput: true, description: SHORTCUT_STRINGS.searchNodes, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setSearchOpen((v) => !v) },
+    {
+      ...SHORTCUT_COMBOS.closeDialog,
+      allowInInput: true,
+      enabled: searchOpen || activeDialog !== null || connectDialog !== null,
+      description: SHORTCUT_STRINGS.closeDialog,
+      category: SHORTCUT_STRINGS.categoryNavigation,
+      handler: closeTopOverlay,
+    },
+  ]);
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -337,6 +344,35 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     });
     pushHistory({ model: modelRef.current, nodes: currentNodes, edges });
   }, [nodes, edges, pushHistory]);
+
+  // Routes React Flow's Delete/Backspace removals through the model, so a
+  // keyboard delete updates the CTO instead of being reverted on the next
+  // sync. Mirrors the cleanup done by handleDeleteDeclaration.
+  const onDeleteSelection = useCallback(({ nodes: deletedNodes, edges: deletedEdges }: { nodes: Node[]; edges: Edge[] }) => {
+    if (deletedNodes.length === 0 && deletedEdges.length === 0) return;
+    const deletedNames = new Set(deletedNodes.map((n) => n.id));
+    let decls = modelRef.current.declarations
+      .filter((d) => !deletedNames.has(d.name))
+      .map((d) => ({
+        ...d,
+        superType: d.superType && deletedNames.has(d.superType) ? undefined : d.superType,
+        properties: (d.properties || []).filter((p) => !deletedNames.has(p.type)),
+      }));
+    for (const edge of deletedEdges) {
+      // Edges attached to a deleted node are already gone with the node.
+      if (deletedNames.has(edge.source) || deletedNames.has(edge.target)) continue;
+      const handle = edge.sourceHandle ?? '';
+      if (handle.startsWith('prop:')) {
+        const propName = handle.slice('prop:'.length);
+        decls = decls.map((d) =>
+          d.name === edge.source ? { ...d, properties: d.properties.filter((p) => p.name !== propName) } : d
+        );
+      } else if (edge.id === `${edge.source}-extends-${edge.target}`) {
+        decls = decls.map((d) => (d.name === edge.source ? { ...d, superType: undefined } : d));
+      }
+    }
+    updateModelAndSync(decls);
+  }, [updateModelAndSync]);
 
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source && connection.target && connection.source !== connection.target) {
@@ -387,6 +423,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         onSetSuperType={handleSetSuperType}
         activeDialog={activeDialog}
         onCloseDialog={() => setActiveDialog(null)}
+        onClearCanvas={handleClearCanvas}
         onUndo={handleUndo}
         onRedo={handleRedo}
         canUndo={canUndo}
@@ -404,6 +441,8 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onDelete={onDeleteSelection}
+          deleteKeyCode={['Backspace', 'Delete']}
           onNodeDragStop={onNodeDragStop}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}

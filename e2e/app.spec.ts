@@ -11,8 +11,9 @@ test.describe('App Loading', () => {
   test('should show the toolbar with CTO toggle and example buttons', async ({ page }) => {
     await page.goto('/');
 
-    // The main toolbar CTO toggle has title="Hide CTO panel" (distinct from graph toolbar's "Hide CTO text")
-    await expect(page.locator('button[title="Hide CTO panel"]')).toBeVisible({ timeout: 15000 });
+    // The main toolbar CTO toggle title starts with "Hide CTO panel" (distinct from
+    // graph toolbar's "Hide CTO text"); prefix match because it also carries the shortcut hint.
+    await expect(page.locator('button[title^="Hide CTO panel"]')).toBeVisible({ timeout: 15000 });
 
     // Example buttons
     await expect(page.getByRole('button', { name: 'NDA' })).toBeVisible();

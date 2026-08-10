@@ -7,21 +7,22 @@ test.describe('CTO Panel Toggle', () => {
   });
 
   test('should hide CTO panel when toggle is clicked', async ({ page }) => {
-    // Main toolbar toggle has title="Hide CTO panel" (graph toolbar uses "Hide CTO text")
-    const toggleBtn = page.locator('button[title="Hide CTO panel"]');
+    // Main toolbar toggle title starts with "Hide CTO panel" (graph toolbar uses
+    // "Hide CTO text"); prefix match because the title also carries the shortcut hint.
+    const toggleBtn = page.locator('button[title^="Hide CTO panel"]');
     await expect(toggleBtn).toBeVisible();
 
     await toggleBtn.click();
 
     await expect(page.getByText('Concerto Schema')).toBeHidden();
-    await expect(page.locator('button[title="Show CTO panel"]')).toBeVisible();
+    await expect(page.locator('button[title^="Show CTO panel"]')).toBeVisible();
   });
 
   test('should re-show CTO panel after toggling twice', async ({ page }) => {
-    await page.locator('button[title="Hide CTO panel"]').click();
+    await page.locator('button[title^="Hide CTO panel"]').click();
     await expect(page.getByText('Concerto Schema')).toBeHidden();
 
-    await page.locator('button[title="Show CTO panel"]').click();
+    await page.locator('button[title^="Show CTO panel"]').click();
     await expect(page.getByText('Concerto Schema')).toBeVisible();
   });
 });

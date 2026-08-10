@@ -17,7 +17,7 @@ test.describe("Headless embedded mode", () => {
     await page.goto("/?headless=true");
 
     await expect(page.locator("header")).toBeHidden({ timeout: 15000 });
-    await expect(page.locator('button[title="Hide CTO panel"]')).toBeHidden();
+    await expect(page.locator('button[title^="Hide CTO panel"]')).toBeHidden();
     await expect(page.locator('button[title="Hide CTO text"]')).toBeVisible();
     await expect(page.getByRole("button", { name: "NDA" })).toBeHidden();
 
@@ -38,7 +38,7 @@ test.describe("Headless embedded mode", () => {
     await page.goto("/?toolbar=false");
 
     await expect(page.locator("header")).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('button[title="Hide CTO panel"]')).toBeHidden();
+    await expect(page.locator('button[title^="Hide CTO panel"]')).toBeHidden();
     await expect(page.locator('button[title="Hide CTO text"]')).toBeVisible();
   });
 

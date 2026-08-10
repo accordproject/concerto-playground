@@ -6,16 +6,17 @@ export const TOOLBAR_STRINGS = {
   hideCtoTooltip: 'Hide CTO text',
   showCtoTooltip: 'Show CTO text',
   importLabel: 'Import',
+  importTooltip: 'Import .cto or JSON AST files',
   exportLabel: 'Export',
+  exportTooltip: 'Export as .cto or .zip',
   addDeclaration: '+ Add',
+  addDeclarationTooltip: 'Add a declaration',
+  clearCanvas: 'Clear',
+  clearConfirm: 'Remove all declarations from this namespace? You can undo this.',
   undoIcon: '↩',
   redoIcon: '↪',
-  undoTooltip: 'Undo (Ctrl+Z)',
-  redoTooltip: 'Redo (Ctrl+Shift+Z)',
   searchIcon: '⌕',
   searchNodes: 'Search nodes',
-  searchTooltip: 'Search nodes (Ctrl+K)',
-  searchKbdHint: '⌘K',
   legendProperty: 'property',
   legendRelationship: 'relationship',
   legendExtends: 'extends',
@@ -39,6 +40,27 @@ export const DIALOG_STRINGS = {
   add: 'Add',
   set: 'Set',
   cancel: 'Cancel',
+} as const;
+
+// Descriptions for the keyboard shortcut registry. The shortcuts overlay
+// and the toolbar hints render these, so keep them short and action-like.
+export const SHORTCUT_STRINGS = {
+  categoryEditing: 'Editing',
+  categoryNavigation: 'Navigation',
+  categoryGeneral: 'General',
+  undo: 'Undo',
+  redo: 'Redo',
+  searchNodes: 'Search nodes',
+  closeDialog: 'Close the open dialog',
+  deleteSelection: 'Delete the selected node or edge',
+  clearCanvas: 'Clear the canvas',
+  toggleCto: 'Toggle the CTO text panel',
+  viewGraph: 'Switch to Graph view',
+  viewForm: 'Switch to Form view',
+  viewCode: 'Switch to Code view',
+  showOverlay: 'Show keyboard shortcuts',
+  overlayTitle: 'Keyboard shortcuts',
+  overlayCloseLabel: 'Close shortcuts overlay',
 } as const;
 
 export const SEARCH_STRINGS = {
