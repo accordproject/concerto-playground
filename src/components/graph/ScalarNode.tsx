@@ -3,6 +3,7 @@ import type { Declaration } from '../../utils/graph/types';
 import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
 import { DETAIL_ROW_HEIGHT, HANDLE_SIZE, PROPERTY_ROW_GAP } from '../../utils/graph/nodeLayout';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import { KindBadge } from './KindBadge';
 
 interface ScalarNodeData {
   label: string;
@@ -27,7 +28,6 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
       boxShadow: selected
         ? '0 0 20px #ed64a644, 0 8px 24px rgba(0,0,0,0.4)'
         : '0 4px 16px rgba(0,0,0,0.3)',
-      overflow: 'hidden',
       transition: 'border-color 0.2s, box-shadow 0.2s',
     }}>
       <Handle type="target" position={Position.Top} id="top" style={handleStyle} />
@@ -46,11 +46,10 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
         padding: '10px 14px',
         background: 'linear-gradient(135deg, #702459, #702459cc)',
         borderBottom: '1px solid #ed64a633',
+        borderRadius: '10px 10px 0 0',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#ed64a6', fontWeight: 700 }}>
-            scalar
-          </span>
+          <KindBadge kind="scalar" style={{ color: '#ed64a6' }} />
           <button onClick={() => data.onDeleteDeclaration?.(declaration.name)}
             style={{ background: 'none', border: 'none', color: '#ffffff55', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>
             &times;

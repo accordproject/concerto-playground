@@ -3,12 +3,23 @@ import LZString from "lz-string";
 import JSZip from "jszip";
 import { Header } from "./components/Header";
 import { Editor } from "./components/Editor";
+import { ImportDialog } from "./components/ImportDialog";
 import { OutputTabs } from "./components/OutputTabs";
 import { ConcertoGraphEditor } from "./components/graph/ConcertoGraphEditor";
 import { FormView } from "./components/form/FormView";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ShortcutsOverlay } from "./components/ShortcutsOverlay";
+import { SHORTCUT_STRINGS } from "./components/graph/strings";
+import { useKeyboardShortcuts, formatShortcut } from "./hooks/useKeyboardShortcuts";
+import { SHORTCUT_COMBOS } from "./utils/shortcutCombos";
 import { validateCto, parseCto, buildExternalTypeMap, type GraphContext } from "./utils/graph/ctoToGraph";
 import type { ImportStatement, TypeLinkTarget } from "./utils/graph/types";
+import {
+  DEFAULT_IMPORT_NAMESPACE,
+  DEFAULT_ROOT_TYPE_NAME,
+  extractNamespace,
+  inferCtoFromImportText,
+} from "./utils/import/importInference";
 import { parsePlaygroundUrlOptions } from "./utils/urlOptions";
 import {
   areWorkspaceModelsEqual,
@@ -30,20 +41,9 @@ const EXAMPLES = [
   { label: "Service Agreement", source: SERVICE_EXAMPLE },
 ];
 
-// Strip comments before matching the namespace declaration to avoid false matches
-// inside block or line comments (e.g. `/* namespace org.foo */`).
-function extractNamespace(cto: string): string {
-  const stripped = cto
-    .replace(/\/\*[\s\S]*?\*\//g, '') // remove block comments
-    .replace(/\/\/.*/g, '');           // remove line comments
-  const m = stripped.match(/^\s*namespace\s+(\S+)/m);
-  return m ? m[1] : `org.example.unknown@1.0.0`;
-}
-
 // Pristine source by namespace for the built-in example buttons. Used to tell
 // untouched examples (swappable) apart from edited ones (kept open).
 const EXAMPLE_SOURCES = new Map(EXAMPLES.map((ex) => [extractNamespace(ex.source), ex.source]));
-
 // Evaluated once at module load — avoids parsing the URL hash twice for the
 // two separate useState initialisers that need models and activeNamespace.
 const _initialModels = (() => {
@@ -98,9 +98,21 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TargetLanguage>(_initialUrlOptions.activeTab);
   const [results, setResults] = useState<Partial<Record<TargetLanguage, GenerationResult>>>({});
   const [shareLabel, setShareLabel] = useState<"Share URL" | "Copied!" | "Copy URL bar">("Share URL");
-  const [importError, setImportError] = useState<string | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [focusRequest, setFocusRequest] = useState<{ name: string; namespace?: string; ts: number } | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // App-wide shortcuts, active in every view (the graph editor registers its
+  // own on top of these). The cheat sheet overlay documents both sets.
+  useKeyboardShortcuts([
+    { ...SHORTCUT_COMBOS.showOverlay, description: SHORTCUT_STRINGS.showOverlay, category: SHORTCUT_STRINGS.categoryGeneral, handler: () => setShortcutsOpen((v) => !v) },
+    { ...SHORTCUT_COMBOS.showOverlayAlt, description: SHORTCUT_STRINGS.showOverlay, category: SHORTCUT_STRINGS.categoryGeneral, handler: () => setShortcutsOpen((v) => !v) },
+    { ...SHORTCUT_COMBOS.viewGraph, description: SHORTCUT_STRINGS.viewGraph, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setViewMode("graph") },
+    { ...SHORTCUT_COMBOS.viewForm, description: SHORTCUT_STRINGS.viewForm, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setViewMode("form") },
+    { ...SHORTCUT_COMBOS.viewCode, description: SHORTCUT_STRINGS.viewCode, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setViewMode("code") },
+    { ...SHORTCUT_COMBOS.toggleCtoPanel, description: SHORTCUT_STRINGS.toggleCto, category: SHORTCUT_STRINGS.categoryNavigation, handler: () => setShowCto((v) => !v) },
+  ]);
 
   // Offer to restore the previous session only when it would change something:
   // a shared link (URL hash) takes precedence over the cache, and a snapshot
@@ -211,6 +223,7 @@ export default function App() {
   }, [activeTab]);
 
   useEffect(() => {
+    if (viewMode !== "code") return;
     setResults({});
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const allSources = Object.values(models).filter(Boolean);
@@ -220,7 +233,7 @@ export default function App() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [models, runGeneration]);
+  }, [models, runGeneration, viewMode]);
 
   // Update a specific namespace's CTO. Empty string = delete.
   function handleModelChange(ns: string, newCto: string) {
@@ -304,89 +317,64 @@ export default function App() {
     replaceLocationHash("");
   }
 
-  // Convert a Concerto metamodel AST (single Model or a { models: [...] }
-  // container) into one or more CTO source strings via the metamodel printer.
-  async function astToCtoSources(json: string): Promise<string[]> {
-    const { Printer } = await import("@accordproject/concerto-cto");
-    const { MetaModel } = await import("@accordproject/concerto-core");
-
-    const ast = JSON.parse(json); // SyntaxError for non-JSON
-
-    // Quick pre-check: the top-level object (or the first item in models[])
-    // must carry a concerto.metamodel $class. This catches common cases like
-    // JSON Schema or OpenAPI files being uploaded accidentally and gives a
-    // clearer message than the metamodel validator's property-level errors.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const topClass: unknown = (ast as any)?.["$class"] ?? (ast as any)?.models?.[0]?.["$class"];
-    if (typeof topClass !== "string" || !topClass.startsWith("concerto.metamodel@")) {
-      throw new Error(
-        "Not a Concerto metamodel file. Only JSON AST files (exported from the JSON AST tab) can be imported as .json.",
-      );
+  function revealImportedCto() {
+    setShowCto(true);
+    if (viewMode === "form") {
+      setViewMode("graph");
     }
-
-    // Normalise to a Models container so validateMetaModel can check the
-    // full structure. A single Model object is wrapped; a container is used
-    // as-is.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const modelsAst: any = Array.isArray(ast?.models)
-      ? ast
-      : { $class: "concerto.metamodel@1.0.0.Models", models: [ast] };
-
-    // Full metamodel validation via Concerto's own validator.
-    // Requires proper $class identifiers and rejects unexpected properties.
-    MetaModel.validateMetaModel(modelsAst);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return modelsAst.models.map((m: any) => Printer.toCTO(m));
   }
 
-  function handleImport() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".cto,.json";
-    input.multiple = true;
-    input.onchange = async (e) => {
-      const files = (e.target as HTMLInputElement).files;
-      if (!files || files.length === 0) return;
-
-      const readAsText = (file: File) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(reader.error);
-          reader.readAsText(file);
+  async function handleImportFiles(files: FileList) {
+    const imported: Array<{ cto: string; replacesActive: boolean }> = [];
+    const errors: string[] = [];
+    for (const file of Array.from(files)) {
+      try {
+        const result = await inferCtoFromImportText(await file.text(), {
+          fallbackNamespace: activeNamespace,
+          defaultNamespace: DEFAULT_IMPORT_NAMESPACE,
+          rootTypeName: DEFAULT_ROOT_TYPE_NAME,
         });
-
-      // Read and convert every file in the order the user selected them, so the
-      // resulting namespace order — and the active tab — is deterministic.
-      setImportError(null);
-      const ctoSources: string[] = [];
-      const errors: string[] = [];
-      for (const file of Array.from(files)) {
-        try {
-          const text = await readAsText(file);
-          const isJson =
-            file.name.toLowerCase().endsWith(".json") ||
-            /^\s*[{[]/.test(text);
-          if (isJson) {
-            ctoSources.push(...(await astToCtoSources(text)));
-          } else {
-            ctoSources.push(text);
-          }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          errors.push(`${file.name}: ${msg}`);
-        }
+        imported.push(...result.ctoSources.map((cto) => ({
+          cto,
+          replacesActive: result.kind === "json" || result.kind === "json-schema",
+        })));
+      } catch (error) {
+        errors.push(`${file.name}: ${error instanceof Error ? error.message : String(error)}`);
       }
-      if (errors.length > 0) setImportError(errors.join("\n"));
+    }
 
-      if (ctoSources.length === 0) return;
+    if (imported.length > 0) {
+      setModels((prev) => {
+        const next = { ...prev };
+        if (imported.some(({ replacesActive }) => replacesActive)) delete next[activeNamespace];
+        for (const { cto } of imported) next[extractNamespace(cto)] = cto;
+        return next;
+      });
+      setActiveNamespace(extractNamespace(imported[0].cto));
+      revealImportedCto();
+    }
+
+    if (errors.length > 0) throw new Error(errors.join("\n"));
+    setIsImportDialogOpen(false);
+  }
+
+  async function handleImportText(sourceText: string) {
+    const result = await inferCtoFromImportText(sourceText, {
+      fallbackNamespace: activeNamespace,
+      defaultNamespace: DEFAULT_IMPORT_NAMESPACE,
+      rootTypeName: DEFAULT_ROOT_TYPE_NAME,
+    });
+
+    revealImportedCto();
+    if (result.kind === "json" || result.kind === "json-schema") {
+      handleModelChange(activeNamespace, result.ctoSources[0]);
+    } else {
       const additions: Record<string, string> = {};
-      for (const cto of ctoSources) additions[extractNamespace(cto)] = cto;
+      for (const cto of result.ctoSources) additions[extractNamespace(cto)] = cto;
       setModels((prev) => ({ ...prev, ...additions }));
-      setActiveNamespace(extractNamespace(ctoSources[0]));
-    };
-    input.click();
+      setActiveNamespace(extractNamespace(result.ctoSources[0]));
+    }
+    setIsImportDialogOpen(false);
   }
 
   async function handleExport() {
@@ -422,6 +410,13 @@ export default function App() {
   return (
     <div className={`flex flex-col h-screen bg-[#1a202c] text-white overflow-hidden ${_initialUrlOptions.headless ? "" : "pt-16"}`}>
       {!_initialUrlOptions.headless && <Header />}
+
+      <ImportDialog
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        onImportFiles={handleImportFiles}
+        onImportText={handleImportText}
+      />
 
       {/* Restore previous session prompt */}
       {showRestore && _savedSnapshot && (
@@ -461,20 +456,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Import error banner */}
-      {importError && (
-        <div className="flex items-start gap-2 px-4 py-2 bg-red-900 bg-opacity-60 border-b border-red-700 text-xs text-red-200 shrink-0">
-          <span className="flex-1 whitespace-pre-wrap">{importError}</span>
-          <button
-            onClick={() => setImportError(null)}
-            className="shrink-0 text-red-300 hover:text-white leading-none"
-            aria-label="Dismiss"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       {/* Toolbar */}
       {_initialUrlOptions.showToolbar && (
         <div className="flex items-center gap-2 px-3 py-2 bg-[#171d2b] border-b border-[#2d3748] shrink-0 flex-wrap">
@@ -488,7 +469,7 @@ export default function App() {
               border: "none",
               cursor: "pointer",
             }}
-            title={showCto ? "Hide CTO panel" : "Show CTO panel"}
+            title={`${showCto ? "Hide CTO panel" : "Show CTO panel"} (${formatShortcut(SHORTCUT_COMBOS.toggleCtoPanel)})`}
           >
             {showCto ? "◀ CTO" : "▶ CTO"}
           </button>
@@ -502,6 +483,7 @@ export default function App() {
               onClick={() => handleLoadExample(ex.source)}
               className="text-xs px-2.5 py-1 rounded font-semibold transition-colors"
               style={{ background: "#4a5568", color: "#e2e8f0", border: "none", cursor: "pointer" }}
+              title={`Load the ${ex.label} example model`}
             >
               {ex.label}
             </button>
@@ -520,6 +502,7 @@ export default function App() {
                   border: "none",
                   cursor: "pointer",
                 }}
+                title={`Graph view (${formatShortcut(SHORTCUT_COMBOS.viewGraph)})`}
               >
                 Graph
               </button>
@@ -533,6 +516,7 @@ export default function App() {
                   borderLeft: "1px solid #4a5568",
                   cursor: "pointer",
                 }}
+                title={`Form view (${formatShortcut(SHORTCUT_COMBOS.viewForm)})`}
               >
                 Form
               </button>
@@ -546,6 +530,7 @@ export default function App() {
                   borderLeft: "1px solid #4a5568",
                   cursor: "pointer",
                 }}
+                title={`Code view (${formatShortcut(SHORTCUT_COMBOS.viewCode)})`}
               >
                 Code
               </button>
@@ -554,6 +539,7 @@ export default function App() {
             <button
               onClick={handleShare}
               className="text-xs px-3 py-1 rounded border transition-colors"
+              title="Copy a shareable link to this workspace"
               style={{
                 background: "transparent",
                 borderColor: "#4a5568",
@@ -571,9 +557,26 @@ export default function App() {
             >
               {shareLabel}
             </button>
+
+            <button
+              onClick={() => setShortcutsOpen(true)}
+              className="text-xs px-2.5 py-1 rounded border transition-colors"
+              style={{
+                background: "transparent",
+                borderColor: "#4a5568",
+                color: "#a0aec0",
+                cursor: "pointer",
+              }}
+              title={`${SHORTCUT_STRINGS.showOverlay} (?)`}
+              aria-label={SHORTCUT_STRINGS.showOverlay}
+            >
+              ?
+            </button>
           </div>
         </div>
       )}
+
+      {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
 
       {/* Split pane */}
       <div className="flex flex-1 min-h-0">
@@ -713,7 +716,7 @@ export default function App() {
                 onModelChange={setSource}
                 showText={showCto}
                 onToggleText={() => setShowCto((v) => !v)}
-                onImport={handleImport}
+                onImport={() => setIsImportDialogOpen(true)}
                 onExport={handleExport}
                 focusRequest={focusRequest}
                 validationError={validationError}

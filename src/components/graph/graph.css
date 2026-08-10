@@ -7,7 +7,9 @@
 .graph-node {
   background: #1e2533;
   border-radius: 12px;
-  overflow: hidden;
+  /* Visible so the contextual hint popover can extend past the node edge;
+     the headers carry their own top rounding instead of being clipped. */
+  overflow: visible;
   transition: border-color 0.2s, box-shadow 0.2s;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
@@ -82,6 +84,7 @@
 }
 
 .concept-node-header {
+  border-radius: 10px 10px 0 0;
   padding: 12px 14px 10px;
   background: linear-gradient(
     135deg,
@@ -294,6 +297,7 @@
 }
 
 .enum-node-header {
+  border-radius: 10px 10px 0 0;
   padding: 12px 14px 10px;
   background: linear-gradient(135deg, #744210, #744210cc);
   border-bottom: 1px solid #d69e2e33;
@@ -456,4 +460,84 @@
   color: #7e8ca6;
   font-size: 12.5px;
   line-height: 1.7;
+}
+
+/* Contextual hint popovers on node headers (US-06) */
+
+.concept-hint-anchor {
+  position: relative;
+  cursor: help;
+}
+
+.concept-hint-pop {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -6px;
+  z-index: 40;
+  width: 240px;
+  padding: 9px 11px;
+  background: #0f1420;
+  border: 1px solid #38b2ac55;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  /* Reset the badge typography the popover would otherwise inherit */
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  text-align: left;
+  white-space: normal;
+  /* Hoverable (WCAG 1.4.13): the pointer can move over the panel to read
+     longer text; the nodrag class keeps node dragging from starting in it. */
+  pointer-events: auto;
+  cursor: default;
+}
+
+.concept-hint-anchor:hover .concept-hint-pop {
+  display: block;
+}
+
+/* The hint is reachable without a mouse: the anchor is focusable and the
+   panel opens on keyboard focus too. */
+.concept-hint-anchor:focus .concept-hint-pop {
+  display: block;
+}
+
+.concept-hint-anchor:focus-visible {
+  outline: 2px solid #38b2ac;
+  outline-offset: 2px;
+}
+
+/* Flipped placements, set by keepHintInViewport when the default placement
+   would leave the viewport: open leftwards and/or above the anchor. */
+.concept-hint-anchor[data-hint-flip-x] .concept-hint-pop {
+  left: auto;
+  right: -6px;
+}
+
+.concept-hint-anchor[data-hint-flip-y] .concept-hint-pop {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+/* Dismissible (WCAG 1.4.13): Escape hides the panel until the pointer or
+   focus leaves the anchor. Kept last so it wins over the hover/focus rules. */
+.concept-hint-anchor[data-hint-dismissed] .concept-hint-pop {
+  display: none;
+}
+
+.concept-hint-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #81e6d9;
+  margin-bottom: 4px;
+}
+
+.concept-hint-summary {
+  display: block;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #cbd5e0;
 }

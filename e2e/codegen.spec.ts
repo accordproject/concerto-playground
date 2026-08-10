@@ -1,5 +1,20 @@
 import { test, expect } from '@playwright/test';
 
+test('should defer codegen until Code view is opened', async ({ page }) => {
+  const codegenRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('concerto-codegen')) codegenRequests.push(request.url());
+  });
+
+  await page.goto('/');
+  await expect(page.getByText('Concerto Schema')).toBeVisible({ timeout: 15000 });
+  await page.waitForTimeout(750); // Longer than the generation debounce.
+  expect(codegenRequests).toEqual([]);
+
+  await page.getByRole('button', { name: 'Code' }).click();
+  await expect.poll(() => codegenRequests.length).toBeGreaterThan(0);
+});
+
 test.describe('Code Generation Output', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');

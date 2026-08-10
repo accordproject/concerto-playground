@@ -2,6 +2,7 @@ import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
 import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import { KindBadge } from './KindBadge';
 import './graph.css';
 
 interface EnumNodeData {
@@ -31,9 +32,7 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
 
       <div className="enum-node-header">
         <div className="graph-node-header-row">
-          <span className="graph-node-kind enum-node-kind">
-            enum
-          </span>
+          <KindBadge kind="enum" className="enum-node-kind" />
           <button onClick={() => data.onDeleteDeclaration?.(declaration.name)}
             className="graph-node-delete-btn">
             &times;
