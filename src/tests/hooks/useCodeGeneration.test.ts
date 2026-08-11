@@ -86,6 +86,21 @@ describe('useCodeGeneration', () => {
     expect(Object.keys(result.current.results)).toEqual(['typescript', 'java']);
   });
 
+  it('stops an in-flight run when the code view closes', async () => {
+    const models = { 'org.a@1.0.0': 'cto' };
+    const { result, rerender } = render(models);
+    act(() => vi.advanceTimersByTime(DEBOUNCE_MS));
+    expect(generateMock).toHaveBeenCalledTimes(1);
+
+    // The code view closes while the first target is still generating.
+    rerender({ models, enabled: false });
+    await resolveNext('unwanted');
+
+    // The pending result is dropped and no further target is generated.
+    expect(result.current.results).toEqual({});
+    expect(generateMock).toHaveBeenCalledTimes(1);
+  });
+
   it('stops publishing results from a run superseded by a model change', async () => {
     const { result, rerender } = render({ 'org.a@1.0.0': 'v1' });
     act(() => vi.advanceTimersByTime(DEBOUNCE_MS));

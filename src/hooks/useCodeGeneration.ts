@@ -45,8 +45,10 @@ export function useCodeGeneration(
   }, []);
 
   useEffect(() => {
-    if (!enabled) return;
+    // Invalidate before the guard: closing the code view must also stop an
+    // in-flight run, not just skip scheduling a new one.
     runIdRef.current += 1;
+    if (!enabled) return;
     setResults({});
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const allSources = Object.values(models).filter(Boolean);
