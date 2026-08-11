@@ -150,7 +150,7 @@ export function ShortcutsOverlay({ onClose, onClearCanvas, onStartTour }: Shortc
         ))}
 
         {onStartTour && (
-          <button data-tour="restart" onClick={onStartTour} style={tourBtnStyle}>
+          <button onClick={onStartTour} style={tourBtnStyle}>
             {TOUR_STRINGS.restartTour}
           </button>
         )}

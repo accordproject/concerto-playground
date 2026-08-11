@@ -27,10 +27,7 @@ export const TOUR_STRINGS = {
     'Everything about the Concerto language lives here: guides, the full syntax reference and plenty of examples.',
   shortcutsTitle: 'Shortcuts and help',
   shortcutsBody:
-    'Press ? at any time to open a cheat sheet with every keyboard shortcut.',
-  restartTitle: 'Take the tour again',
-  restartBody:
-    'That is it! Restart this walkthrough from here whenever you need a refresher.',
+    'That is it! Press ? to see every keyboard shortcut. You can restart this walkthrough from there whenever you need a refresher.',
   nextLabel: 'Next',
   prevLabel: 'Back',
   doneLabel: 'Done',

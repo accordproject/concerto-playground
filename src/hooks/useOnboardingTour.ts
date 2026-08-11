@@ -64,11 +64,9 @@ export function useOnboardingTour({ blockAutoStart, ...ctx }: OnboardingTourOpti
       progressText: TOUR_STRINGS.progressText,
       steps: buildTourSteps(ctxRef.current),
       // Every way out (Done, the X, overlay click, Escape) counts as seen,
-      // so a skipped tour never auto-starts again. The shortcuts popover is
-      // closed too, since the final step opens it for its anchor.
+      // so a skipped tour never auto-starts again.
       onDestroyStarted: (_element, _step, { driver: instance }) => {
         markTourSeen();
-        ctxRef.current.setShortcutsOpen(false);
         instance.destroy();
       },
     });

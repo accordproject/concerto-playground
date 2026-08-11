@@ -37,28 +37,6 @@ test.describe('Onboarding tour', () => {
     await expect(page.locator('[data-tour="examples"].driver-active-element')).toBeVisible();
   });
 
-  test('the final step opens the shortcuts popover and highlights the restart action', async ({ page }) => {
-    await page.goto('/');
-    await expect(popover(page)).toBeVisible({ timeout: 15000 });
-
-    // Walk from the welcome step to the shortcuts step, then into the final one.
-    for (let i = 0; i < 8; i++) {
-      await popover(page).getByRole('button', { name: 'Next', exact: true }).click();
-    }
-    await expect(popover(page)).toContainText('Shortcuts and help');
-    await popover(page).getByRole('button', { name: 'Next', exact: true }).click();
-
-    const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
-    await expect(dialog).toBeVisible();
-    await expect(popover(page)).toContainText('Take the tour again');
-    await expect(page.locator('[data-tour="restart"].driver-active-element')).toBeVisible();
-
-    // Finishing the tour also puts the popover it opened away.
-    await popover(page).getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(popover(page)).toBeHidden();
-    await expect(dialog).toBeHidden();
-  });
-
   test('can be restarted from the keyboard shortcuts popover', async ({ page }) => {
     await page.goto('/');
     await expect(popover(page)).toBeVisible({ timeout: 15000 });
