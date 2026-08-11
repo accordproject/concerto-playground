@@ -177,6 +177,7 @@ export default function App() {
   const { startTour } = useOnboardingTour({
     setShowCto,
     setViewMode,
+    setShortcutsOpen,
     blockAutoStart:
       showRestore ||
       _initialUrlOptions.headless ||

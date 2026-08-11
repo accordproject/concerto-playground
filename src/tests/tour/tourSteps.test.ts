@@ -7,12 +7,23 @@ function makeContext() {
   return {
     setShowCto: vi.fn<(show: boolean) => void>(),
     setViewMode: vi.fn<(mode: ViewMode) => void>(),
+    setShortcutsOpen: vi.fn<(open: boolean) => void>(),
   };
 }
 
 // Runs a step's onNextClick override the way driver.js would.
 function clickNext(step: DriveStep, driver: Pick<Driver, 'moveNext'>) {
   step.popover?.onNextClick?.(undefined, step, {
+    driver: driver as Driver,
+    config: {},
+    state: {},
+    index: 0,
+  });
+}
+
+// Runs a step's onPrevClick override the way driver.js would.
+function clickPrev(step: DriveStep, driver: Pick<Driver, 'movePrevious'>) {
+  step.popover?.onPrevClick?.(undefined, step, {
     driver: driver as Driver,
     config: {},
     state: {},
@@ -63,9 +74,34 @@ describe('buildTourSteps', () => {
 
   it('waits for anchors that appear only after a state change', () => {
     const steps = buildTourSteps(makeContext());
-    for (const selector of ['[data-tour="cto-panel"]', '[data-tour="canvas"]', '[data-tour="graph-toolbar"]']) {
+    for (const selector of [
+      '[data-tour="cto-panel"]',
+      '[data-tour="canvas"]',
+      '[data-tour="graph-toolbar"]',
+      '[data-tour="restart"]',
+    ]) {
       const step = steps.find((s) => s.element === selector);
       expect(step?.waitForElement).toBeGreaterThan(0);
     }
+  });
+
+  it('opens the shortcuts popover before the restart step and closes it going back', () => {
+    const ctx = makeContext();
+    const steps = buildTourSteps(ctx);
+    const shortcuts = steps.find((s) => s.element === '[data-tour="shortcuts"]');
+    const restart = steps.find((s) => s.element === '[data-tour="restart"]');
+    const moveNext = vi.fn();
+    const movePrevious = vi.fn();
+
+    expect(shortcuts).toBeDefined();
+    expect(restart).toBeDefined();
+
+    clickNext(shortcuts!, { moveNext });
+    expect(ctx.setShortcutsOpen).toHaveBeenCalledWith(true);
+    expect(moveNext).toHaveBeenCalledTimes(1);
+
+    clickPrev(restart!, { movePrevious });
+    expect(ctx.setShortcutsOpen).toHaveBeenCalledWith(false);
+    expect(movePrevious).toHaveBeenCalledTimes(1);
   });
 });

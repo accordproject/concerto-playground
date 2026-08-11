@@ -13,6 +13,7 @@ export const TOUR_SEEN_KEY = 'tour.v1.seen';
 export interface TourContext {
   setShowCto: (show: boolean) => void;
   setViewMode: (mode: ViewMode) => void;
+  setShortcutsOpen: (open: boolean) => void;
 }
 
 // How long a step waits for its anchor to appear after a prepare callback
@@ -28,6 +29,12 @@ export function buildTourSteps(ctx: TourContext): DriveStep[] {
     (_element, _step, { driver }) => {
       prepare();
       driver.moveNext();
+    };
+  const prepareThenPrev =
+    (prepare: () => void): DriverHook =>
+    (_element, _step, { driver }) => {
+      prepare();
+      driver.movePrevious();
     };
 
   return [
@@ -100,6 +107,21 @@ export function buildTourSteps(ctx: TourContext): DriveStep[] {
       popover: {
         title: TOUR_STRINGS.shortcutsTitle,
         description: TOUR_STRINGS.shortcutsBody,
+        onNextClick: prepareThenNext(() => ctx.setShortcutsOpen(true)),
+      },
+    },
+    {
+      // Lives inside the shortcuts popover, which the previous step opened.
+      // The anchor never exists while the previous step is shown, and a
+      // skipped-when-missing step would relabel that step's Next as Done;
+      // waitForElement alone covers the popover mounting.
+      element: '[data-tour="restart"]',
+      skipMissingElement: false,
+      waitForElement: ANCHOR_WAIT_MS,
+      popover: {
+        title: TOUR_STRINGS.restartTitle,
+        description: TOUR_STRINGS.restartBody,
+        onPrevClick: prepareThenPrev(() => ctx.setShortcutsOpen(false)),
       },
     },
   ];

@@ -13,7 +13,7 @@ vi.mock('driver.js', () => ({
   driver: (config: Config) => driverFactory(config),
 }));
 
-const ctx = { setShowCto: vi.fn(), setViewMode: vi.fn() };
+const ctx = { setShowCto: vi.fn(), setViewMode: vi.fn(), setShortcutsOpen: vi.fn() };
 
 function lastDriverConfig(): Config {
   const calls = driverFactory.mock.calls;
@@ -96,6 +96,8 @@ describe('useOnboardingTour', () => {
 
     expect(hasSeenTour()).toBe(true);
     expect(destroy).toHaveBeenCalledTimes(1);
+    // The final step opens the shortcuts popover; any close puts it away.
+    expect(ctx.setShortcutsOpen).toHaveBeenCalledWith(false);
   });
 
   it('cancels the pending auto-start on unmount', () => {
