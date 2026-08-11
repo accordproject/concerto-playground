@@ -236,7 +236,7 @@ export function PropertyTree({
                             textAlign: 'left',
                           }}
                         >
-                          + {isEnum ? FORM_STRINGS.addValue : FORM_STRINGS.addProperty}
+                          {isEnum ? FORM_STRINGS.addValue : FORM_STRINGS.addProperty}
                         </button>
                       </div>
 

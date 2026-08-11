@@ -75,7 +75,7 @@ export const ERROR_BOUNDARY_STRINGS = {
 export const OUTPUT_STRINGS = {
   more: 'More',
   copy: 'Copy',
-  copied: 'Copied!',
+  copied: SHARE_LABELS.copied,
   staticPreview: 'static preview',
   parseError: 'Parse error',
   generating: 'Generating…',
@@ -84,11 +84,11 @@ export const OUTPUT_STRINGS = {
 
 export const FORM_STRINGS = {
   treeTitle: 'Model Tree',
-  addNamespaceTitle: 'Add namespace',
+  addNamespaceTitle: APP_STRINGS.addNamespace,
   removeNamespaceTitle: 'Remove namespace',
   addDeclaration: '+ add declaration',
-  addValue: 'add value',
-  addProperty: 'add property',
+  addValue: '+ add value',
+  addProperty: '+ add property',
   placeholder: 'Select an item from the tree',
   sectionNamespace: 'Namespace',
   sectionDeclaration: 'Declaration',
@@ -106,7 +106,6 @@ export const FORM_STRINGS = {
   extendsNone: '(none)',
   identifiedNone: 'None',
   identifiedSystem: 'System identifier',
-  identifiedByField: 'Identified by field',
   abstract: 'Abstract',
   optional: 'Optional',
   array: 'Array',

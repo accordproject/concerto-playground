@@ -50,7 +50,11 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         return { models, activeNamespace: fallbackActive(models, ns, state.activeNamespace) };
       }
       const parsedNs = extractNamespace(cto);
-      if (parsedNs !== ns && models[ns] !== undefined) {
+      // Migrate the entry when its namespace declaration changed, but never
+      // onto a key another open model occupies: overwriting would silently
+      // discard that model. The edit stays under its old key and validation
+      // reports the duplicate namespace instead.
+      if (parsedNs !== ns && models[ns] !== undefined && models[parsedNs] === undefined) {
         delete models[ns];
         models[parsedNs] = cto;
         return {

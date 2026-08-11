@@ -337,7 +337,7 @@ function ConceptForm({
         <select style={selectStyle} value={identified} onChange={(e) => setIdentified(e.target.value as typeof identified)}>
           <option value="none">{FORM_STRINGS.identifiedNone}</option>
           <option value="identified">{FORM_STRINGS.identifiedSystem}</option>
-          <option value="identified-by">{FORM_STRINGS.identifiedByField}</option>
+          <option value="identified-by">{FORM_STRINGS.fieldIdentifiedBy}</option>
         </select>
       </Field>
 

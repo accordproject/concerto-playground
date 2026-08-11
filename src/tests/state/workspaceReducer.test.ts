@@ -67,6 +67,20 @@ describe('workspaceReducer', () => {
     expect(Object.keys(next.models)).toEqual([NS_A, 'org.c@1.0.0']);
   });
 
+  it('keeps a renamed model under its old key when the new namespace is already open', () => {
+    // Migrating onto the other tab's key would overwrite that model; the
+    // duplicate namespace is left for validation to report instead.
+    const renamed = ctoFor(NS_B, 'renamed');
+    const next = workspaceReducer(state({ [NS_A]: ctoFor(NS_A), [NS_B]: 'b-content' }, NS_A), {
+      type: 'model-changed',
+      ns: NS_A,
+      cto: renamed,
+    });
+    expect(next.models[NS_B]).toBe('b-content');
+    expect(next.models[NS_A]).toBe(renamed);
+    expect(next.activeNamespace).toBe(NS_A);
+  });
+
   it('deletes a model on empty CTO and falls back to the first remaining namespace', () => {
     const next = workspaceReducer(state({ [NS_A]: 'a', [NS_B]: 'b' }, NS_A), {
       type: 'model-changed',
