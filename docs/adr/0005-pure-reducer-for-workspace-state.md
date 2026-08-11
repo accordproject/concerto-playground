@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (implementation in review, see the US-12 pull request)
+Accepted
 
 ## Context
 

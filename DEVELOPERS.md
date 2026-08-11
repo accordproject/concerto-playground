@@ -48,6 +48,10 @@ npm run test:e2e:ui
 
 A change is ready for review when `npm run build`, `npm run test:unit` and `npm run test:e2e` all pass.
 
+#### Signing your commits
+
+Every commit must carry a [Developer Certificate of Origin][dco] sign-off; the DCO check on pull requests enforces it. Commit with `git commit -s` (or `--signoff`) so git appends the `Signed-off-by` trailer for you.
+
 ### Project Structure
 
 ```
@@ -83,6 +87,7 @@ Before requesting review:
 
 - [ ] `npm run build` passes (typecheck + production build)
 - [ ] `npm run test:unit` and `npm run test:e2e` pass locally
+- [ ] Every commit is signed off (`git commit -s`, see the DCO section above)
 - [ ] New behavior is covered by unit tests, and by an e2e spec when it spans a user flow
 - [ ] User-facing texts live in the string catalogs, not inline in components
 - [ ] No dead code, commented-out blocks or leftover debug output
@@ -97,3 +102,4 @@ For reviewers:
 - Suggest alternatives instead of only critiquing, and approve when you would be comfortable owning the code.
 
 [apdev]: https://github.com/accordproject/techdocs/blob/master/DEVELOPERS.md
+[dco]: https://developercertificate.org/
