@@ -5,6 +5,7 @@ import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
 import { DETAIL_ROW_HEIGHT, HANDLE_SIZE, PROPERTY_ROW_GAP } from '../../utils/graph/nodeLayout';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 import { KindBadge } from './KindBadge';
+import { NODE_STRINGS } from './strings';
 
 interface ScalarNodeData {
   label: string;
@@ -76,25 +77,25 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
       <div style={{ padding: '6px 12px 8px' }}>
         {v.default && (
           <div style={detailRow}>
-            <span style={detailLabel}>default</span>
+            <span style={detailLabel}>{NODE_STRINGS.scalarDefaultLabel}</span>
             <span style={detailValue}>{v.default}</span>
           </div>
         )}
         {v.regex && (
           <div style={detailRow}>
-            <span style={detailLabel}>regex</span>
+            <span style={detailLabel}>{NODE_STRINGS.scalarRegexLabel}</span>
             <span style={detailValue}>{v.regex}</span>
           </div>
         )}
         {v.range && (
           <div style={detailRow}>
-            <span style={detailLabel}>range</span>
+            <span style={detailLabel}>{NODE_STRINGS.scalarRangeLabel}</span>
             <span style={detailValue}>{v.range}</span>
           </div>
         )}
         {v.length && (
           <div style={detailRow}>
-            <span style={detailLabel}>length</span>
+            <span style={detailLabel}>{NODE_STRINGS.scalarLengthLabel}</span>
             <span style={detailValue}>{v.length}</span>
           </div>
         )}

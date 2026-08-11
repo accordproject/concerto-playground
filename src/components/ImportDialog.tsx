@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { IMPORT_DIALOG_STRINGS } from "../constants/ui";
 
 interface ImportDialogProps {
   isOpen: boolean;
@@ -8,7 +9,7 @@ interface ImportDialogProps {
 }
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Something went wrong.";
+  return error instanceof Error ? error.message : IMPORT_DIALOG_STRINGS.genericError;
 }
 
 export function ImportDialog({
@@ -109,24 +110,24 @@ export function ImportDialog({
       <div ref={dialogRef} style={dialogStyle} onClick={(event) => event.stopPropagation()}>
         <div style={headerStyle}>
           <div>
-            <h2 id="import-model-title" style={titleStyle}>Import Model</h2>
+            <h2 id="import-model-title" style={titleStyle}>{IMPORT_DIALOG_STRINGS.title}</h2>
             <p style={subtitleStyle}>
-              Paste or choose CTO, Concerto JSON AST, JSON Schema, or a JSON sample.
+              {IMPORT_DIALOG_STRINGS.subtitle}
             </p>
           </div>
-          <button onClick={onClose} style={closeButtonStyle} aria-label="Close import dialog">
+          <button onClick={onClose} style={closeButtonStyle} aria-label={IMPORT_DIALOG_STRINGS.closeLabel}>
             ×
           </button>
         </div>
 
         <div style={panelStyle}>
-          <label htmlFor="import-source" style={fieldLabelStyle}>Model input</label>
+          <label htmlFor="import-source" style={fieldLabelStyle}>{IMPORT_DIALOG_STRINGS.inputLabel}</label>
           <textarea
             ref={sourceRef}
             id="import-source"
             value={source}
             onChange={(event) => setSource(event.target.value)}
-            placeholder={'namespace org.example@1.0.0\n\nconcept Example {\n  o String name\n}'}
+            placeholder={IMPORT_DIALOG_STRINGS.inputPlaceholder}
             spellCheck={false}
             style={textAreaStyle}
           />
@@ -137,7 +138,7 @@ export function ImportDialog({
               style={{ ...buttonStyle, background: "#4a5568" }}
               disabled={isSubmitting}
             >
-              Choose files
+              {IMPORT_DIALOG_STRINGS.chooseFiles}
             </button>
             <input
               ref={fileInputRef}
@@ -150,7 +151,7 @@ export function ImportDialog({
               style={hiddenFileInputStyle}
             />
             <button type="button" onClick={handleTextImport} style={buttonStyle} disabled={isSubmitting}>
-              Import
+              {IMPORT_DIALOG_STRINGS.submit}
             </button>
           </div>
         </div>

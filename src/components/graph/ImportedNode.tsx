@@ -1,5 +1,6 @@
 import { Handle, Position } from '@xyflow/react';
 import { HANDLE_ID } from '../../utils/graph/types';
+import { NODE_STRINGS } from './strings';
 import './graph.css';
 
 interface ImportedNodeData {
@@ -23,15 +24,15 @@ export function ImportedNode({ data, selected }: { data: ImportedNodeData; selec
       className={`graph-node imported-node${selected ? ' selected' : ''}${resolved ? '' : ' unresolved'}`}
       onClick={clickable ? () => data.onNavigateToType?.(label, namespace) : undefined}
       style={clickable ? { cursor: 'pointer' } : undefined}
-      title={resolved ? `Open ${namespace}` : `Namespace unresolved: ${namespace}`}
+      title={resolved ? NODE_STRINGS.openNamespaceTooltip(namespace) : NODE_STRINGS.unresolvedNamespaceTooltip(namespace)}
     >
       <Handle type="target" position={Position.Top} id={HANDLE_ID.top} className="graph-node-handle imported-node-handle" />
       <Handle type="target" position={Position.Left} id={HANDLE_ID.left} className="graph-node-handle imported-node-handle" />
 
       <div className="imported-node-header">
-        <span className="graph-node-kind imported-node-kind">imported</span>
+        <span className="graph-node-kind imported-node-kind">{NODE_STRINGS.importedBadge}</span>
         {!resolved && (
-          <span className="imported-node-warning">⚠ unresolved</span>
+          <span className="imported-node-warning">{NODE_STRINGS.unresolvedBadge}</span>
         )}
       </div>
       <div className="imported-node-name">{label}</div>

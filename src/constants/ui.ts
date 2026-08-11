@@ -122,6 +122,36 @@ export const FORM_STRINGS = {
   enumValuePlaceholder: 'ENUM_VALUE',
 } as const;
 
+export const IMPORT_DIALOG_STRINGS = {
+  title: 'Import Model',
+  subtitle: 'Paste or choose CTO, Concerto JSON AST, JSON Schema, or a JSON sample.',
+  closeLabel: 'Close import dialog',
+  inputLabel: 'Model input',
+  inputPlaceholder: 'namespace org.example@1.0.0\n\nconcept Example {\n  o String name\n}',
+  chooseFiles: 'Choose files',
+  submit: 'Import',
+  genericError: 'Something went wrong.',
+} as const;
+
+// Error messages the import inference surfaces in the import dialog.
+export const IMPORT_ERROR_STRINGS = {
+  emptyInput: 'Paste CTO, Concerto JSON, JSON Schema, or a JSON sample first.',
+  invalidInput: (detail: string) => `Invalid JSON or CTO: ${detail}`,
+  unsupportedJson: 'Input must be a JSON object, array, or JSON Schema document.',
+  jsonSchemaInferenceFailed: (detail: string) =>
+    `Unable to infer Concerto model from JSON Schema: ${detail}`,
+  jsonInferenceFailed: (detail: string) =>
+    `Unable to infer Concerto model from JSON sample: ${detail}`,
+} as const;
+
+// Hover messages for the clickable type references in the CTO editor.
+export const EDITOR_STRINGS = {
+  importedTypeHover: (namespace: string) => `Imported from \`${namespace}\` (click to open)`,
+  unresolvedTypeHover: (namespace: string) =>
+    `Namespace unresolved: \`${namespace}\` is not open in this workspace`,
+  declarationHover: (name: string) => `Declaration of \`${name}\` (click to view it in the graph)`,
+} as const;
+
 export const VALIDATION_STRINGS = {
   nameRequired: 'Name is required.',
   nameNoSpaces: (suggestion: string, name: string) =>

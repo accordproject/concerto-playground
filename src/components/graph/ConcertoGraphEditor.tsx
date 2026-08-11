@@ -26,7 +26,7 @@ import { GraphToolbar } from './GraphToolbar';
 import { NodeSearch } from './NodeSearch';
 import { useFocusNode } from './useFocusNode';
 import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, parseCto, withSourcePositions, type GraphContext } from '../../utils/graph/ctoToGraph';
-import { SHORTCUT_STRINGS, TOOLBAR_STRINGS } from './strings';
+import { DIALOG_STRINGS, SHORTCUT_STRINGS, TOOLBAR_STRINGS } from './strings';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { SHORTCUT_COMBOS } from '../../utils/shortcutCombos';
 import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
@@ -638,7 +638,7 @@ function ConnectEdgeDialog({ sourceId, targetId, onSubmit, onClose }: {
           <input
             value={propName}
             onChange={(e) => setPropName(e.target.value)}
-            placeholder={`Property name (e.g. my${targetId})`}
+            placeholder={DIALOG_STRINGS.connectionPropertyPlaceholder(targetId)}
             style={inputStyle}
             autoFocus
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
@@ -650,9 +650,9 @@ function ConnectEdgeDialog({ sourceId, targetId, onSubmit, onClose }: {
             ...typeBtnStyle,
             background: connType === 'property' ? '#3182ce' : connType === 'relationship' ? '#e53e3e' : '#805ad5',
           }}>
-            Connect
+            {DIALOG_STRINGS.connect}
           </button>
-          <button onClick={onClose} style={typeBtnStyle}>Cancel</button>
+          <button onClick={onClose} style={typeBtnStyle}>{DIALOG_STRINGS.cancel}</button>
         </div>
       </div>
     </div>

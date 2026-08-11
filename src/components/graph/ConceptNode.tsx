@@ -5,6 +5,7 @@ import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 import { KindBadge, HintAnchor } from './KindBadge';
 import { getConceptHint } from '../../utils/conceptHints';
+import { NODE_STRINGS } from './strings';
 import './graph.css';
 
 const TYPE_COLORS: Record<PrimitiveTypeName, string> = {
@@ -66,20 +67,20 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
             <KindBadge kind={declaration.type} className="concept-node-kind" />
             {declaration.isAbstract && (
               <span className="concept-node-abstract-badge"
-                onClick={() => data.onToggleAbstract?.(declaration.name)} title="Toggle abstract">
-                abstract
+                onClick={() => data.onToggleAbstract?.(declaration.name)} title={NODE_STRINGS.toggleAbstractTooltip}>
+                {NODE_STRINGS.abstractBadge}
               </span>
             )}
             {!declaration.isAbstract && (
               <span className="concept-node-concrete-badge"
-                onClick={() => data.onToggleAbstract?.(declaration.name)} title="Make abstract">
-                concrete
+                onClick={() => data.onToggleAbstract?.(declaration.name)} title={NODE_STRINGS.makeAbstractTooltip}>
+                {NODE_STRINGS.concreteBadge}
               </span>
             )}
           </div>
           <button onClick={() => data.onDeleteDeclaration?.(declaration.name)}
             className="graph-node-delete-btn"
-            title="Delete"
+            title={NODE_STRINGS.deleteDeclarationTooltip}
           >
             &times;
           </button>
@@ -172,12 +173,12 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
             )}
             {prop.isOptional && (
               <span className="concept-node-prop-opt">
-                opt
+                {NODE_STRINGS.optionalBadge}
               </span>
             )}
             <button onClick={() => data.onDeleteProperty?.(declaration.name, prop.name)}
               className="graph-node-row-delete"
-              title="Delete property"
+              title={NODE_STRINGS.deletePropertyTooltip}
             >
               &times;
             </button>

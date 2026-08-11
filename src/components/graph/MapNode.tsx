@@ -5,6 +5,7 @@ import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
 import { HANDLE_SIZE, MAP_ROW_HEIGHT, PROPERTY_ROW_GAP } from '../../utils/graph/nodeLayout';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 import { KindBadge } from './KindBadge';
+import { NODE_STRINGS } from './strings';
 
 interface MapNodeData {
   label: string;
@@ -86,7 +87,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
               padding: '5px 8px', marginBottom: PROPERTY_ROW_GAP, minHeight: MAP_ROW_HEIGHT,
               boxSizing: 'border-box', background: '#161b27', borderRadius: 6,
             }}>
-              <span style={{ fontSize: 10, color: '#a0aec0', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Key</span>
+              <span style={{ fontSize: 10, color: '#a0aec0', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{NODE_STRINGS.mapKeyLabel}</span>
               <span style={{ fontSize: 12, color: '#81e6d9', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{map.keyType}</span>
             </div>
             <div style={{
@@ -102,7 +103,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
                   style={rowHandleStyle}
                 />
               )}
-              <span style={{ fontSize: 10, color: '#a0aec0', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Value</span>
+              <span style={{ fontSize: 10, color: '#a0aec0', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{NODE_STRINGS.mapValueLabel}</span>
               <span style={{ fontSize: 12, color: '#81e6d9', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{map.valueType}</span>
             </div>
           </>

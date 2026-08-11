@@ -40,9 +40,32 @@ export const DIALOG_STRINGS = {
   enumValuePlaceholder: 'Value (e.g. Active)',
   setInheritanceTitle: (declName: string) => `Set Inheritance for ${declName}`,
   noInheritanceOption: 'None (no inheritance)',
+  connectionPropertyPlaceholder: (targetName: string) => `Property name (e.g. my${targetName})`,
   add: 'Add',
   set: 'Set',
+  connect: 'Connect',
   cancel: 'Cancel',
+} as const;
+
+// Badges, tooltips and detail labels rendered inside the graph nodes.
+export const NODE_STRINGS = {
+  abstractBadge: 'abstract',
+  concreteBadge: 'concrete',
+  toggleAbstractTooltip: 'Toggle abstract',
+  makeAbstractTooltip: 'Make abstract',
+  deleteDeclarationTooltip: 'Delete',
+  deletePropertyTooltip: 'Delete property',
+  optionalBadge: 'opt',
+  mapKeyLabel: 'Key',
+  mapValueLabel: 'Value',
+  scalarDefaultLabel: 'default',
+  scalarRegexLabel: 'regex',
+  scalarRangeLabel: 'range',
+  scalarLengthLabel: 'length',
+  importedBadge: 'imported',
+  unresolvedBadge: '⚠ unresolved',
+  openNamespaceTooltip: (namespace: string) => `Open ${namespace}`,
+  unresolvedNamespaceTooltip: (namespace: string) => `Namespace unresolved: ${namespace}`,
 } as const;
 
 // Descriptions for the keyboard shortcut registry. The shortcuts overlay
