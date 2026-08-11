@@ -42,14 +42,19 @@ test.describe('Shortcut layers', () => {
 
     const closeButton = page.getByRole('button', { name: 'Close shortcuts overlay' });
     const clearButton = dialog.getByRole('button', { name: 'Clear' });
+    const tourButton = page.getByRole('button', { name: 'Take the tour again' });
     await expect(closeButton).toBeFocused();
 
-    // Tab cycles between the two focusables (close and the Clear action)
+    // Tab cycles between the three focusables (close, Clear action, and restart tour)
     // without ever leaving the dialog.
     await page.keyboard.press('Tab');
     await expect(clearButton).toBeFocused();
     await page.keyboard.press('Tab');
+    await expect(tourButton).toBeFocused();
+    await page.keyboard.press('Tab');
     await expect(closeButton).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(tourButton).toBeFocused();
     await page.keyboard.press('Shift+Tab');
     await expect(clearButton).toBeFocused();
     await page.keyboard.press('Shift+Tab');

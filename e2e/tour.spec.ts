@@ -37,14 +37,19 @@ test.describe('Onboarding tour', () => {
     await expect(page.locator('[data-tour="examples"].driver-active-element')).toBeVisible();
   });
 
-  test('can be restarted from the toolbar Tour button', async ({ page }) => {
+  test('can be restarted from the keyboard shortcuts popover', async ({ page }) => {
     await page.goto('/');
     await expect(popover(page)).toBeVisible({ timeout: 15000 });
     await page.keyboard.press('Escape');
     await expect(popover(page)).toBeHidden();
 
-    await page.locator('[data-tour="restart"]').click();
+    await page.getByRole('button', { name: 'Show keyboard shortcuts' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Take the tour again' }).click();
 
+    // The overlay yields to the tour so the highlighted elements stay reachable.
+    await expect(dialog).toBeHidden();
     await expect(popover(page)).toBeVisible();
     await expect(popover(page)).toContainText('Welcome to Concerto Playground');
   });

@@ -96,10 +96,10 @@ export function buildTourSteps(ctx: TourContext): DriveStep[] {
       },
     },
     {
-      element: '[data-tour="restart"]',
+      element: '[data-tour="shortcuts"]',
       popover: {
-        title: TOUR_STRINGS.restartTitle,
-        description: TOUR_STRINGS.restartBody,
+        title: TOUR_STRINGS.shortcutsTitle,
+        description: TOUR_STRINGS.shortcutsBody,
       },
     },
   ];

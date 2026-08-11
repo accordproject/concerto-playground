@@ -25,13 +25,12 @@ export const TOUR_STRINGS = {
   docsTitle: 'Concerto documentation',
   docsBody:
     'Everything about the Concerto language lives here: guides, the full syntax reference and plenty of examples.',
-  restartTitle: 'Take the tour again',
-  restartBody:
-    'That is it! You can restart this walkthrough from here whenever you need a refresher.',
+  shortcutsTitle: 'Shortcuts and help',
+  shortcutsBody:
+    'That is it! Press ? to see every keyboard shortcut. You can restart this walkthrough from there whenever you need a refresher.',
   nextLabel: 'Next',
   prevLabel: 'Back',
   doneLabel: 'Done',
   progressText: '{{current}} of {{total}}',
   restartTour: 'Take the tour again',
-  tourButton: 'Tour',
 } as const;

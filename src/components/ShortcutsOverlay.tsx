@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useKeyboardShortcuts, formatShortcut } from '../hooks/useKeyboardShortcuts';
 import { SHORTCUT_COMBOS, type ShortcutCombo } from '../utils/shortcutCombos';
 import { SHORTCUT_STRINGS } from './graph/strings';
+import { TOUR_STRINGS } from '../tour/strings';
 
 interface CatalogItem {
   description: string;
@@ -52,9 +53,11 @@ interface ShortcutsOverlayProps {
   onClose: () => void;
   /** When set, the Clear canvas row also offers a clickable Clear action. */
   onClearCanvas?: () => void;
+  /** When provided, the overlay offers to restart the onboarding tour. */
+  onStartTour?: () => void;
 }
 
-export function ShortcutsOverlay({ onClose, onClearCanvas }: ShortcutsOverlayProps) {
+export function ShortcutsOverlay({ onClose, onClearCanvas, onStartTour }: ShortcutsOverlayProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // A modal layer: Escape (or the open combos again) closes the overlay and
@@ -145,6 +148,12 @@ export function ShortcutsOverlay({ onClose, onClearCanvas }: ShortcutsOverlayPro
             ))}
           </div>
         ))}
+
+        {onStartTour && (
+          <button onClick={onStartTour} style={tourBtnStyle}>
+            {TOUR_STRINGS.restartTour}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -204,4 +213,10 @@ const kbdStyle: React.CSSProperties = {
   fontSize: 11, fontFamily: 'inherit', color: '#a0aec0',
   background: '#1a202c', border: '1px solid #4a5568', borderRadius: 4,
   padding: '1px 7px',
+};
+
+const tourBtnStyle: React.CSSProperties = {
+  marginTop: 16, width: '100%', padding: '7px 0',
+  background: '#1a202c', border: '1px solid #4a5568', borderRadius: 6,
+  color: '#cbd5e0', fontSize: 13, cursor: 'pointer',
 };

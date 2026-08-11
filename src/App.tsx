@@ -25,7 +25,6 @@ import { useWorkspace } from "./hooks/useWorkspace";
 import { useCodeGeneration } from "./hooks/useCodeGeneration";
 import { validateInBackground } from "./utils/validationClient";
 import { useOnboardingTour } from "./hooks/useOnboardingTour";
-import { TOUR_STRINGS } from "./tour/strings";
 import {
   DEFAULT_IMPORT_NAMESPACE,
   DEFAULT_ROOT_TYPE_NAME,
@@ -174,7 +173,7 @@ export default function App() {
   // First-visit onboarding walkthrough. Never auto-start over the restore
   // prompt, in headless embeds, without the toolbar (most anchors live
   // there), or when a shared link was opened (the visitor came for the
-  // model, not the interface). The toolbar button re-triggers it any time.
+  // model, not the interface). The shortcuts popover re-triggers it any time.
   const { startTour } = useOnboardingTour({
     setShowCto,
     setViewMode,
@@ -543,16 +542,6 @@ export default function App() {
 
           {/* Right-side controls */}
           <div className="ml-auto flex items-center gap-2">
-            <button
-              data-tour="restart"
-              onClick={startTour}
-              className="text-xs px-2.5 py-1 rounded font-semibold transition-colors"
-              style={{ background: "#4a5568", color: "#e2e8f0", border: "none", cursor: "pointer" }}
-              title={TOUR_STRINGS.restartTour}
-            >
-              {TOUR_STRINGS.tourButton}
-            </button>
-
             {/* Graph / Form / Code mode toggle */}
             <div data-tour="view-toggle" className="flex rounded overflow-hidden" style={{ border: "1px solid #4a5568" }}>
               <button
@@ -622,6 +611,7 @@ export default function App() {
             </button>
 
             <button
+              data-tour="shortcuts"
               onClick={() => setShortcutsOpen(true)}
               className="text-xs px-2.5 py-1 rounded border transition-colors"
               style={{
@@ -645,6 +635,10 @@ export default function App() {
           onClearCanvas={clearCanvasAction
             ? () => { setShortcutsOpen(false); clearCanvasAction(); }
             : undefined}
+          onStartTour={() => {
+            setShortcutsOpen(false);
+            startTour();
+          }}
         />
       )}
 

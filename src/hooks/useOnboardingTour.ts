@@ -48,7 +48,7 @@ export function useOnboardingTour({ blockAutoStart, ...ctx }: OnboardingTourOpti
   const tourRef = useRef<Driver | null>(null);
 
   const startTour = useCallback(() => {
-    // The last step highlights the Tour button and driver.js keeps the
+    // The last step highlights the shortcuts button and driver.js keeps the
     // highlighted element clickable, so a second start while a tour is
     // active would stack two overlays. Drop the old instance first.
     tourRef.current?.destroy();
