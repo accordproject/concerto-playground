@@ -70,6 +70,21 @@ const _initialModels = (() => {
 
 const _initialUrlOptions = parsePlaygroundUrlOptions(window.location.search);
 
+function encodeModelsHash(models: Record<string, string>): string {
+  const sources = Object.values(models).filter(Boolean);
+  if (sources.length === 0) return "";
+
+  const payload = sources.length === 1 ? sources[0] : JSON.stringify(sources);
+  return LZString.compressToEncodedURIComponent(payload);
+}
+
+function replaceLocationHash(hash: string) {
+  const url = hash
+    ? `${window.location.pathname}${window.location.search}#${hash}`
+    : `${window.location.pathname}${window.location.search}`;
+  window.history.replaceState(null, "", url);
+}
+
 // Captured before the App mounts: the persistence hook starts overwriting the
 // stored snapshot shortly after the first render, so the previous session has
 // to be read here, not in an effect.
@@ -271,12 +286,7 @@ export default function App() {
   }
 
   async function handleShare() {
-    // Encode all open models so multi-namespace sessions survive the round-trip.
-    // Single-model sessions use the plain CTO string for backward compatibility
-    // with links shared before this change.
-    const sources = Object.values(models).filter(Boolean);
-    const payload = sources.length === 1 ? sources[0] : JSON.stringify(sources);
-    window.location.hash = LZString.compressToEncodedURIComponent(payload);
+    replaceLocationHash(encodeModelsHash(models));
     try {
       await navigator.clipboard.writeText(window.location.href);
       setShareLabel("Copied!");
@@ -304,7 +314,7 @@ export default function App() {
       return next;
     });
     setActiveNamespace(targetNs);
-    window.location.hash = "";
+    replaceLocationHash("");
   }
 
   function revealImportedCto() {

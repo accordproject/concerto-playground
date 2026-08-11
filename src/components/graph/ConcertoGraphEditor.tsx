@@ -12,6 +12,7 @@ import {
   type Connection,
   type Node,
   type Edge,
+  type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -24,13 +25,14 @@ import { FloatingEdge } from './FloatingEdge';
 import { GraphToolbar } from './GraphToolbar';
 import { NodeSearch } from './NodeSearch';
 import { useFocusNode } from './useFocusNode';
+import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, parseCto, withSourcePositions, type GraphContext } from '../../utils/graph/ctoToGraph';
 import { SHORTCUT_STRINGS, TOOLBAR_STRINGS } from './strings';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { SHORTCUT_COMBOS } from '../../utils/shortcutCombos';
-import { parseCto, declarationsToGraph, describeParseError, type GraphContext } from '../../utils/graph/ctoToGraph';
 import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel } from '../../utils/graph/types';
+import { routeGraphEdges } from '../../utils/graph/routeGraphEdges';
 
 const nodeTypes: NodeTypes = {
   conceptNode: ConceptNode,
@@ -102,8 +104,11 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const isUndoRedo = useRef(false);
+  const [isAutoLayouting, setIsAutoLayouting] = useState(false);
 
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const fitViewRef = useRef<(() => void) | null>(null);
+  const renderedEdges = useMemo(() => routeGraphEdges(nodes, edges), [nodes, edges]);
 
   // The semantic validation error shown in the overlay banner when the text
   // parses but the model is invalid. The snippet points a caret at the
@@ -154,7 +159,10 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
       const graph = declarationsToGraph(parsed.declarations, graphContext);
       const nodesWithPositions = graph.nodes.map((node) => {
         const savedPos = nodePositionsRef.current.get(node.id);
-        return savedPos ? { ...node, position: savedPos } : node;
+        const declaration = node.data.declaration as Declaration | undefined;
+        return declaration?.decorators.some((decorator) => decorator.name === 'Position') || !savedPos
+          ? node
+          : { ...node, position: savedPos };
       });
       setNodes(nodesWithPositions);
       setEdges(graph.edges);
@@ -186,7 +194,10 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     const graph = declarationsToGraph(newDeclarations, graphContextRef.current);
     const nodesWithPositions = graph.nodes.map((node) => {
       const savedPos = nodePositionsRef.current.get(node.id);
-      return savedPos ? { ...node, position: savedPos } : node;
+      const declaration = node.data.declaration as Declaration | undefined;
+      return declaration?.decorators.some((decorator) => decorator.name === 'Position') || !savedPos
+        ? node
+        : { ...node, position: savedPos };
     });
     setNodes(nodesWithPositions);
     setEdges(graph.edges);
@@ -337,13 +348,54 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   // semantically validated anyway, so the parse message is the actionable one.
   const bannerError = parseError ?? semanticError;
 
-  const onNodeDragStop = useCallback((_event: React.MouseEvent, _node: Node) => {
+  const onNodeDragStop: OnNodeDrag<Node> = useCallback((_event, _node) => {
     const currentNodes = nodes.map((n) => {
       const pos = nodePositionsRef.current.get(n.id);
       return pos ? { ...n, position: pos } : n;
     });
     pushHistory({ model: modelRef.current, nodes: currentNodes, edges });
   }, [nodes, edges, pushHistory]);
+
+  const handleAutoLayout = useCallback(async () => {
+    setIsAutoLayouting(true);
+    try {
+      const nodeDimensions = new Map<string, { width: number; height: number }>();
+      for (const node of nodes) {
+        const width = node.measured?.width ?? node.width;
+        const height = node.measured?.height ?? node.height;
+        if (width == null || height == null || !Number.isFinite(width) || !Number.isFinite(height)) continue;
+        nodeDimensions.set(node.id, { width, height });
+      }
+
+      const positions = await computeAutoLayoutPositions(modelRef.current.declarations, nodeDimensions);
+      const nextNodes = nodes.map((node) => ({
+        ...node,
+        position: positions.get(node.id) || node.position,
+      }));
+
+      setNodes(nextNodes);
+      for (const node of nextNodes) {
+        nodePositionsRef.current.set(node.id, { ...node.position });
+      }
+      pushHistory({ model: modelRef.current, nodes: nextNodes, edges });
+      requestAnimationFrame(() => fitViewRef.current?.());
+    } finally {
+      setIsAutoLayouting(false);
+    }
+  }, [edges, nodes, pushHistory, setNodes]);
+
+  const handleSaveLayout = useCallback(() => {
+    const positions = new Map<string, { x: number; y: number }>(
+      nodes.map((node) => [node.id, { ...node.position }]),
+    );
+    const newCto = withSourcePositions(cto, positions);
+    const newModel = parseCto(newCto);
+    setModel(newModel);
+    pushHistory({ model: newModel, nodes, edges });
+    lastHistoryCtoRef.current = newCto;
+    updatingFromGraph.current = true;
+    onModelChange?.(newCto);
+  }, [cto, edges, nodes, onModelChange, pushHistory, setModel]);
 
   // Routes React Flow's Delete/Backspace removals through the model, so a
   // keyboard delete updates the CTO instead of being reverted on the next
@@ -428,6 +480,9 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         onRedo={handleRedo}
         canUndo={canUndo}
         canRedo={canRedo}
+        onAutoLayout={() => { void handleAutoLayout(); }}
+        isAutoLayouting={isAutoLayouting}
+        onSaveLayout={handleSaveLayout}
         onOpenSearch={() => setSearchOpen(true)}
         showText={showText}
         onToggleText={onToggleText}
@@ -437,13 +492,14 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
       <div style={{ flex: 1, position: 'relative' }}>
         <ReactFlow
           nodes={nodesWithCallbacks}
-          edges={edges}
+          edges={renderedEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onDelete={onDeleteSelection}
           deleteKeyCode={['Backspace', 'Delete']}
           onNodeDragStop={onNodeDragStop}
+          onInit={(instance) => { fitViewRef.current = () => { void instance.fitView({ padding: 0.1, minZoom: 0.5, maxZoom: 1 }); }; }}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView

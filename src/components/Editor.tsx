@@ -1,4 +1,4 @@
-import MonacoEditor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
+import MonacoEditor, { loader, useMonaco, type BeforeMount, type OnMount } from "@monaco-editor/react";
 import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
@@ -10,6 +10,9 @@ import {
   tokenizeWithCache,
 } from "../utils/editorTokens";
 import type { TypeLinkTarget } from "../utils/graph/types";
+
+loader.config({ monaco });
+if (typeof window !== "undefined") Object.assign(window, { monaco });
 
 // Hover hints only make sense on real language tokens; the same words
 // inside comments, strings or regex literals are plain text.

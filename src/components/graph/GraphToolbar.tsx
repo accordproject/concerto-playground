@@ -25,6 +25,9 @@ interface GraphToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onAutoLayout: () => void;
+  isAutoLayouting: boolean;
+  onSaveLayout: () => void;
   onOpenSearch: () => void;
   showText: boolean;
   onToggleText: () => void;
@@ -32,7 +35,7 @@ interface GraphToolbarProps {
   onExport: () => void;
 }
 
-export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onClearCanvas, onUndo, onRedo, canUndo, canRedo, onOpenSearch, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
+export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onClearCanvas, onUndo, onRedo, canUndo, canRedo, onAutoLayout, isAutoLayouting, onSaveLayout, onOpenSearch, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
   const [showAddDecl, setShowAddDecl] = useState(false);
 
   // The add-declaration dialog is local to the toolbar, so it handles its
@@ -57,6 +60,10 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
       </button>
       <button onClick={onImport} style={pillBtn} title={TOOLBAR_STRINGS.importTooltip}>{TOOLBAR_STRINGS.importLabel}</button>
       <button onClick={onExport} style={pillBtn} title={TOOLBAR_STRINGS.exportTooltip}>{TOOLBAR_STRINGS.exportLabel}</button>
+      <button onClick={onAutoLayout} disabled={isAutoLayouting} style={{ ...pillBtn, opacity: isAutoLayouting ? 0.6 : 1 }}>
+        {isAutoLayouting ? TOOLBAR_STRINGS.layoutInProgress : TOOLBAR_STRINGS.autoLayout}
+      </button>
+      <button onClick={onSaveLayout} style={pillBtn}>{TOOLBAR_STRINGS.saveLayout}</button>
 
       <div style={sep} />
 

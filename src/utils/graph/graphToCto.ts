@@ -141,11 +141,7 @@ function propertyToAst(prop: Property): any {
     isArray: prop.isArray,
     isOptional: prop.isOptional,
   };
-  if (prop.validators?.default != null) {
-    // The parser stores defaults JSON-quoted; unquote like the primitive branch,
-    // otherwise the printer double-quotes them (default=""USED"") and the CTO breaks.
-    result.defaultValue = prop.validators.default.replace(/^["']|["']$/g, '');
-  }
+  if (prop.validators?.default != null) result.defaultValue = parseDefaultValue(prop.validators.default);
   return result;
 }
 
@@ -153,11 +149,7 @@ function addValidatorsToAst(result: any, validators: PropertyValidator, typeName
   if (!validators) return;
 
   if (validators.default != null) {
-    const val = validators.default;
-    const unquoted = val.replace(/^["']|["']$/g, '');
-    if (typeName === 'Boolean') result.defaultValue = unquoted === 'true';
-    else if (['Integer', 'Long', 'Double'].includes(typeName)) result.defaultValue = Number(unquoted);
-    else result.defaultValue = unquoted;
+    result.defaultValue = parseDefaultValue(validators.default);
   }
 
   if (validators.regex) {
@@ -183,6 +175,14 @@ function addValidatorsToAst(result: any, validators: PropertyValidator, typeName
       if (match[1].trim()) result.lengthValidator.minLength = Number(match[1].trim());
       if (match[2].trim()) result.lengthValidator.maxLength = Number(match[2].trim());
     }
+  }
+}
+
+function parseDefaultValue(value: string): boolean | number | string {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value.replace(/^["']|["']$/g, '');
   }
 }
 

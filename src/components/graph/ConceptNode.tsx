@@ -1,5 +1,6 @@
 import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 import { KindBadge, HintAnchor } from './KindBadge';
 import { getConceptHint } from '../../utils/conceptHints';
@@ -26,6 +27,7 @@ interface ConceptNodeData {
   label: string;
   declaration: Declaration;
   edgeProperties?: string[];
+  incomingHandles?: GraphTargetHandle[];
   onAddProperty?: (declName: string) => void;
   onDeleteProperty?: (declName: string, propName: string) => void;
   onDeleteDeclaration?: (declName: string) => void;
@@ -37,6 +39,7 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
   const { declaration } = data;
   const colors = DECL_COLORS[declaration.type] || DECL_COLORS.concept;
   const edgeProperties = new Set(data.edgeProperties ?? []);
+  const incomingHandles = data.incomingHandles ?? [];
   const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
   const propCount = declaration.properties.length;
   const nodeVars = { '--accent': colors.accent, '--bg': colors.bg } as React.CSSProperties;
@@ -46,6 +49,10 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
       <Handle type="target" position={Position.Top} id="top" className="graph-node-handle" style={{ background: colors.accent }} />
       <Handle type="target" position={Position.Left} id="left" className="graph-node-handle" style={{ background: colors.accent }} />
       <Handle type="source" position={Position.Right} id="right" className="graph-node-handle" style={{ background: colors.accent }} />
+      {incomingHandles.map((handle) => (
+        <Handle key={handle.id} type="target" position={Position.Left} id={handle.id}
+          className="graph-node-handle" style={{ top: handle.top, background: colors.accent }} />
+      ))}
 
       <div className="concept-node-header">
         <div className="graph-node-header-row">

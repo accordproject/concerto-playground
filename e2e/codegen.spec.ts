@@ -42,11 +42,8 @@ test.describe('Code Generation Output', () => {
   });
 
   test('TypeScript tab is active by default', async ({ page }) => {
-    await expect(page.getByRole('button', { name: 'TypeScript' })).toBeVisible();
-    // Either generating or content is already shown
-    await expect(
-      page.getByText('Generating…').or(page.getByText('GoverningLaw'))
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: 'TypeScript' }))
+      .toHaveClass(/border-\[#19C6C8\]/);
   });
 
   test('should switch between output tabs', async ({ page }) => {
