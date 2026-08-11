@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  workspaceReducer,
-  extractNamespace,
-  type WorkspaceState,
-} from '../../state/workspaceReducer';
+import { workspaceReducer, type WorkspaceState } from '../../state/workspaceReducer';
+import { extractNamespace } from '../../utils/import/importInference';
 
 const NS_A = 'org.a@1.0.0';
 const NS_B = 'org.b@1.0.0';
@@ -149,6 +146,20 @@ describe('workspaceReducer', () => {
     });
     expect(Object.keys(next.models)).toEqual([NS_A, NS_B, 'org.c@1.0.0']);
     expect(next.activeNamespace).toBe(NS_B);
+  });
+
+  it('closes the named namespace when an import replaces it', () => {
+    // The action names the namespace to close instead of reading the active
+    // one, so a tab switch during an async import cannot remove the wrong
+    // model.
+    const next = workspaceReducer(state({ [NS_A]: 'a', [NS_B]: 'b' }, NS_B), {
+      type: 'models-imported',
+      sources: [ctoFor('org.c@1.0.0')],
+      replaceNamespace: NS_A,
+    });
+    expect(next.models[NS_A]).toBeUndefined();
+    expect(next.models[NS_B]).toBe('b');
+    expect(next.activeNamespace).toBe('org.c@1.0.0');
   });
 
   it('ignores an empty import', () => {

@@ -42,11 +42,11 @@ export function useWorkspace(initialModels: Record<string, string>) {
     [],
   );
   const importModels = useCallback(
-    (sources: string[], options?: { replaceActiveNamespace?: boolean }) =>
+    (sources: string[], options?: { replaceNamespace?: string }) =>
       dispatch({
         type: 'models-imported',
         sources,
-        replaceActiveNamespace: options?.replaceActiveNamespace,
+        replaceNamespace: options?.replaceNamespace,
       }),
     [],
   );

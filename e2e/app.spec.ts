@@ -41,7 +41,7 @@ test.describe('App Loading', () => {
 
   test('should show status bar with Accord Project branding', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('Accord Project — Concerto Playground')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Accord Project - Concerto Playground')).toBeVisible({ timeout: 15000 });
   });
 
   test('should show Docs and GitHub links in status bar', async ({ page }) => {

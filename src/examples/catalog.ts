@@ -1,5 +1,5 @@
 import { NDA_EXAMPLE, SERVICE_EXAMPLE, VEHICLES_EXAMPLE } from './nda.cto';
-import { extractNamespace } from '../state/workspaceReducer';
+import { extractNamespace } from '../utils/import/importInference';
 
 /** Built-in example models offered by the toolbar buttons. */
 export const EXAMPLES = [

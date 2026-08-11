@@ -20,12 +20,12 @@ import {
   type ShareLabel,
 } from "./constants/ui";
 import { EXAMPLES } from "./examples/catalog";
-import { extractNamespace } from "./state/workspaceReducer";
 import { useWorkspace } from "./hooks/useWorkspace";
 import { useCodeGeneration } from "./hooks/useCodeGeneration";
 import {
   DEFAULT_IMPORT_NAMESPACE,
   DEFAULT_ROOT_TYPE_NAME,
+  extractNamespace,
   inferCtoFromImportText,
 } from "./utils/import/importInference";
 import { validateCto, parseCto, buildExternalTypeMap, type GraphContext } from "./utils/graph/ctoToGraph";
@@ -275,9 +275,13 @@ export default function App() {
     }
 
     if (imported.length > 0) {
+      // activeNamespace is the closure value used as the inference fallback,
+      // so the replacement targets the model the import was inferred against
+      // even if the user switched tabs while the files were processing.
+      const replacesActive = imported.some(({ replacesActive }) => replacesActive);
       workspace.importModels(
         imported.map(({ cto }) => cto),
-        { replaceActiveNamespace: imported.some(({ replacesActive }) => replacesActive) },
+        replacesActive ? { replaceNamespace: activeNamespace } : undefined,
       );
       revealImportedCto();
     }

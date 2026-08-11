@@ -5,8 +5,6 @@
 
 import { extractNamespace } from '../utils/import/importInference';
 
-export { extractNamespace };
-
 export interface WorkspaceState {
   /** CTO source per open namespace. */
   models: Record<string, string>;
@@ -25,9 +23,10 @@ export type WorkspaceAction =
       `pristineSources`) are swapped out; edited ones and user namespaces stay. */
   | { type: 'example-loaded'; source: string; pristineSources: ReadonlyMap<string, string> }
   /** Merge imported CTO sources and activate the first one. Imports that
-      replace the current model (JSON object / JSON Schema inference) close
-      the active namespace first. */
-  | { type: 'models-imported'; sources: string[]; replaceActiveNamespace?: boolean }
+      replace an existing model (JSON object / JSON Schema inference) name
+      the namespace to close, so a tab switch during an async import cannot
+      redirect the removal. */
+  | { type: 'models-imported'; sources: string[]; replaceNamespace?: string }
   /** Replace the whole workspace with a persisted snapshot. */
   | { type: 'snapshot-restored'; models: Record<string, string> };
 
@@ -88,7 +87,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     case 'models-imported': {
       if (action.sources.length === 0) return state;
       const models = { ...state.models };
-      if (action.replaceActiveNamespace) delete models[state.activeNamespace];
+      if (action.replaceNamespace !== undefined) delete models[action.replaceNamespace];
       for (const cto of action.sources) models[extractNamespace(cto)] = cto;
       return { models, activeNamespace: extractNamespace(action.sources[0]) };
     }

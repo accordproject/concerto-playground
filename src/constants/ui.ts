@@ -41,7 +41,7 @@ export const SHARE_LABELS = {
 export type ShareLabel = (typeof SHARE_LABELS)[keyof typeof SHARE_LABELS];
 
 export const STATUS_BAR_STRINGS = {
-  brand: 'Accord Project — Concerto Playground',
+  brand: 'Accord Project - Concerto Playground',
   lastSaved: (time: string) => `Last saved: ${time}`,
   docs: 'Docs',
   github: 'GitHub',
