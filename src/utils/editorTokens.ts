@@ -32,11 +32,14 @@ export function tokenTypeAt(
 
 /**
  * True when the token type marks a spot where a declared type can actually
- * be referenced. Only identifier tokens qualify; comments, strings, regex
- * literals, numbers and keywords are excluded.
+ * be referenced. Only the context-specific identifier.reference tokens the
+ * tokenizer emits for type positions (after o, --> and extends, and inside
+ * import targets) qualify; plain identifiers such as declaration names,
+ * property names and enum values are excluded, as are comments, strings,
+ * regex literals, numbers and keywords.
  */
 export function isReferenceToken(tokenType: string): boolean {
-  return tokenType.startsWith("identifier");
+  return tokenType.startsWith("identifier.reference");
 }
 
 /** The slice of monaco.editor.ITextModel the tokenization cache needs. */
@@ -69,4 +72,15 @@ export function tokenizeWithCache(
   const lines = tokenize(model.getValue(), model.getLanguageId());
   tokenLinesCache.set(model, { versionId: model.getVersionId(), lines });
   return lines;
+}
+
+/**
+ * True when the token type marks the declared name in a declaration header
+ * (the identifier right after concept, asset, participant, transaction,
+ * event, scalar, map or enum). Declaration names are navigable like
+ * references, but they select their own graph node instead of jumping to
+ * another declaration.
+ */
+export function isDeclarationToken(tokenType: string): boolean {
+  return tokenType.startsWith("identifier.declaration");
 }
