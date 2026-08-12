@@ -8,6 +8,7 @@ import {
   BackgroundVariant,
   Controls,
   MiniMap,
+  ControlButton,
   type NodeTypes,
   type EdgeTypes,
   type Connection,
@@ -35,6 +36,8 @@ import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel, DeclarationDialogKind } from '../../utils/graph/types';
 import { GRAPH_NODE_KIND, GRAPH_EDGE_KIND } from '../../utils/graph/types';
 import { routeGraphEdges } from '../../utils/graph/routeGraphEdges';
+import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import { SemanticZoomContext } from './semanticZoom';
 
 const nodeTypes: NodeTypes = {
   [GRAPH_NODE_KIND.concept]: ConceptNode,
@@ -54,10 +57,15 @@ type EdgeConnectionKind = 'property' | 'relationship' | 'extends';
 interface ConcertoGraphEditorProps {
   cto: string;
   onModelChange?: (cto: string) => void;
-  showText: boolean;
-  onToggleText: () => void;
   onImport: () => void;
   onExport: () => void;
+  /** Publishes the clear-canvas action (or null on unmount) so app-level UI
+      like the shortcuts overlay can trigger it. */
+  onRegisterClearCanvas?: (action: (() => void) | null) => void;
+  /** CTO panel toggle for the graph toolbar; only passed in embedded mode,
+      where the app header's own toggle is not rendered. */
+  showText?: boolean;
+  onToggleText?: () => void;
   /** When this changes, the graph centers on and highlights the named node.
       A namespace means the focus waits until that namespace's graph loaded. */
   focusRequest?: { name: string; namespace?: string; ts: number } | null;
@@ -93,7 +101,7 @@ function useDebouncedError<T>(value: T | null, delay: number): T | null {
   return debounced;
 }
 
-export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText, onImport, onExport, focusRequest, validationError, graphContext, onNavigateToType }: ConcertoGraphEditorProps) {
+export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, onRegisterClearCanvas, showText, onToggleText, focusRequest, validationError, graphContext, onNavigateToType }: ConcertoGraphEditorProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -110,9 +118,24 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   const [historyIndex, setHistoryIndex] = useState(-1);
   const isUndoRedo = useRef(false);
   const [isAutoLayouting, setIsAutoLayouting] = useState(false);
+  const [controlsCollapsed, setControlsCollapsed] = useState(false);
+  // While a connection is being dragged, the canvas shows the generic
+  // top/left target dots (the drop points); they stay hidden otherwise.
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const fitViewRef = useRef<(() => void) | null>(null);
+  // Semantic zoom state for the whole graph: full node bodies above the
+  // threshold, collapsed summaries below. Flipped only when the viewport
+  // settles (onMoveEnd), so pan/zoom gestures and focus animations never pay
+  // for a whole-graph re-render mid-flight.
+  const [semanticFull, setSemanticFull] = useState(true);
+  const handleViewportSettled = useCallback((zoom: number) => {
+    setSemanticFull(zoom >= SEMANTIC_ZOOM_THRESHOLD);
+  }, []);
+  // Lane assignment works at every zoom level: the router only picks the
+  // vertical column, and the edge renderer draws from live handle positions,
+  // which follow the nodes whether they render full size or collapsed.
   const renderedEdges = useMemo(() => routeGraphEdges(nodes, edges), [nodes, edges]);
 
   // The semantic validation error shown in the overlay banner when the text
@@ -330,6 +353,11 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     updateModelAndSync([]);
   }, [updateModelAndSync]);
 
+  useEffect(() => {
+    onRegisterClearCanvas?.(handleClearCanvas);
+    return () => onRegisterClearCanvas?.(null);
+  }, [onRegisterClearCanvas, handleClearCanvas]);
+
   useKeyboardShortcuts([
     { ...SHORTCUT_COMBOS.undo, description: SHORTCUT_STRINGS.undo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleUndo },
     { ...SHORTCUT_COMBOS.redoPrimary, description: SHORTCUT_STRINGS.redo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleRedo },
@@ -471,6 +499,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
 
   return (
     <ReactFlowProvider>
+    <SemanticZoomContext.Provider value={semanticFull}>
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <GraphToolbar
         declarations={model.declarations}
@@ -480,31 +509,33 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         onSetSuperType={handleSetSuperType}
         activeDialog={activeDialog}
         onCloseDialog={() => setActiveDialog(null)}
-        onClearCanvas={handleClearCanvas}
         onUndo={handleUndo}
         onRedo={handleRedo}
         canUndo={canUndo}
         canRedo={canRedo}
-        onAutoLayout={() => { void handleAutoLayout(); }}
-        isAutoLayouting={isAutoLayouting}
-        onSaveLayout={handleSaveLayout}
         onOpenSearch={() => setSearchOpen(true)}
-        showText={showText}
-        onToggleText={onToggleText}
         onImport={onImport}
         onExport={onExport}
+        showText={showText}
+        onToggleText={onToggleText}
       />
-      <div style={{ flex: 1, position: 'relative' }}>
+      <div className={`graph-canvas${isConnecting ? ' is-connecting' : ''}`} style={{ flex: 1, position: 'relative' }}>
         <ReactFlow
           nodes={nodesWithCallbacks}
           edges={renderedEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onConnectStart={() => setIsConnecting(true)}
+          onConnectEnd={() => setIsConnecting(false)}
           onDelete={onDeleteSelection}
           deleteKeyCode={['Backspace', 'Delete']}
           onNodeDragStop={onNodeDragStop}
-          onInit={(instance) => { fitViewRef.current = () => { void instance.fitView({ padding: 0.1, minZoom: 0.5, maxZoom: 1 }); }; }}
+          onInit={(instance) => {
+            fitViewRef.current = () => { void instance.fitView({ padding: 0.1, minZoom: 0.1, maxZoom: 1 }); };
+            handleViewportSettled(instance.getZoom());
+          }}
+          onMoveEnd={(_event, viewport) => handleViewportSettled(viewport.zoom)}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
@@ -513,10 +544,57 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           connectionLineStyle={{ stroke: '#63b3ed', strokeWidth: 2 }}
           minZoom={0.05}
           maxZoom={4}
+          onlyRenderVisibleElements
           panActivationKeyCode={null}
           proOptions={{ hideAttribution: true }}
         >
-           <Controls />
+           {controlsCollapsed ? (
+            <Controls showZoom={false} showFitView={false} showInteractive={false}>
+              <ControlButton
+                onClick={() => setControlsCollapsed(false)}
+                title={TOOLBAR_STRINGS.controlsExpand}
+                aria-label={TOOLBAR_STRINGS.controlsExpand}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <path d="M4 10l4-4 4 4" />
+                </svg>
+              </ControlButton>
+            </Controls>
+          ) : (
+          <Controls>
+            <ControlButton
+              onClick={() => { void handleAutoLayout(); }}
+              disabled={isAutoLayouting}
+              title={isAutoLayouting ? TOOLBAR_STRINGS.layoutInProgress : TOOLBAR_STRINGS.autoLayout}
+              aria-label={TOOLBAR_STRINGS.autoLayout}
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <rect x="1" y="1" width="6" height="4" rx="1" />
+                <rect x="9" y="1" width="6" height="4" rx="1" />
+                <rect x="5" y="11" width="6" height="4" rx="1" />
+                <path d="M4 5v2h8V5M8 7v4" stroke="currentColor" strokeWidth="1.2" fill="none" />
+              </svg>
+            </ControlButton>
+            <ControlButton
+              onClick={handleSaveLayout}
+              title={TOOLBAR_STRINGS.saveLayout}
+              aria-label={TOOLBAR_STRINGS.saveLayout}
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" fillRule="evenodd" aria-hidden="true">
+                <path d="M2 2h9l3 3v9H2zm2 1v3h7V3zm1 6h6v4H5z" />
+              </svg>
+            </ControlButton>
+            <ControlButton
+              onClick={() => setControlsCollapsed(true)}
+              title={TOOLBAR_STRINGS.controlsCollapse}
+              aria-label={TOOLBAR_STRINGS.controlsCollapse}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="M4 6l4 4 4-4" />
+              </svg>
+            </ControlButton>
+          </Controls>
+          )}
           <MiniMap position="bottom-right" pannable zoomable />
           <Background variant={BackgroundVariant.Dots} color="#4a5568" gap={20} size={1} />
         </ReactFlow>
@@ -569,6 +647,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
         )}
       </div>
     </div>
+    </SemanticZoomContext.Provider>
     </ReactFlowProvider>
   );
 }

@@ -1,9 +1,9 @@
-import { Handle, Position, useStore } from '@xyflow/react';
+import { Handle, Position } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
 import { HANDLE_ID, MAP_VALUE_PROP, propHandleId } from '../../utils/graph/types';
 import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
-import { HANDLE_SIZE, MAP_ROW_HEIGHT, PROPERTY_ROW_GAP } from '../../utils/graph/nodeLayout';
-import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import { HANDLE_SIZE, MAP_ROW_HEIGHT, PROPERTY_ROW_GAP, getCompactHandleTop } from '../../utils/graph/nodeLayout';
+import { useSemanticZoom } from './semanticZoom';
 import { KindBadge } from './KindBadge';
 import { NODE_STRINGS } from './strings';
 
@@ -20,7 +20,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
   const map = declaration.mapDeclaration;
   const hasValueEdge = (data.edgeProperties ?? []).includes(MAP_VALUE_PROP);
   const incomingHandles = data.incomingHandles ?? [];
-  const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
+  const showFull = useSemanticZoom();
 
   return (
     <div style={{
@@ -33,16 +33,20 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
         : '0 4px 16px rgba(0,0,0,0.3)',
       transition: 'border-color 0.2s, box-shadow 0.2s',
     }}>
-      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} style={handleStyle} />
-      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} style={handleStyle} />
-      <Handle type="source" position={Position.Right} id={HANDLE_ID.right} style={handleStyle} />
-      {incomingHandles.map((handle) => (
+      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} className="graph-node-target-dot" style={handleStyle} />
+      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} className="graph-node-target-dot" style={handleStyle} />
+      <Handle type="source" position={Position.Right} id={HANDLE_ID.right} className="graph-node-plus-handle"
+        style={{ '--plus-accent': '#38b2ac' } as React.CSSProperties} />
+      {incomingHandles.map((handle, index) => (
         <Handle
           key={handle.id}
           type="target"
           position={Position.Left}
           id={handle.id}
-          style={{ ...incomingHandleStyle, top: handle.top }}
+          style={{
+            ...incomingHandleStyle,
+            top: getCompactHandleTop(index, incomingHandles.length),
+          }}
         />
       ))}
 
@@ -111,7 +115,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
       </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} style={handleStyle} />
+      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} style={{ ...handleStyle, opacity: 0 }} />
     </div>
   );
 }

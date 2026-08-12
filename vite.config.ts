@@ -20,6 +20,8 @@ const viteConfig = defineViteConfig({
       "@accordproject/concerto-core",
       "@accordproject/concerto-cto",
       "@accordproject/concerto-codegen",
+      "elkjs/lib/elk-api.js",
+      "elkjs/lib/elk.bundled.js",
     ],
   },
   build: {

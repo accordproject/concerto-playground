@@ -48,7 +48,13 @@ export const SHORTCUTS_CATALOG: CatalogSection[] = [
 const FOCUSABLE_SELECTOR =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
-export function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
+interface ShortcutsOverlayProps {
+  onClose: () => void;
+  /** When set, the Clear canvas row also offers a clickable Clear action. */
+  onClearCanvas?: () => void;
+}
+
+export function ShortcutsOverlay({ onClose, onClearCanvas }: ShortcutsOverlayProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // A modal layer: Escape (or the open combos again) closes the overlay and
@@ -126,6 +132,11 @@ export function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
               <div key={item.description} style={rowStyle}>
                 <span style={descStyle}>{item.description}</span>
                 <span style={comboGroupStyle}>
+                  {item.description === SHORTCUT_STRINGS.clearCanvas && onClearCanvas && (
+                    <button onClick={onClearCanvas} style={actionBtnStyle}>
+                      {SHORTCUT_STRINGS.clearCanvasAction}
+                    </button>
+                  )}
                   {item.combos.map((combo, i) => (
                     <kbd key={i} style={kbdStyle}>{formatShortcut(combo)}</kbd>
                   ))}
@@ -181,6 +192,12 @@ const descStyle: React.CSSProperties = {
 
 const comboGroupStyle: React.CSSProperties = {
   display: 'flex', gap: 6, flexShrink: 0,
+};
+
+const actionBtnStyle: React.CSSProperties = {
+  fontSize: 11, fontWeight: 600, color: '#e2e8f0',
+  background: '#4a5568', border: '1px solid #4a5568', borderRadius: 4,
+  padding: '1px 9px', cursor: 'pointer',
 };
 
 const kbdStyle: React.CSSProperties = {

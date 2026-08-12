@@ -49,6 +49,10 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         delete models[ns];
         return { models, activeNamespace: fallbackActive(models, ns, state.activeNamespace) };
       }
+      // An unchanged value must keep the same state identity: editor echoes
+      // of the current content would otherwise re-run the whole model sync
+      // and drop transient graph state such as the current selection.
+      if (state.models[ns] === cto) return state;
       const parsedNs = extractNamespace(cto);
       // Migrate the entry when its namespace declaration changed, but never
       // onto a key another open model occupies: overwriting would silently

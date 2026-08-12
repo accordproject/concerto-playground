@@ -101,6 +101,13 @@ export function getMapValueHandleTop(decl: Declaration): number {
     + MAP_ROW_HEIGHT / 2;
 }
 
+/** CSS top for a handle on a collapsed (semantic zoom) node: handles spread
+    proportionally along the edge because pixel offsets computed for the
+    full-size node would land outside the shorter summary card. */
+export function getCompactHandleTop(handleIndex: number, handleCount: number): string {
+  return `${Math.round(((handleIndex + 1) / (handleCount + 1)) * 100)}%`;
+}
+
 export function getIncomingHandleTop(decl: Declaration, handleIndex: number, handleCount: number): number {
   const contentTop = getHeaderHeight(decl) + CONTENT_PADDING_TOP + 8;
   const contentBottom = estimateNodeHeight(decl) - CONTENT_PADDING_BOTTOM - 8;

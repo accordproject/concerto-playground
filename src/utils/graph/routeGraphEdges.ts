@@ -1,31 +1,28 @@
 import type { Edge, Node } from '@xyflow/react';
 import type { Declaration } from './types';
-import {
-  getNodeWidth,
-  getSourceHandleTop,
-  getTargetHandleTop,
-  type GraphTargetHandle,
-} from './nodeLayout';
+import { HANDLE_SIZE, getNodeWidth, type GraphTargetHandle } from './nodeLayout';
 
 interface GraphNodeData {
   declaration: Declaration;
   incomingHandles?: GraphTargetHandle[];
 }
 
-interface RoutePoint {
-  x: number;
-  y: number;
-}
-
 interface RoutedEdgeData {
-  labelPoint?: RoutePoint;
-  routePoints?: RoutePoint[];
+  laneX?: number;
 }
 
 const LANE_MIN_START_OFFSET = 120;
 const LANE_TARGET_PADDING = 40;
 const LANE_SPACING = 34;
 
+/**
+ * Assigns each property fan-in edge its own vertical lane between the two
+ * nodes, so edges entering the same target stay separated instead of drawing
+ * on top of each other. Only the lane's x coordinate is decided here; the
+ * edge renderer builds the actual path from the live handle positions, so
+ * edges always start and end exactly at their connection dots, at any zoom
+ * level and for collapsed nodes too.
+ */
 export function routeGraphEdges(nodes: Node[], edges: Edge[]): Edge[] {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const laneGroups = groupLaneEdges(nodes, edges);
@@ -40,20 +37,9 @@ export function routeGraphEdges(nodes: Node[], edges: Edge[]): Edge[] {
     const targetNode = nodeById.get(edge.target);
     if (!sourceNode || !targetNode) return edge;
 
-    const sourceData = getGraphNodeData(sourceNode);
-    const targetData = getGraphNodeData(targetNode);
-    const sourceTop = getSourceHandleTop(sourceData.declaration, edge.sourceHandle);
-    const targetTop = getTargetHandleTop(
-      targetData.declaration,
-      edge.targetHandle,
-      targetData.incomingHandles,
-    );
-    if (sourceTop == null || targetTop == null) return edge;
-
-    const sourceX = sourceNode.position.x + getRenderedNodeWidth(sourceNode, sourceData.declaration);
-    const sourceY = sourceNode.position.y + sourceTop;
+    const sourceX = sourceNode.position.x
+      + getRenderedNodeWidth(sourceNode, getGraphNodeData(sourceNode).declaration);
     const targetX = targetNode.position.x;
-    const targetY = targetNode.position.y + targetTop;
 
     const laneIndex = laneGroup.handleOrder.indexOf(edge.targetHandle);
     if (laneIndex === -1) return edge;
@@ -64,19 +50,13 @@ export function routeGraphEdges(nodes: Node[], edges: Edge[]): Edge[] {
       laneCount: laneGroup.handleOrder.length,
       laneIndex,
     });
-    const routePoints = dedupePoints([
-      { x: sourceX, y: sourceY },
-      { x: laneX, y: sourceY },
-      { x: laneX, y: targetY },
-      { x: targetX, y: targetY },
-    ]);
+    if (laneX == null) return edge;
 
     return {
       ...edge,
       data: {
         ...(edge.data as object | undefined),
-        labelPoint: getLaneLabelPoint(routePoints),
-        routePoints,
+        laneX,
       } satisfies RoutedEdgeData,
     };
   });
@@ -118,6 +98,11 @@ function getRenderedNodeWidth(node: Node, declaration: Declaration): number {
   return node.measured?.width ?? node.width ?? getNodeWidth(declaration);
 }
 
+// Places the vertical lane for one edge inside the corridor between the two
+// nodes. Lanes prefer their usual stand-off from the source and spacing, but
+// compress into tight corridors instead of being drawn across the target
+// node. Returns null when there is no corridor at all (overlapping nodes or a
+// backwards edge); such edges fall back to a smooth step path.
 function getLaneX({
   sourceX,
   targetX,
@@ -128,31 +113,17 @@ function getLaneX({
   targetX: number;
   laneCount: number;
   laneIndex: number;
-}): number {
-  const maxLaneSpread = Math.max(LANE_SPACING * Math.max(laneCount - 1, 1), LANE_SPACING * 2);
-  const preferredLaneStart = targetX - LANE_TARGET_PADDING - maxLaneSpread;
-  const minimumLaneStart = sourceX + LANE_MIN_START_OFFSET;
-  const laneStart = Math.max(minimumLaneStart, preferredLaneStart);
+}): number | null {
+  const corridorStart = sourceX + HANDLE_SIZE;
+  const corridorEnd = targetX - HANDLE_SIZE;
+  const corridor = corridorEnd - corridorStart;
+  if (corridor < HANDLE_SIZE) return null;
 
-  return laneStart + laneIndex * LANE_SPACING;
-}
+  const spacing = Math.min(LANE_SPACING, corridor / Math.max(laneCount - 1, 1));
+  const laneSpread = spacing * Math.max(laneCount - 1, 0);
+  const preferredLaneStart = targetX - LANE_TARGET_PADDING - laneSpread;
+  const idealLaneStart = Math.min(sourceX + LANE_MIN_START_OFFSET, preferredLaneStart);
+  const laneStart = Math.max(Math.min(idealLaneStart, corridorEnd - laneSpread), corridorStart);
 
-function getLaneLabelPoint(routePoints: RoutePoint[]): RoutePoint {
-  if (routePoints.length < 2) {
-    return routePoints[0] ?? { x: 0, y: 0 };
-  }
-
-  const source = routePoints[0];
-  const laneEntry = routePoints[1];
-  const horizontalLength = laneEntry.x - source.x;
-  const labelX = source.x + Math.min(140, Math.max(70, horizontalLength * 0.45));
-
-  return { x: labelX, y: source.y - 10 };
-}
-
-function dedupePoints(points: RoutePoint[]): RoutePoint[] {
-  return points.filter((point, index) => {
-    const previous = points[index - 1];
-    return !previous || previous.x !== point.x || previous.y !== point.y;
-  });
+  return laneStart + laneIndex * spacing;
 }

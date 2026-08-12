@@ -58,6 +58,18 @@ describe('ShortcutsOverlay', () => {
     expect(screen.getByText('?')).toBeTruthy();
     expect(screen.getByText('Ctrl+/')).toBeTruthy();
   });
+
+  it('offers a clickable Clear action only when onClearCanvas is provided', () => {
+    const onClearCanvas = vi.fn();
+    render(<ShortcutsOverlay onClose={vi.fn()} onClearCanvas={onClearCanvas} />);
+
+    fireEvent.click(screen.getByText('Clear'));
+    expect(onClearCanvas).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    render(<ShortcutsOverlay onClose={vi.fn()} />);
+    expect(screen.queryByText('Clear')).toBeNull();
+  });
 });
 
 describe('ShortcutsOverlay modal focus behavior', () => {
