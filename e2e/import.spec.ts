@@ -29,7 +29,7 @@ test.describe("Import Dialog", () => {
   });
 
   test("imports a JSON object from the single import panel", async ({ page }) => {
-    await page.locator('button[title="Hide CTO panel"]').click();
+    await page.locator('button[title^="Hide CTO panel"]').click();
     await importText(page, JSON.stringify({ firstName: "Alice", address: { city: "London" } }));
 
     await expect(page.getByRole("dialog")).toBeHidden();

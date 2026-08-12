@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   tokenTypeAt,
+  isDeclarationToken,
   isReferenceToken,
   tokenizeWithCache,
   type TokenLike,
@@ -102,8 +103,17 @@ describe("tokenizeWithCache", () => {
 });
 
 describe("isReferenceToken", () => {
-  it("accepts identifier tokens", () => {
-    expect(isReferenceToken("identifier.concerto")).toBe(true);
+  it("accepts only the context-specific reference tokens", () => {
+    expect(isReferenceToken("identifier.reference.concerto")).toBe(true);
+  });
+
+  it("rejects plain identifiers such as property names and enum values", () => {
+    // A property or enum value named like a type must not become a link
+    expect(isReferenceToken("identifier.concerto")).toBe(false);
+  });
+
+  it("rejects declaration-name tokens, which get their own decoration", () => {
+    expect(isReferenceToken("identifier.declaration.concerto")).toBe(false);
   });
 
   it("rejects comments, strings, regex literals, keywords and numbers", () => {
@@ -112,6 +122,21 @@ describe("isReferenceToken", () => {
     expect(isReferenceToken("regexp.concerto")).toBe(false);
     expect(isReferenceToken("keyword.concerto")).toBe(false);
     expect(isReferenceToken("number.concerto")).toBe(false);
+    expect(isReferenceToken("type.concerto")).toBe(false);
     expect(isReferenceToken("")).toBe(false);
+  });
+});
+
+describe("isDeclarationToken", () => {
+  it("accepts only declaration-name tokens", () => {
+    expect(isDeclarationToken("identifier.declaration.concerto")).toBe(true);
+  });
+
+  it("rejects references, plain identifiers and non-identifier tokens", () => {
+    expect(isDeclarationToken("identifier.reference.concerto")).toBe(false);
+    expect(isDeclarationToken("identifier.concerto")).toBe(false);
+    expect(isDeclarationToken("keyword.concerto")).toBe(false);
+    expect(isDeclarationToken("comment.concerto")).toBe(false);
+    expect(isDeclarationToken("")).toBe(false);
   });
 });

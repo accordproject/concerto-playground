@@ -1,10 +1,18 @@
-import MonacoEditor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
+import MonacoEditor, { loader, useMonaco, type BeforeMount, type OnMount } from "@monaco-editor/react";
 import { useEffect, useRef, useState } from "react";
 import * as monaco from "monaco-editor";
 import { locateCulprit, parseErrorPosition } from "../utils/errorHints";
 import { getConceptHint } from "../utils/conceptHints";
-import { tokenTypeAt, tokenizeWithCache } from "../utils/editorTokens";
+import {
+  isDeclarationToken,
+  isReferenceToken,
+  tokenTypeAt,
+  tokenizeWithCache,
+} from "../utils/editorTokens";
 import type { TypeLinkTarget } from "../utils/graph/types";
+
+loader.config({ monaco });
+if (typeof window !== "undefined") Object.assign(window, { monaco });
 
 // Hover hints only make sense on real language tokens; the same words
 // inside comments, strings or regex literals are plain text.
@@ -32,6 +40,9 @@ interface EditorProps {
 // Inject the underline styles for clickable type references once.
 const LINK_CLASS = "concerto-type-link";
 const UNRESOLVED_LINK_CLASS = "concerto-type-link-unresolved";
+// Declaration names are navigable too, but styled apart from references so
+// definitions and usages stay visually distinct.
+const DECL_CLASS = "concerto-type-decl";
 // Delay before re-scanning the model for clickable references, so the
 // full-document scan does not run on every keystroke.
 const LINK_DECORATION_DEBOUNCE_MS = 200;
@@ -41,7 +52,8 @@ function ensureLinkStyle() {
   el.id = "concerto-type-link-style";
   el.textContent =
     `.${LINK_CLASS} { text-decoration: underline dotted #38b2ac; text-underline-offset: 3px; cursor: pointer; }\n` +
-    `.${UNRESOLVED_LINK_CLASS} { text-decoration: underline wavy #ed8936; text-underline-offset: 3px; cursor: help; }`;
+    `.${UNRESOLVED_LINK_CLASS} { text-decoration: underline wavy #ed8936; text-underline-offset: 3px; cursor: help; }\n` +
+    `.${DECL_CLASS} { text-decoration: underline dotted #63b3ed; text-underline-offset: 3px; cursor: pointer; }`;
   document.head.appendChild(el);
 }
 
@@ -93,15 +105,38 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
     tokenizer: {
       root: [
         { include: "@whitespace" },
-        // Relationship arrow
-        [/-->/, "relationship"],
+        // Import targets are reference positions, so imported names stay
+        // clickable; the type name (or braced type list) gets its own token
+        // while the namespace path stays a plain identifier.
+        [
+          /(import)(\s+)([\w.]+(?:@[\w.-]+)?\.)(\{)([^}\n]*)(\})/,
+          ["keyword", "white", "identifier", "delimiter", "identifier.reference", "delimiter"],
+        ],
+        [
+          /(import)(\s+)([\w.]+(?:@[\w.-]+)?\.)(\w+)/,
+          ["keyword", "white", "identifier", "identifier.reference"],
+        ],
+        // Relationship arrow: the next identifier is a type reference
+        [/-->/, { token: "relationship", next: "@typeRef" }],
         // Decorators
         [/@\w+/, "decorator"],
-        // Identifiers and keywords
+        // Identifiers and keywords. Positions that can hold a type reference
+        // switch to typeRef, declaration keywords switch to declName for the
+        // declared name; other identifiers (property names) stay plain.
         [
           /[a-zA-Z_]\w*/,
           {
             cases: {
+              o: { token: "keyword", next: "@typeRef" },
+              extends: { token: "keyword", next: "@typeRef" },
+              enum: { token: "keyword", next: "@enumDecl" },
+              concept: { token: "keyword", next: "@declName" },
+              asset: { token: "keyword", next: "@declName" },
+              participant: { token: "keyword", next: "@declName" },
+              transaction: { token: "keyword", next: "@declName" },
+              event: { token: "keyword", next: "@declName" },
+              scalar: { token: "keyword", next: "@declName" },
+              map: { token: "keyword", next: "@declName" },
               "@keywords": "keyword",
               "@typeKeywords": "type",
               "@default": "identifier",
@@ -115,6 +150,64 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
         [/\d+(\.\d+)?/, "number"],
         // Regex literals (e.g. regex=/\d+/)
         [/\/[^/\n]+\/[gimsuy]*/, "regexp"],
+      ],
+      // The single identifier right after o, --> or extends is a type
+      // reference; primitives keep their type token and anything else is
+      // re-lexed by the root state.
+      typeRef: [
+        [/[ \t]+/, "white"],
+        [
+          /[a-zA-Z_][\w.]*/,
+          {
+            cases: {
+              "@typeKeywords": { token: "type", next: "@pop" },
+              "@keywords": { token: "keyword", next: "@pop" },
+              "@default": { token: "identifier.reference", next: "@pop" },
+            },
+          },
+        ],
+        [/./, { token: "@rematch", next: "@pop" }],
+      ],
+      // The identifier right after a declaration keyword is the declared
+      // name. It gets its own token so it can be decorated as navigable
+      // (clicking it selects its node in the graph).
+      declName: [
+        [/[ \t]+/, "white"],
+        [
+          /[a-zA-Z_]\w*/,
+          {
+            cases: {
+              "@typeKeywords": { token: "type", next: "@pop" },
+              "@keywords": { token: "keyword", next: "@pop" },
+              "@default": { token: "identifier.declaration", next: "@pop" },
+            },
+          },
+        ],
+        [/./, { token: "@rematch", next: "@pop" }],
+      ],
+      // Enum bodies hold values, not type references: an "o Person" inside an
+      // enum declares a value named Person, so o must not switch to typeRef.
+      enumDecl: [
+        { include: "@whitespace" },
+        [/[a-zA-Z_]\w*/, "identifier.declaration"],
+        [/\{/, { token: "delimiter", switchTo: "@enumBody" }],
+        [/./, { token: "@rematch", next: "@pop" }],
+      ],
+      enumBody: [
+        { include: "@whitespace" },
+        [/@\w+/, "decorator"],
+        [/"/, "string", "@string"],
+        [
+          /[a-zA-Z_]\w*/,
+          {
+            cases: {
+              "@keywords": "keyword",
+              "@default": "identifier",
+            },
+          },
+        ],
+        [/\d+(\.\d+)?/, "number"],
+        [/\}/, { token: "delimiter", next: "@pop" }],
       ],
       string: [
         [/[^\\"]+/, "string"],
@@ -301,7 +394,18 @@ export function Editor({
       if (!onNavigateRef.current || !e.event.leftButton) return;
       const pos = e.target.position;
       if (!pos) return;
-      const word = editor.getModel()?.getWordAtPosition(pos);
+      const model = editor.getModel();
+      if (!model) return;
+      // Only navigate from a reference or declaration-name token; the same
+      // word inside a comment or string is plain text and must stay inert.
+      // The token is checked directly instead of the link decoration, which
+      // is applied by a debounced scan and may not exist yet at click time.
+      const tokenLines = tokenizeWithCache(model, (text, languageId) =>
+        monacoInstance.editor.tokenize(text, languageId),
+      );
+      const tokenType = tokenTypeAt(tokenLines, pos.lineNumber, pos.column);
+      if (!isReferenceToken(tokenType) && !isDeclarationToken(tokenType)) return;
+      const word = model.getWordAtPosition(pos);
       if (!word) return;
       const target = targetsRef.current.get(word.word);
       // Unresolved imports are not navigable; their decoration explains why.
@@ -323,6 +427,15 @@ export function Editor({
       if (!model) return;
       const targets = linkTargets ?? [];
       const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+      // Tokenize once per scan so word matches inside comments, strings and
+      // regex literals can be skipped; only identifier tokens are references.
+      // Must use the loader's monaco instance: the concerto language is
+      // registered there, not on the bundled monaco-editor import.
+      const monacoInstance = monacoRef.current;
+      const tokenLines =
+        targets.length > 0 && monacoInstance
+          ? monacoInstance.editor.tokenize(model.getValue(), model.getLanguageId())
+          : [];
       for (const target of targets) {
         const escaped = target.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const matches = model.findMatches(`\\b${escaped}\\b`, false, true, true, null, false);
@@ -339,8 +452,19 @@ export function Editor({
                 value: `Namespace unresolved: \`${target.namespace ?? "unknown"}\` is not open in this workspace`,
               },
             };
+        // Declaration names navigate too (to their own node in the graph),
+        // but with a distinct style so definitions and usages stay apart.
+        const declOptions: monaco.editor.IModelDecorationOptions = {
+          inlineClassName: DECL_CLASS,
+          hoverMessage: { value: `Declaration of \`${target.name}\` (click to view it in the graph)` },
+        };
         for (const m of matches) {
-          decorations.push({ range: m.range, options });
+          const tokenType = tokenTypeAt(tokenLines, m.range.startLineNumber, m.range.startColumn);
+          if (isReferenceToken(tokenType)) {
+            decorations.push({ range: m.range, options });
+          } else if (target.resolved && isDeclarationToken(tokenType)) {
+            decorations.push({ range: m.range, options: declOptions });
+          }
         }
       }
       decorationsRef.current = editor.deltaDecorations(decorationsRef.current, decorations);

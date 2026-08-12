@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseCto, validateCto, declarationsToGraph, describeParseError, buildExternalTypeMap } from "../../utils/graph/ctoToGraph";
+import { declarationsToCto } from "../../utils/graph/graphToCto";
+import { buildExternalTypeMap, computeAutoLayoutPositions, declarationsToGraph, describeParseError, getDeclarationPosition, parseCto, validateCto, withDeclarationPositions, withSourcePositions } from "../../utils/graph/ctoToGraph";
+import { estimateNodeHeight, getNodeWidth } from "../../utils/graph/nodeLayout";
+import { routeGraphEdges } from "../../utils/graph/routeGraphEdges";
+import type { Declaration } from "../../utils/graph/types";
 
 const SIMPLE_CTO = `namespace org.test@1.0.0
 
@@ -232,7 +236,109 @@ concept NDAData {
     expect(new Set(partyEdges.map((edge) => edge.sourceHandle))).toEqual(
       new Set(["prop:disclosingParty", "prop:receivingParty"])
     );
-    expect(partyEdges.map((edge) => edge.targetHandle)).toEqual(["left", "left"]);
+    expect(new Set(partyEdges.map((edge) => edge.targetHandle))).toEqual(
+      new Set(["in:NDAData:disclosingParty", "in:NDAData:receivingParty"])
+    );
+  });
+
+  it("assigns unique incoming handles to dense shared targets", () => {
+    const denseCto = `namespace org.accordproject.nda@1.0.0
+concept Party {
+  o String name
+}
+concept NDAData {
+  o Party disclosingParty
+  o Party receivingParty
+  o Party addressParty
+  o Party witnessParty
+}`;
+    const { declarations } = parseCto(denseCto);
+    const { nodes, edges } = declarationsToGraph(declarations);
+    const partyNode = nodes.find((node) => node.id === "Party");
+    const partyEdges = edges.filter(
+      (edge) => edge.source === "NDAData" && edge.target === "Party"
+    );
+
+    expect(new Set(partyEdges.map((edge) => edge.targetHandle))).toEqual(
+      new Set([
+        "in:NDAData:disclosingParty",
+        "in:NDAData:receivingParty",
+        "in:NDAData:addressParty",
+        "in:NDAData:witnessParty",
+      ])
+    );
+    expect(partyNode?.data.incomingHandles).toHaveLength(4);
+  });
+
+  it("does not store route points on base graph edges", () => {
+    const denseCto = `namespace org.accordproject.nda@1.0.0
+concept Party {
+  o String name
+}
+concept NDAData {
+  o Party disclosingParty
+  o Party receivingParty
+  o Party addressParty
+}`;
+    const { declarations } = parseCto(denseCto);
+    const { edges } = declarationsToGraph(declarations);
+    const partyEdges = edges.filter(
+      (edge) => edge.source === "NDAData" && edge.target === "Party"
+    );
+
+    for (const edge of partyEdges) {
+      expect((edge.data as { routePoints?: Array<{ x: number; y: number }> } | undefined)?.routePoints).toBeUndefined();
+    }
+  });
+
+  it("routes dense property fan-in through distinct lane columns", () => {
+    const denseCto = `namespace org.accordproject.nda@1.0.0
+concept Party {
+  o String name
+}
+concept NDAData {
+  o Party disclosingParty
+  o Party receivingParty
+  o Party addressParty
+  o Party witnessParty
+}`;
+    const { declarations } = parseCto(denseCto);
+    const { nodes, edges } = declarationsToGraph(declarations);
+    const routedEdges = routeGraphEdges(nodes, edges).filter(
+      (edge) => edge.source === "NDAData" && edge.target === "Party"
+    );
+
+    const laneColumns = routedEdges.map((edge) => {
+      const points = (edge.data as { routePoints?: Array<{ x: number; y: number }> }).routePoints!;
+      return points[1].x;
+    });
+
+    expect(new Set(laneColumns).size).toBe(4);
+  });
+
+  it("uses measured node width when routing lane edges", () => {
+    const denseCto = `namespace org.accordproject.nda@1.0.0
+concept Party {
+  o String name
+}
+concept NDAData {
+  o Party disclosingParty
+  o Party receivingParty
+}`;
+    const { declarations } = parseCto(denseCto);
+    const { nodes, edges } = declarationsToGraph(declarations);
+    const ndaNode = nodes.find((node) => node.id === "NDAData")!;
+    const declaration = ndaNode.data.declaration as Declaration;
+    const measuredWidth = getNodeWidth(declaration) + 90;
+    ndaNode.measured = { width: measuredWidth, height: estimateNodeHeight(declaration) };
+
+    const routedEdge = routeGraphEdges(nodes, edges).find(
+      (edge) => edge.source === "NDAData" && edge.target === "Party"
+    )!;
+
+    const points = (routedEdge.data as { routePoints?: Array<{ x: number; y: number }> }).routePoints!;
+    expect(points[0]).toBeDefined();
+    expect(points[0]!.x).toBe(ndaNode.position.x + measuredWidth);
   });
 
   it("assigns positions to all nodes", () => {
@@ -257,6 +363,281 @@ concept NDAData {
       expect(node.data).toBeDefined();
       expect(node.data.declaration).toBeDefined();
     }
+  });
+
+  it("uses saved Position decorators when present", () => {
+    const cto = `namespace org.test@1.0.0
+
+@Position(120, 340)
+concept Person {
+  o String name
+}`;
+    const { declarations } = parseCto(cto);
+    const { nodes } = declarationsToGraph(declarations);
+
+    expect(nodes[0].position).toEqual({ x: 120, y: 340 });
+    expect(getDeclarationPosition(declarations[0])).toEqual({ x: 120, y: 340 });
+  });
+});
+
+describe("auto layout helpers", () => {
+  function createDenseDeclarations(count: number) {
+    return [
+      {
+        name: "Hub",
+        type: "concept" as const,
+        isAbstract: false,
+        superType: undefined,
+        properties: [],
+        enumValues: [],
+        identified: "none" as const,
+        decorators: [],
+      },
+      ...Array.from({ length: count }, (_, index) => ({
+        name: `Concept${index}`,
+        type: "concept" as const,
+        isAbstract: false,
+        superType: undefined,
+        properties: [
+          { name: "hub", type: "Hub", isOptional: false, isArray: false, isRelationship: false, validators: {} },
+          ...(index < count - 1
+            ? [{ name: `next${index}`, type: `Concept${index + 1}`, isOptional: false, isArray: false, isRelationship: false, validators: {} }]
+            : []),
+        ],
+        enumValues: [],
+        identified: "none" as const,
+        decorators: [],
+      })),
+    ];
+  }
+
+  function createMixedSizeDeclarations() {
+    return parseCto(`namespace org.example.layout@1.0.0
+
+@Note("wide")
+enum Status {
+  o NEW
+  o IN_PROGRESS
+  o BLOCKED
+  o DONE
+}
+
+scalar VIN extends String regex=/[A-HJ-NPR-Z0-9]{17}/
+
+abstract concept Vehicle {
+  o String make
+  o String model
+  o VIN vin
+  o Status status
+  o String serialNumber
+  o String registrationNumber
+  o String ownerName optional
+}
+
+concept Owner {
+  o String firstName
+  o String lastName
+  o String email optional
+}
+
+concept Fleet {
+  o String name
+  o Vehicle[] vehicles
+  o Owner manager
+}
+
+concept Car extends Vehicle {
+  o Integer seatCount
+  o Boolean hasAirConditioning
+}
+
+concept Truck extends Vehicle {
+  o Double payloadTonnage
+  o Boolean hasRefrigeration
+  o String axleConfiguration
+  o String regionCode
+}
+
+concept Warranty {
+  o String provider
+  o String policyNumber
+  o Truck coveredTruck
+}
+`).declarations;
+  }
+
+  function boxesOverlap(
+    left: { x: number; y: number; width: number; height: number },
+    right: { x: number; y: number; width: number; height: number },
+  ) {
+    return left.x < right.x + right.width
+      && left.x + left.width > right.x
+      && left.y < right.y + right.height
+      && left.y + left.height > right.y;
+  }
+
+  function getDefaultNodeDimensions(declarations: ReturnType<typeof createMixedSizeDeclarations>) {
+    return new Map(
+      declarations.map((declaration) => [
+        declaration.name,
+        {
+          width: getNodeWidth(declaration),
+          height: estimateNodeHeight(declaration),
+        },
+      ]),
+    );
+  }
+
+  it("returns numeric positions for larger models", async () => {
+    const declarations = createDenseDeclarations(24);
+
+    const positions = await computeAutoLayoutPositions(declarations);
+
+    expect(positions.size).toBe(25);
+    for (const position of positions.values()) {
+      expect(typeof position.x).toBe("number");
+      expect(typeof position.y).toBe("number");
+    }
+  });
+
+  it("uses the default ELK path for a dense 20+ node model", async () => {
+    const declarations = createDenseDeclarations(20);
+    const positions = await computeAutoLayoutPositions(declarations);
+
+    expect(positions.size).toBe(21);
+    expect(new Set(Array.from(positions.values(), (position) => position.x)).size).toBeGreaterThan(1);
+    expect(Array.from(positions.values()).some((position) => position.x !== 0 || position.y !== 0)).toBe(true);
+  });
+
+  it("keeps mixed-size node bounds from overlapping", async () => {
+    const declarations = createMixedSizeDeclarations();
+    const nodeDimensions = getDefaultNodeDimensions(declarations);
+    nodeDimensions.set("Vehicle", {
+      width: nodeDimensions.get("Vehicle")!.width + 90,
+      height: nodeDimensions.get("Vehicle")!.height + 120,
+    });
+    nodeDimensions.set("Truck", {
+      width: nodeDimensions.get("Truck")!.width + 60,
+      height: nodeDimensions.get("Truck")!.height + 80,
+    });
+    nodeDimensions.set("Status", {
+      width: nodeDimensions.get("Status")!.width + 40,
+      height: nodeDimensions.get("Status")!.height + 40,
+    });
+
+    const positions = await computeAutoLayoutPositions(declarations, nodeDimensions);
+    const boxes = declarations.map((declaration) => ({
+      name: declaration.name,
+      x: positions.get(declaration.name)!.x,
+      y: positions.get(declaration.name)!.y,
+      width: nodeDimensions.get(declaration.name)?.width ?? getNodeWidth(declaration),
+      height: nodeDimensions.get(declaration.name)?.height ?? estimateNodeHeight(declaration),
+    }));
+
+    for (let index = 0; index < boxes.length; index += 1) {
+      for (let otherIndex = index + 1; otherIndex < boxes.length; otherIndex += 1) {
+        expect(
+          boxesOverlap(boxes[index], boxes[otherIndex]),
+          `${boxes[index].name} overlaps ${boxes[otherIndex].name}`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("falls back to tree layout when auto layout throws", async () => {
+    const { declarations } = parseCto(SIMPLE_CTO);
+    const positions = await computeAutoLayoutPositions(declarations, () => {
+      throw new Error("boom");
+    });
+
+    expect(positions.size).toBe(declarations.length);
+    expect(positions.get("Person")).toBeDefined();
+  });
+
+  it("supports async injected layout callbacks", async () => {
+    const { declarations } = parseCto(SIMPLE_CTO);
+    const positions = await computeAutoLayoutPositions(
+      declarations,
+      async () => new Map([["Person", { x: 10, y: 20 }], ["Address", { x: 30, y: 40 }], ["Status", { x: 50, y: 60 }]]),
+    );
+
+    expect(positions.get("Person")).toEqual({ x: 10, y: 20 });
+    expect(positions.get("Address")).toEqual({ x: 30, y: 40 });
+    expect(positions.get("Status")).toEqual({ x: 50, y: 60 });
+  });
+});
+
+describe("position decorator persistence", () => {
+  it("updates positions without changing documentation or other decorators", () => {
+    const source = `namespace org.test@1.0.0
+
+/**
+ * Person documentation.
+ */
+@Audited
+concept Person {
+  o String name
+}`;
+
+    const output = withSourcePositions(
+      source,
+      new Map([["Person", { x: 120, y: 340 }]]),
+    );
+
+    expect(output).toBe(`namespace org.test@1.0.0
+
+/**
+ * Person documentation.
+ */
+@Audited
+@Position(120, 340)
+concept Person {
+  o String name
+}`);
+
+    const moved = withSourcePositions(output, new Map([["Person", { x: 12.5, y: 34.5 }]]));
+    expect(moved).toContain("@Audited\n@Position(12.5, 34.5)\nconcept Person");
+    expect(moved.match(/@Position/g)).toHaveLength(1);
+  });
+
+  it("writes Position decorators into CTO", () => {
+    const { declarations, namespace, imports } = parseCto(SIMPLE_CTO);
+    const updated = withDeclarationPositions(
+      declarations,
+      new Map([
+        ["Status", { x: 10, y: 20 }],
+        ["Address", { x: 30, y: 40 }],
+        ["Person", { x: 50, y: 60 }],
+      ]),
+    );
+
+    const output = declarationsToCto({ namespace, imports, declarations: updated });
+    expect(output).toMatch(/@Position\(10,\s*20\)/);
+    expect(output).toMatch(/@Position\(30,\s*40\)/);
+    expect(output).toMatch(/@Position\(50,\s*60\)/);
+  });
+
+  it("replaces an existing Position decorator and preserves others", () => {
+    const cto = `namespace org.test@1.0.0
+
+@Audited
+@Position(1, 2)
+concept Person {
+  o String name
+}`;
+    const model = parseCto(cto);
+    const updated = withDeclarationPositions(
+      model.declarations,
+      new Map([["Person", { x: 120, y: 340 }]]),
+    );
+    const person = updated[0];
+
+    expect(person.decorators.filter((decorator) => decorator.name === "Position")).toHaveLength(1);
+    expect(person.decorators.find((decorator) => decorator.name === "Audited")).toBeDefined();
+
+    const roundTrip = parseCto(declarationsToCto({ ...model, declarations: updated }));
+    expect(getDeclarationPosition(roundTrip.declarations[0])).toEqual({ x: 120, y: 340 });
+    expect(roundTrip.declarations[0].decorators.find((decorator) => decorator.name === "Audited")).toBeDefined();
   });
 });
 

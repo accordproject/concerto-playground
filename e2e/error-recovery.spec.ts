@@ -52,7 +52,6 @@ test.describe('Graph parse error banner', () => {
     await expect(page.locator('.react-flow__node', { hasText: 'Person' })).toBeVisible({ timeout: 5000 });
   });
 });
-
 test.describe('Graph semantic error banner', () => {
   test('shows the validator error when the text parses but the model is invalid', async ({ page }) => {
     await page.goto('/');
@@ -69,4 +68,3 @@ test.describe('Graph semantic error banner', () => {
     await expect(banner).toContainText('o Address home');
   });
 });
-

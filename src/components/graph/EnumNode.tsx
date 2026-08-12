@@ -1,5 +1,6 @@
 import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 import { KindBadge } from './KindBadge';
 import './graph.css';
@@ -7,6 +8,7 @@ import './graph.css';
 interface EnumNodeData {
   label: string;
   declaration: Declaration;
+  incomingHandles?: GraphTargetHandle[];
   onAddEnumValue?: (declName: string) => void;
   onDeleteEnumValue?: (declName: string, value: string) => void;
   onDeleteDeclaration?: (declName: string) => void;
@@ -14,6 +16,7 @@ interface EnumNodeData {
 
 export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: boolean }) {
   const { declaration } = data;
+  const incomingHandles = data.incomingHandles ?? [];
   const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
   const valueCount = declaration.enumValues.length;
 
@@ -22,6 +25,10 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
       <Handle type="target" position={Position.Top} id="top" className="graph-node-handle enum-node-handle" />
       <Handle type="target" position={Position.Left} id="left" className="graph-node-handle enum-node-handle" />
       <Handle type="source" position={Position.Right} id="right" className="graph-node-handle enum-node-handle" />
+      {incomingHandles.map((handle) => (
+        <Handle key={handle.id} type="target" position={Position.Left} id={handle.id}
+          className="graph-node-handle enum-node-handle" style={{ top: handle.top }} />
+      ))}
 
       <div className="enum-node-header">
         <div className="graph-node-header-row">
