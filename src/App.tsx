@@ -43,11 +43,11 @@ import { NDA_EXAMPLE } from "./examples/nda.cto";
 // How long the Share button shows its feedback label before reverting.
 const SHARE_FEEDBACK_MS = 2000;
 
-// Render instrumentation for performance measurements (US-07). Every React
+// Render instrumentation for the performance measurements. Every React
 // commit that touches an instrumented subtree is appended to
-// window.__us07PerfLog, where e2e/perf.spec.ts (and anyone in the browser
-// console) can read it, and echoed as a console line. Profiler callbacks only
-// fire in development builds, so production behavior is unchanged.
+// window.__perfLog, where e2e/perf.spec.ts (and anyone in the browser
+// console) can read it. Profiler callbacks only fire in development builds,
+// so production behavior is unchanged.
 interface PerfLogEntry {
   id: string;
   phase: "mount" | "update" | "nested-update";
@@ -56,14 +56,11 @@ interface PerfLogEntry {
   commitTime: number;
 }
 const perfLog: PerfLogEntry[] = [];
-(window as unknown as { __us07PerfLog: PerfLogEntry[] }).__us07PerfLog = perfLog;
+(window as unknown as { __perfLog: PerfLogEntry[] }).__perfLog = perfLog;
 const logRender: ProfilerOnRenderCallback = (id, phase, actualDuration, baseDuration, _startTime, commitTime) => {
   perfLog.push({ id, phase, actualDuration, baseDuration, commitTime });
   // Cap memory during long sessions; measurements read the log right away.
   if (perfLog.length > 10000) perfLog.splice(0, 5000);
-  console.log(
-    `[profiler:${id}] ${phase} actual=${actualDuration.toFixed(1)}ms base=${baseDuration.toFixed(1)}ms`,
-  );
 };
 
 

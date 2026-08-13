@@ -12,7 +12,7 @@ import { generateStressModel } from "../src/utils/testing/stressModel";
  *  - time from navigation until the first graph node is visible
  *  - number of React Flow nodes present in the DOM
  *  - a typing burst: React commit durations for the editor and graph
- *    subtrees (via window.__us07PerfLog, see App.tsx) and main-thread long
+ *    subtrees (via window.__perfLog, see App.tsx) and main-thread long
  *    tasks (via PerformanceObserver)
  *
  * Run with: npm run perf:e2e
@@ -44,7 +44,7 @@ const results: SizeResult[] = [];
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("US-07 perf measurements (report only)", () => {
+test.describe("perf measurements (report only)", () => {
   for (const size of SIZES) {
     test(`model with ${size} declarations`, async ({ page, browser }) => {
       test.setTimeout(300000);
@@ -55,10 +55,10 @@ test.describe("US-07 perf measurements (report only)", () => {
       await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU_THROTTLE });
 
       await page.addInitScript(() => {
-        const w = window as unknown as { __us07LongTasks: number[] };
-        w.__us07LongTasks = [];
+        const w = window as unknown as { __perfLongTasks: number[] };
+        w.__perfLongTasks = [];
         new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) w.__us07LongTasks.push(entry.duration);
+          for (const entry of list.getEntries()) w.__perfLongTasks.push(entry.duration);
         }).observe({ type: "longtask", buffered: true });
       });
 
@@ -87,16 +87,16 @@ test.describe("US-07 perf measurements (report only)", () => {
       await page.evaluate(() => {
         const w = window as unknown as {
           monaco: any;
-          __us07PerfLog: unknown[];
-          __us07LongTasks: number[];
+          __perfLog: unknown[];
+          __perfLongTasks: number[];
         };
         const editor = w.monaco.editor.getEditors()[0];
         const model = editor.getModel();
         const match = model.findMatches("concept Entity1 ", false, false, true, null, false)[0];
         editor.setPosition({ lineNumber: match.range.endLineNumber, column: match.range.endColumn - 1 });
         editor.focus();
-        w.__us07PerfLog.length = 0;
-        w.__us07LongTasks.length = 0;
+        w.__perfLog.length = 0;
+        w.__perfLongTasks.length = 0;
       });
 
       // Record a DevTools-loadable trace around the typing burst. The file
@@ -114,10 +114,10 @@ test.describe("US-07 perf measurements (report only)", () => {
 
       const measured = await page.evaluate(() => {
         const w = window as unknown as {
-          __us07PerfLog: { id: string; phase: string; actualDuration: number }[];
-          __us07LongTasks: number[];
+          __perfLog: { id: string; phase: string; actualDuration: number }[];
+          __perfLongTasks: number[];
         };
-        const commits = w.__us07PerfLog.filter((e) => e.phase !== "mount");
+        const commits = w.__perfLog.filter((e) => e.phase !== "mount");
         const byId = (id: string) => commits.filter((e) => e.id === id).map((e) => e.actualDuration);
         const editor = byId("cto-editor");
         const graph = byId("graph");
@@ -129,8 +129,8 @@ test.describe("US-07 perf measurements (report only)", () => {
           graphCommits: graph.length,
           graphMaxMs: +max(graph).toFixed(1),
           graphTotalMs: +sum(graph).toFixed(1),
-          longTasks: w.__us07LongTasks.length,
-          longestTaskMs: +max(w.__us07LongTasks).toFixed(0),
+          longTasks: w.__perfLongTasks.length,
+          longestTaskMs: +max(w.__perfLongTasks).toFixed(0),
         };
       });
 
