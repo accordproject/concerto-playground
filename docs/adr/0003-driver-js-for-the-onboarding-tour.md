@@ -2,11 +2,11 @@
 
 ## Status
 
-Accepted (implementation in review, see the US-11 pull request)
+Accepted (implementation in review)
 
 ## Context
 
-US-11 asks for an interactive first-visit walkthrough that anchors to and highlights live UI containers instead of static screenshots. The issue suggested Intro.js or TourGuide JS. The playground is an Apache-2.0 Linux Foundation project, so any bundled dependency must be license-compatible; the tour also needs to wait for anchors that appear only after a state change (e.g. switching to the graph view mid-tour).
+The playground needs an interactive first-visit walkthrough that anchors to and highlights live UI containers instead of static screenshots. It is an Apache-2.0 Linux Foundation project, so any bundled dependency must be license-compatible; the tour also needs to wait for anchors that appear only after a state change (e.g. switching to the graph view mid-tour).
 
 ## Decision
 
@@ -14,9 +14,9 @@ Use **driver.js** (MIT, ~5 kB gzipped, zero dependencies). It provides live elem
 
 ## Alternatives considered
 
-- **Intro.js** (suggested in the issue): ruled out on licensing. It is AGPL-3.0 with a paid commercial license; bundling it would impose AGPL obligations on downstream users of an Apache-2.0 project.
+- **Intro.js**: ruled out on licensing. It is AGPL-3.0 with a paid commercial license; bundling it would impose AGPL obligations on downstream users of an Apache-2.0 project.
 - **Shepherd.js**: same problem since v11, when it moved from MIT to AGPL-3.0 with commercial licensing.
-- **TourGuide JS** (also suggested): MIT, so viable, but a much smaller project with a limited community and track record; for an onboarding layer that must survive UI refactors, maturity won.
+- **TourGuide JS**: MIT, so viable, but a much smaller project with a limited community and track record; for an onboarding layer that must survive UI refactors, maturity won.
 - **react-joyride**: React-specific and heavier (brings its own positioning dependencies); the tour only needs DOM-level anchoring, so coupling it to React buys nothing.
 
 ## Consequences
