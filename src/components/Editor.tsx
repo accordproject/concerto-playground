@@ -424,6 +424,9 @@ export function Editor({
   // Anything clicked outside the editor must see the current text, so the
   // waiting text is sent first. Capture phase: this runs before the click
   // target's own handlers, and mousedown precedes both blur and click.
+  // Still needed next to the blur flush below: targets that preventDefault
+  // on mousedown (the graph canvas does) never take focus from the editor,
+  // so no blur fires for them.
   useEffect(() => {
     const flushBeforeOutsideInteraction = (e: MouseEvent) => {
       if (!debouncedChange.isPending()) return;
@@ -440,6 +443,10 @@ export function Editor({
     monacoRef.current = monacoInstance;
     editorRef.current = editor;
     setEditorReady(true);
+    // Focus can also leave through the keyboard (Ctrl+M releases tab trapping,
+    // then Tab moves on), which fires no mousedown. Flushing on widget blur
+    // covers every way focus moves away, whatever the input method.
+    editor.onDidBlurEditorWidget(() => debouncedChange.flush());
     editor.onMouseDown((e) => {
       if (!onNavigateRef.current || !e.event.leftButton) return;
       const pos = e.target.position;
