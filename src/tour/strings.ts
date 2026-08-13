@@ -31,6 +31,7 @@ export const TOUR_STRINGS = {
   nextLabel: 'Next',
   prevLabel: 'Back',
   doneLabel: 'Done',
+  endTourLabel: 'End tour',
   progressText: '{{current}} of {{total}}',
   restartTour: 'Take the tour again',
 } as const;

@@ -60,8 +60,26 @@ export function useOnboardingTour({ blockAutoStart, ...ctx }: OnboardingTourOpti
       doneBtnText: TOUR_STRINGS.doneLabel,
       progressText: TOUR_STRINGS.progressText,
       steps: buildTourSteps(ctxRef.current),
-      // Every way out (Done, the X, overlay click, Escape) counts as seen,
-      // so a skipped tour never auto-starts again.
+      // A stray click outside the popover must not end the walkthrough;
+      // the End tour button, the X and Escape are the deliberate exits.
+      overlayClickBehavior: () => {},
+      // An explicit End tour button next to Back/Next, except on the last
+      // step where Done already ends the tour. destroy() bypasses
+      // onDestroyStarted, so the button marks the tour as seen itself.
+      onPopoverRender: (popover, { driver: instance }) => {
+        if (!instance.hasNextStep()) return;
+        const endButton = document.createElement('button');
+        endButton.type = 'button';
+        endButton.className = 'driver-popover-footer-btn concerto-tour-end-btn';
+        endButton.innerText = TOUR_STRINGS.endTourLabel;
+        endButton.addEventListener('click', () => {
+          markTourSeen();
+          instance.destroy();
+        });
+        popover.footerButtons.insertBefore(endButton, popover.previousButton);
+      },
+      // Every way out (Done, the X, Escape) counts as seen, so a skipped
+      // tour never auto-starts again.
       onDestroyStarted: (_element, _step, { driver: instance }) => {
         markTourSeen();
         instance.destroy();

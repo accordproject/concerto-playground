@@ -36,3 +36,11 @@ html, body, #root {
 .concerto-tour .driver-popover-footer .driver-popover-btn-disabled {
   opacity: 0.5;
 }
+
+/* Onboarding tour popover: End tour reads as a secondary action */
+.concerto-tour .driver-popover-footer button.concerto-tour-end-btn {
+  background-color: #4a5568;
+}
+.concerto-tour .driver-popover-footer button.concerto-tour-end-btn:hover {
+  background-color: #718096;
+}

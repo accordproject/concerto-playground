@@ -37,6 +37,23 @@ test.describe('Onboarding tour', () => {
     await expect(page.locator('[data-tour="examples"].driver-active-element')).toBeVisible();
   });
 
+  test('ignores overlay clicks and ends from the End tour button', async ({ page }) => {
+    await page.goto('/');
+    await expect(popover(page)).toBeVisible({ timeout: 15000 });
+
+    // A click on the dimmed overlay must not end the walkthrough.
+    await page.locator('.driver-overlay').click({ position: { x: 10, y: 10 } });
+    await expect(popover(page)).toBeVisible();
+
+    await popover(page).getByRole('button', { name: 'End tour' }).click();
+    await expect(popover(page)).toBeHidden();
+
+    // Ending the tour counts as seen: a reload must not restart it.
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Share URL' })).toBeVisible({ timeout: 15000 });
+    await expect(popover(page)).toBeHidden();
+  });
+
   test('can be restarted from the keyboard shortcuts popover', async ({ page }) => {
     await page.goto('/');
     await expect(popover(page)).toBeVisible({ timeout: 15000 });

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import type { Config, Driver } from 'driver.js';
+import type { Config, Driver, PopoverDOM } from 'driver.js';
 import { useOnboardingTour, hasSeenTour } from '../../hooks/useOnboardingTour';
 import { TOUR_SEEN_KEY } from '../../tour/tourSteps';
 
@@ -18,6 +18,26 @@ const ctx = { setShowCto: vi.fn(), setViewMode: vi.fn() };
 function lastDriverConfig(): Config {
   const calls = driverFactory.mock.calls;
   return calls[calls.length - 1][0];
+}
+
+// Runs the popover render hook against a stub footer, the way driver.js
+// does when it shows a step, and returns the footer for assertions.
+function renderPopoverFooter(hasNextStep: boolean): HTMLElement {
+  const config = lastDriverConfig();
+  const footerButtons = document.createElement('span');
+  const previousButton = document.createElement('button');
+  const nextButton = document.createElement('button');
+  footerButtons.append(previousButton, nextButton);
+  config.onPopoverRender?.(
+    { footerButtons, previousButton, nextButton } as unknown as PopoverDOM,
+    {
+      driver: { destroy, hasNextStep: () => hasNextStep } as unknown as Driver,
+      config,
+      state: {},
+      index: 0,
+    },
+  );
+  return footerButtons;
 }
 
 describe('useOnboardingTour', () => {
@@ -88,4 +108,37 @@ describe('useOnboardingTour', () => {
     expect(destroy).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores clicks on the overlay outside the popover', () => {
+    const { result } = renderHook(() => useOnboardingTour({ ...ctx, blockAutoStart: true }));
+    result.current.startTour();
+
+    const config = lastDriverConfig();
+    expect(typeof config.overlayClickBehavior).toBe('function');
+    (config.overlayClickBehavior as () => void)();
+
+    expect(destroy).not.toHaveBeenCalled();
+    expect(hasSeenTour()).toBe(false);
+  });
+
+  it('renders an End tour button that marks the tour seen and ends it', () => {
+    const { result } = renderHook(() => useOnboardingTour({ ...ctx, blockAutoStart: true }));
+    result.current.startTour();
+
+    const footer = renderPopoverFooter(true);
+    const endButton = footer.querySelector<HTMLButtonElement>('.concerto-tour-end-btn');
+    expect(endButton).not.toBeNull();
+    expect(footer.firstElementChild).toBe(endButton);
+
+    endButton!.click();
+    expect(hasSeenTour()).toBe(true);
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render the End tour button on the last step', () => {
+    const { result } = renderHook(() => useOnboardingTour({ ...ctx, blockAutoStart: true }));
+    result.current.startTour();
+
+    const footer = renderPopoverFooter(false);
+    expect(footer.querySelector('.concerto-tour-end-btn')).toBeNull();
+  });
 });
