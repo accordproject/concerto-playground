@@ -16,7 +16,7 @@ Move the workspace (open models keyed by namespace + the active namespace) behin
 
 - **A state library (Zustand, Redux Toolkit, Jotai)**: adds a dependency and a second idiom for a state shape that one reducer covers; nothing here needs middleware, devtools or cross-tree stores yet. A library remains a natural upgrade path if state grows.
 - **React Context + useState**: solves prop drilling (which we do not have much of) but not the real problem, which was untestable multi-step transition logic.
-- **Leaving it as-is**: rejected; US-12 exists precisely because the mixture was hard to maintain.
+- **Leaving it as-is**: rejected; the mixture had already proven hard to maintain.
 
 ## Consequences
 
