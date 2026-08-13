@@ -15,8 +15,9 @@ export interface TourContext {
   setViewMode: (mode: ViewMode) => void;
 }
 
-// How long a step waits for its anchor to appear after a prepare callback
-// changed React state on the previous step.
+// How long a step waits for its anchor to appear, covering both the initial
+// layout of the surrounding UI and React re-renders after a prepare callback
+// changed state on the previous step.
 const ANCHOR_WAIT_MS = 1000;
 
 export function buildTourSteps(ctx: TourContext): DriveStep[] {
@@ -52,6 +53,7 @@ export function buildTourSteps(ctx: TourContext): DriveStep[] {
     },
     {
       element: '[data-tour="examples"]',
+      waitForElement: ANCHOR_WAIT_MS,
       popover: {
         title: TOUR_STRINGS.examplesTitle,
         description: TOUR_STRINGS.examplesBody,
@@ -59,6 +61,7 @@ export function buildTourSteps(ctx: TourContext): DriveStep[] {
     },
     {
       element: '[data-tour="view-toggle"]',
+      waitForElement: ANCHOR_WAIT_MS,
       popover: {
         title: TOUR_STRINGS.viewToggleTitle,
         description: TOUR_STRINGS.viewToggleBody,
@@ -83,6 +86,7 @@ export function buildTourSteps(ctx: TourContext): DriveStep[] {
     },
     {
       element: '[data-tour="share"]',
+      waitForElement: ANCHOR_WAIT_MS,
       popover: {
         title: TOUR_STRINGS.shareTitle,
         description: TOUR_STRINGS.shareBody,
@@ -90,6 +94,7 @@ export function buildTourSteps(ctx: TourContext): DriveStep[] {
     },
     {
       element: '[data-tour="docs"]',
+      waitForElement: ANCHOR_WAIT_MS,
       popover: {
         title: TOUR_STRINGS.docsTitle,
         description: TOUR_STRINGS.docsBody,
@@ -97,6 +102,7 @@ export function buildTourSteps(ctx: TourContext): DriveStep[] {
     },
     {
       element: '[data-tour="shortcuts"]',
+      waitForElement: ANCHOR_WAIT_MS,
       popover: {
         title: TOUR_STRINGS.shortcutsTitle,
         description: TOUR_STRINGS.shortcutsBody,

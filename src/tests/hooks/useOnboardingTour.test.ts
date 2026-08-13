@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { Config, Driver } from 'driver.js';
 import { useOnboardingTour, hasSeenTour } from '../../hooks/useOnboardingTour';
@@ -22,20 +22,13 @@ function lastDriverConfig(): Config {
 
 describe('useOnboardingTour', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     localStorage.clear();
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it('auto-starts the tour on a first visit', () => {
     renderHook(() => useOnboardingTour({ ...ctx, blockAutoStart: false }));
 
-    expect(drive).not.toHaveBeenCalled();
-    vi.runAllTimers();
     expect(drive).toHaveBeenCalledTimes(1);
   });
 
@@ -43,7 +36,6 @@ describe('useOnboardingTour', () => {
     localStorage.setItem(TOUR_SEEN_KEY, 'sometime');
 
     renderHook(() => useOnboardingTour({ ...ctx, blockAutoStart: false }));
-    vi.runAllTimers();
 
     expect(drive).not.toHaveBeenCalled();
   });
@@ -53,11 +45,9 @@ describe('useOnboardingTour', () => {
       ({ blocked }: { blocked: boolean }) => useOnboardingTour({ ...ctx, blockAutoStart: blocked }),
       { initialProps: { blocked: true } },
     );
-    vi.runAllTimers();
     expect(drive).not.toHaveBeenCalled();
 
     rerender({ blocked: false });
-    vi.runAllTimers();
     expect(drive).toHaveBeenCalledTimes(1);
   });
 
@@ -98,11 +88,4 @@ describe('useOnboardingTour', () => {
     expect(destroy).toHaveBeenCalledTimes(1);
   });
 
-  it('cancels the pending auto-start on unmount', () => {
-    const { unmount } = renderHook(() => useOnboardingTour({ ...ctx, blockAutoStart: false }));
-    unmount();
-    vi.runAllTimers();
-
-    expect(drive).not.toHaveBeenCalled();
-  });
 });

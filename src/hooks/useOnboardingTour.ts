@@ -22,9 +22,6 @@ function markTourSeen(): void {
   }
 }
 
-// Give Monaco and ReactFlow a moment to lay out before anchoring popovers.
-const AUTO_START_DELAY_MS = 600;
-
 export interface OnboardingTourOptions extends TourContext {
   /**
    * Suppresses the first-visit auto-start. True while the restore prompt is
@@ -74,10 +71,12 @@ export function useOnboardingTour({ blockAutoStart, ...ctx }: OnboardingTourOpti
     tour.drive();
   }, []);
 
+  // No settle delay needed before starting: the opening step is a centered
+  // dialog that anchors nothing, and every anchored step waits for its own
+  // element via waitForElement.
   useEffect(() => {
     if (blockAutoStart || hasSeenTour()) return;
-    const timer = setTimeout(startTour, AUTO_START_DELAY_MS);
-    return () => clearTimeout(timer);
+    startTour();
   }, [blockAutoStart, startTour]);
 
   return { startTour };
