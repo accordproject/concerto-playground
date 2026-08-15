@@ -483,7 +483,6 @@ describe("declarationsToCto from directly constructed models", () => {
     const properties = (reparsed.declarations[0] as any).properties;
     expect(properties).toHaveLength(1);
     expect(properties[0].name).toBe("title");
-    expect(properties[0].validator).toBeUndefined();
-    expect(properties[0].lengthValidator).toBeUndefined();
+    expect(properties[0].validators).toEqual({});
   });
 });
