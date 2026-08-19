@@ -7,6 +7,7 @@ import {
   useEdgesState,
   BackgroundVariant,
   Controls,
+  MiniMap,
   type NodeTypes,
   type EdgeTypes,
   type Connection,
@@ -516,6 +517,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
           proOptions={{ hideAttribution: true }}
         >
            <Controls />
+          <MiniMap position="bottom-right" pannable zoomable />
           <Background variant={BackgroundVariant.Dots} color="#4a5568" gap={20} size={1} />
         </ReactFlow>
 
