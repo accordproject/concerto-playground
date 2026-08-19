@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { ERROR_BOUNDARY_STRINGS } from "../constants/ui";
 
 interface ErrorBoundaryProps {
   /** Panel name shown in the fallback, e.g. "Text Editor". */
@@ -55,10 +56,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return (
       <div className="flex-1 min-h-0 h-full flex items-center justify-center p-6 bg-[#1a202c] overflow-auto">
         <div role="alert" className="max-w-[560px] w-full bg-[#2d3748] border border-[#e53e3e] rounded-lg p-5">
-          <h3 className="mb-2 text-sm leading-normal text-[#fc8181]">The {this.props.label} panel crashed</h3>
+          <h3 className="mb-2 text-sm leading-normal text-[#fc8181]">{ERROR_BOUNDARY_STRINGS.crashTitle(this.props.label)}</h3>
           <p className="mb-3 text-xs leading-normal text-[#a0aec0]">
-            The rest of the playground still works and your schema text is unchanged.
-            The error below may point at what went wrong.
+            {ERROR_BOUNDARY_STRINGS.crashBody}
           </p>
           <pre className="mb-4 p-3 rounded-md bg-[#1a202c] text-xs leading-normal text-[#fc8181] whitespace-pre-wrap [overflow-wrap:anywhere] max-h-[200px] overflow-auto">
             {error.message || String(error)}
@@ -67,7 +67,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             onClick={this.handleRetry}
             className="px-3.5 py-2 rounded-md bg-[#3182ce] text-[#e2e8f0] text-xs leading-normal font-semibold"
           >
-            Try again
+            {ERROR_BOUNDARY_STRINGS.retry}
           </button>
         </div>
       </div>

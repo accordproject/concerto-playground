@@ -1,6 +1,7 @@
 import { MetaModel } from "@accordproject/concerto-core";
 import { Parser, Printer } from "@accordproject/concerto-cto";
 import { Identifiers } from "@accordproject/concerto-util";
+import { IMPORT_ERROR_STRINGS } from "../../constants/ui";
 
 const META_MODEL_NAMESPACE = "concerto.metamodel@1.0.0";
 
@@ -97,7 +98,7 @@ export async function inferCtoFromImportText(
   options: InferCtoFromImportOptions = {},
 ): Promise<InferCtoFromImportResult> {
   if (!source.trim()) {
-    throw new Error("Paste CTO, Concerto JSON, JSON Schema, or a JSON sample first.");
+    throw new Error(IMPORT_ERROR_STRINGS.emptyInput);
   }
 
   try {
@@ -111,7 +112,7 @@ export async function inferCtoFromImportText(
   try {
     parsed = JSON.parse(source);
   } catch (error) {
-    throw new Error(`Invalid JSON or CTO: ${getErrorMessage(error)}`);
+    throw new Error(IMPORT_ERROR_STRINGS.invalidInput(getErrorMessage(error)));
   }
 
   if (isJsonRecord(parsed)) {
@@ -145,12 +146,12 @@ export async function inferCtoFromImportText(
         ctoSources: [cto],
       };
     } catch (error) {
-      throw new Error(`Unable to infer Concerto model from JSON Schema: ${getErrorMessage(error)}`);
+      throw new Error(IMPORT_ERROR_STRINGS.jsonSchemaInferenceFailed(getErrorMessage(error)));
     }
   }
 
   if (!Array.isArray(parsed) && (typeof parsed !== "object" || parsed === null)) {
-    throw new Error("Input must be a JSON object, array, or JSON Schema document.");
+    throw new Error(IMPORT_ERROR_STRINGS.unsupportedJson);
   }
 
   try {
@@ -170,6 +171,6 @@ export async function inferCtoFromImportText(
       ctoSources: [cto],
     };
   } catch (error) {
-    throw new Error(`Unable to infer Concerto model from JSON sample: ${getErrorMessage(error)}`);
+    throw new Error(IMPORT_ERROR_STRINGS.jsonInferenceFailed(getErrorMessage(error)));
   }
 }

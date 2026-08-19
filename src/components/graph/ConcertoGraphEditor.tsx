@@ -26,25 +26,29 @@ import { GraphToolbar } from './GraphToolbar';
 import { NodeSearch } from './NodeSearch';
 import { useFocusNode } from './useFocusNode';
 import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, parseCto, withSourcePositions, type GraphContext } from '../../utils/graph/ctoToGraph';
-import { SHORTCUT_STRINGS, TOOLBAR_STRINGS } from './strings';
+import { DIALOG_STRINGS, SHORTCUT_STRINGS, TOOLBAR_STRINGS } from './strings';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { SHORTCUT_COMBOS } from '../../utils/shortcutCombos';
 import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
-import type { Declaration, ConcertoModel } from '../../utils/graph/types';
+import type { Declaration, ConcertoModel, DeclarationDialogKind } from '../../utils/graph/types';
+import { GRAPH_NODE_KIND, GRAPH_EDGE_KIND } from '../../utils/graph/types';
 import { routeGraphEdges } from '../../utils/graph/routeGraphEdges';
 
 const nodeTypes: NodeTypes = {
-  conceptNode: ConceptNode,
-  enumNode: EnumNode,
-  mapNode: MapNode,
-  scalarNode: ScalarNode,
-  importedNode: ImportedNode,
+  [GRAPH_NODE_KIND.concept]: ConceptNode,
+  [GRAPH_NODE_KIND.enum]: EnumNode,
+  [GRAPH_NODE_KIND.map]: MapNode,
+  [GRAPH_NODE_KIND.scalar]: ScalarNode,
+  [GRAPH_NODE_KIND.imported]: ImportedNode,
 };
 
 const edgeTypes: EdgeTypes = {
-  floating: FloatingEdge,
+  [GRAPH_EDGE_KIND.floating]: FloatingEdge,
 };
+
+/** How a drag-to-connect gesture between two nodes can be materialized. */
+type EdgeConnectionKind = 'property' | 'relationship' | 'extends';
 
 interface ConcertoGraphEditorProps {
   cto: string;
@@ -97,7 +101,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
   const setModel = useCallback((m: ConcertoModel) => { modelRef.current = m; setModelState(m); }, []);
   const [rawParseError, setRawParseError] = useState<{ message: string; hint: string | null; snippet: string | null } | null>(null);
   const parseError = useDebouncedError(rawParseError, 600);
-  const [activeDialog, setActiveDialog] = useState<{ type: 'property' | 'enum-value' | 'inheritance'; declName: string } | null>(null);
+  const [activeDialog, setActiveDialog] = useState<{ type: DeclarationDialogKind; declName: string } | null>(null);
   const [connectDialog, setConnectDialog] = useState<{ sourceId: string; targetId: string } | null>(null);
   const updatingFromGraph = useRef(false);
 
@@ -438,7 +442,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, showText, onToggleText
     }
   }, [nodes]);
 
-  const handleConnectSubmit = useCallback((connType: 'property' | 'relationship' | 'extends', propName: string) => {
+  const handleConnectSubmit = useCallback((connType: EdgeConnectionKind, propName: string) => {
     if (!connectDialog) return;
     const { sourceId, targetId } = connectDialog;
     if (connType === 'extends') {
@@ -590,10 +594,10 @@ function FocusController({ focusRequest, currentNamespace }: {
 function ConnectEdgeDialog({ sourceId, targetId, onSubmit, onClose }: {
   sourceId: string;
   targetId: string;
-  onSubmit: (type: 'property' | 'relationship' | 'extends', name: string) => void;
+  onSubmit: (type: EdgeConnectionKind, name: string) => void;
   onClose: () => void;
 }) {
-  const [connType, setConnType] = useState<'property' | 'relationship' | 'extends'>('property');
+  const [connType, setConnType] = useState<EdgeConnectionKind>('property');
   const [propName, setPropName] = useState('');
 
   const handleSubmit = () => {
@@ -634,7 +638,7 @@ function ConnectEdgeDialog({ sourceId, targetId, onSubmit, onClose }: {
           <input
             value={propName}
             onChange={(e) => setPropName(e.target.value)}
-            placeholder={`Property name (e.g. my${targetId})`}
+            placeholder={DIALOG_STRINGS.connectionPropertyPlaceholder(targetId)}
             style={inputStyle}
             autoFocus
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
@@ -646,9 +650,9 @@ function ConnectEdgeDialog({ sourceId, targetId, onSubmit, onClose }: {
             ...typeBtnStyle,
             background: connType === 'property' ? '#3182ce' : connType === 'relationship' ? '#e53e3e' : '#805ad5',
           }}>
-            Connect
+            {DIALOG_STRINGS.connect}
           </button>
-          <button onClick={onClose} style={typeBtnStyle}>Cancel</button>
+          <button onClick={onClose} style={typeBtnStyle}>{DIALOG_STRINGS.cancel}</button>
         </div>
       </div>
     </div>

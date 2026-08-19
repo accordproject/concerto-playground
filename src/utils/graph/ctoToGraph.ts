@@ -1,6 +1,14 @@
 import type { Node, Edge } from '@xyflow/react';
 import type { Declaration, ConcertoModel, ImportStatement, Property, PropertyValidator, Decorator, IdentifiedKind, ExternalTypeMap } from './types';
-import { PRIMITIVE_TYPES } from './types';
+import {
+  PRIMITIVE_TYPES,
+  NODE_KIND_BY_DECLARATION,
+  GRAPH_NODE_KIND,
+  GRAPH_EDGE_KIND,
+  HANDLE_ID,
+  MAP_VALUE_PROP,
+  propHandleId,
+} from './types';
 import type { ElkNode, ElkPort } from 'elkjs/lib/elk-api';
 import {
   HANDLE_SIZE,
@@ -191,7 +199,7 @@ function parseDeclarations(astDecls: any[]): Declaration[] {
         isAbstract: false,
         properties: [
           { name: '_key', type: keyType, isOptional: false, isArray: false, isRelationship: false, validators: {} },
-          { name: '_value', type: valueType, isOptional: false, isArray: false, isRelationship: false, validators: {} },
+          { name: MAP_VALUE_PROP, type: valueType, isOptional: false, isArray: false, isRelationship: false, validators: {} },
         ],
         enumValues: [],
         mapDeclaration: { keyType, valueType },
@@ -415,7 +423,7 @@ function computeTreeLayout(declarations: Declaration[]): Map<string, { x: number
     }
 
     const props = decl.type === 'map'
-      ? decl.properties.filter((p) => p.name === '_value')
+      ? decl.properties.filter((p) => p.name === MAP_VALUE_PROP)
       : decl.properties;
     for (const prop of props) {
       if (declNames.has(prop.type) && !PRIMITIVE_TYPES.has(prop.type) && prop.type !== decl.name) {
@@ -618,16 +626,9 @@ function computeLayeredLayout(declarations: Declaration[]): Map<string, { x: num
   return positions;
 }
 
-function getNodeType(decl: Declaration): string {
-  if (decl.type === 'enum') return 'enumNode';
-  if (decl.type === 'map') return 'mapNode';
-  if (decl.type === 'scalar') return 'scalarNode';
-  return 'conceptNode';
-}
-
 function getEdgeableProperties(decl: Declaration): Property[] {
   return decl.type === 'map'
-    ? decl.properties.filter((prop) => prop.name === '_value')
+    ? decl.properties.filter((prop) => prop.name === MAP_VALUE_PROP)
     : decl.properties;
 }
 
@@ -908,7 +909,7 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
 
     nodes.push({
       id: decl.name,
-      type: getNodeType(decl),
+      type: NODE_KIND_BY_DECLARATION[decl.type],
       position: pos,
       data: {
         label: decl.name,
@@ -926,9 +927,9 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
         edges.push({
           id: `${decl.name}-extends-${superTarget}`,
           source: decl.name, target: superTarget,
-          sourceHandle: 'bottom',
-          targetHandle: 'top',
-          type: 'floating', animated: true,
+          sourceHandle: HANDLE_ID.bottom,
+          targetHandle: HANDLE_ID.top,
+          type: GRAPH_EDGE_KIND.floating, animated: true,
           label: 'extends',
           style: { stroke: '#b794f4', strokeWidth: 1.5, opacity: 0.7, animationDirection: 'reverse' },
           labelStyle: { fill: '#b794f4', fontSize: 10, fontWeight: 600 },
@@ -946,12 +947,12 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
         edges.push({
           id: `${decl.name}-${prop.name}-${propTarget}`,
           source: decl.name, target: propTarget,
-          sourceHandle: `prop:${prop.name}`,
+          sourceHandle: propHandleId(prop.name),
           targetHandle: isLocal(prop.type, prop.typeNamespace)
             ? getIncomingTargetHandleId(decl.name, prop.name)
-            : 'left',
+            : HANDLE_ID.left,
           label: prop.name.startsWith('_') ? '' : prop.name + (prop.isArray ? '[]' : ''),
-          type: 'floating',
+          type: GRAPH_EDGE_KIND.floating,
           style: {
             stroke: isRel ? '#fc8181' : '#90cdf4',
             strokeWidth: isRel ? 1.5 : 1.2,
@@ -980,7 +981,7 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
     for (const ext of externals) {
       nodes.push({
         id: ext.id,
-        type: 'importedNode',
+        type: GRAPH_NODE_KIND.imported,
         position: { x: externalX, y },
         data: { label: ext.name, namespace: ext.namespace, resolved: ext.resolved },
       });

@@ -9,6 +9,7 @@ import {
   tokenTypeAt,
   tokenizeWithCache,
 } from "../utils/editorTokens";
+import { EDITOR_STRINGS } from "../constants/ui";
 import type { TypeLinkTarget } from "../utils/graph/types";
 
 loader.config({ monaco });
@@ -443,20 +444,20 @@ export function Editor({
           ? {
               inlineClassName: LINK_CLASS,
               hoverMessage: target.namespace
-                ? { value: `Imported from \`${target.namespace}\` (click to open)` }
+                ? { value: EDITOR_STRINGS.importedTypeHover(target.namespace) }
                 : undefined,
             }
           : {
               inlineClassName: UNRESOLVED_LINK_CLASS,
               hoverMessage: {
-                value: `Namespace unresolved: \`${target.namespace ?? "unknown"}\` is not open in this workspace`,
+                value: EDITOR_STRINGS.unresolvedTypeHover(target.namespace ?? "unknown"),
               },
             };
         // Declaration names navigate too (to their own node in the graph),
         // but with a distinct style so definitions and usages stay apart.
         const declOptions: monaco.editor.IModelDecorationOptions = {
           inlineClassName: DECL_CLASS,
-          hoverMessage: { value: `Declaration of \`${target.name}\` (click to view it in the graph)` },
+          hoverMessage: { value: EDITOR_STRINGS.declarationHover(target.name) },
         };
         for (const m of matches) {
           const tokenType = tokenTypeAt(tokenLines, m.range.startLineNumber, m.range.startColumn);

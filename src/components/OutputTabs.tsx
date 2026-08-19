@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Editor } from "./Editor";
+import { OUTPUT_STRINGS } from "../constants/ui";
 import {
   TARGET_LANGUAGES,
   type TargetLanguage,
@@ -114,7 +115,7 @@ export function OutputTabs({ results, activeTab, onTabChange }: OutputTabsProps)
                 : "text-gray-400 hover:text-gray-200 border-b-2 border-transparent",
             ].join(" ")}
           >
-            {activeOverflow ? activeOverflow.label : "More"}
+            {activeOverflow ? activeOverflow.label : OUTPUT_STRINGS.more}
             {activeOverflow &&
               results[activeOverflow.id] &&
               !results[activeOverflow.id]!.isLive && (
@@ -169,7 +170,7 @@ export function OutputTabs({ results, activeTab, onTabChange }: OutputTabsProps)
         <div className="ml-auto px-3 flex items-center gap-2">
           {current && !current.isLive && (
             <span className="text-xs text-yellow-500" title={current.error}>
-              static preview
+              {OUTPUT_STRINGS.staticPreview}
             </span>
           )}
           <button
@@ -177,7 +178,7 @@ export function OutputTabs({ results, activeTab, onTabChange }: OutputTabsProps)
             disabled={!current?.output}
             className="text-xs text-gray-400 hover:text-gray-200 disabled:opacity-40 transition-colors"
           >
-            {copied ? "Copied!" : "Copy"}
+            {copied ? OUTPUT_STRINGS.copied : OUTPUT_STRINGS.copy}
           </button>
         </div>
       </div>
@@ -192,7 +193,7 @@ export function OutputTabs({ results, activeTab, onTabChange }: OutputTabsProps)
             rel="noopener noreferrer"
             className="whitespace-nowrap text-[#19C6C8] hover:underline shrink-0"
           >
-            Docs ↗
+            {OUTPUT_STRINGS.docsLink}
           </a>
         </div>
       )}
@@ -209,13 +210,13 @@ export function OutputTabs({ results, activeTab, onTabChange }: OutputTabsProps)
           <div className="flex items-center justify-center h-full text-gray-500 text-sm">
             {current?.error ? (
               <div className="max-w-md text-center">
-                <p className="text-red-400 font-medium mb-2">Parse error</p>
+                <p className="text-red-400 font-medium mb-2">{OUTPUT_STRINGS.parseError}</p>
                 <pre className="text-xs text-gray-400 whitespace-pre-wrap">{current.error}</pre>
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <div className="animate-spin w-4 h-4 border-2 border-[#19C6C8] border-t-transparent rounded-full" />
-                Generating…
+                {OUTPUT_STRINGS.generating}
               </div>
             )}
           </div>

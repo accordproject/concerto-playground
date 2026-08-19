@@ -1,9 +1,11 @@
 import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import { HANDLE_ID } from '../../utils/graph/types';
 import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
 import { DETAIL_ROW_HEIGHT, HANDLE_SIZE, PROPERTY_ROW_GAP } from '../../utils/graph/nodeLayout';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 import { KindBadge } from './KindBadge';
+import { NODE_STRINGS } from './strings';
 
 interface ScalarNodeData {
   label: string;
@@ -30,8 +32,8 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
         : '0 4px 16px rgba(0,0,0,0.3)',
       transition: 'border-color 0.2s, box-shadow 0.2s',
     }}>
-      <Handle type="target" position={Position.Top} id="top" style={handleStyle} />
-      <Handle type="target" position={Position.Left} id="left" style={handleStyle} />
+      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} style={handleStyle} />
+      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} style={handleStyle} />
       {incomingHandles.map((handle) => (
         <Handle
           key={handle.id}
@@ -75,25 +77,25 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
       <div style={{ padding: '6px 12px 8px' }}>
         {v.default && (
           <div style={detailRow}>
-            <span style={detailLabel}>default</span>
+            <span style={detailLabel}>{NODE_STRINGS.scalarDefaultLabel}</span>
             <span style={detailValue}>{v.default}</span>
           </div>
         )}
         {v.regex && (
           <div style={detailRow}>
-            <span style={detailLabel}>regex</span>
+            <span style={detailLabel}>{NODE_STRINGS.scalarRegexLabel}</span>
             <span style={detailValue}>{v.regex}</span>
           </div>
         )}
         {v.range && (
           <div style={detailRow}>
-            <span style={detailLabel}>range</span>
+            <span style={detailLabel}>{NODE_STRINGS.scalarRangeLabel}</span>
             <span style={detailValue}>{v.range}</span>
           </div>
         )}
         {v.length && (
           <div style={detailRow}>
-            <span style={detailLabel}>length</span>
+            <span style={detailLabel}>{NODE_STRINGS.scalarLengthLabel}</span>
             <span style={detailValue}>{v.length}</span>
           </div>
         )}

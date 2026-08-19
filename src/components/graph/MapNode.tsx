@@ -1,9 +1,11 @@
 import { Handle, Position, useStore } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
+import { HANDLE_ID, MAP_VALUE_PROP, propHandleId } from '../../utils/graph/types';
 import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
 import { HANDLE_SIZE, MAP_ROW_HEIGHT, PROPERTY_ROW_GAP } from '../../utils/graph/nodeLayout';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 import { KindBadge } from './KindBadge';
+import { NODE_STRINGS } from './strings';
 
 interface MapNodeData {
   label: string;
@@ -16,7 +18,7 @@ interface MapNodeData {
 export function MapNode({ data, selected }: { data: MapNodeData; selected?: boolean }) {
   const { declaration } = data;
   const map = declaration.mapDeclaration;
-  const hasValueEdge = (data.edgeProperties ?? []).includes('_value');
+  const hasValueEdge = (data.edgeProperties ?? []).includes(MAP_VALUE_PROP);
   const incomingHandles = data.incomingHandles ?? [];
   const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
 
@@ -31,9 +33,9 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
         : '0 4px 16px rgba(0,0,0,0.3)',
       transition: 'border-color 0.2s, box-shadow 0.2s',
     }}>
-      <Handle type="target" position={Position.Top} id="top" style={handleStyle} />
-      <Handle type="target" position={Position.Left} id="left" style={handleStyle} />
-      <Handle type="source" position={Position.Right} id="right" style={handleStyle} />
+      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} style={handleStyle} />
+      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} style={handleStyle} />
+      <Handle type="source" position={Position.Right} id={HANDLE_ID.right} style={handleStyle} />
       {incomingHandles.map((handle) => (
         <Handle
           key={handle.id}
@@ -69,7 +71,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
             <Handle
               type="source"
               position={Position.Right}
-              id="prop:_value"
+              id={propHandleId(MAP_VALUE_PROP)}
               style={{ ...rowHandleStyle, top: '50%', opacity: 0 }}
             />
           )}
@@ -85,7 +87,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
               padding: '5px 8px', marginBottom: PROPERTY_ROW_GAP, minHeight: MAP_ROW_HEIGHT,
               boxSizing: 'border-box', background: '#161b27', borderRadius: 6,
             }}>
-              <span style={{ fontSize: 10, color: '#a0aec0', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Key</span>
+              <span style={{ fontSize: 10, color: '#a0aec0', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{NODE_STRINGS.mapKeyLabel}</span>
               <span style={{ fontSize: 12, color: '#81e6d9', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{map.keyType}</span>
             </div>
             <div style={{
@@ -97,11 +99,11 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
                 <Handle
                   type="source"
                   position={Position.Right}
-                  id="prop:_value"
+                  id={propHandleId(MAP_VALUE_PROP)}
                   style={rowHandleStyle}
                 />
               )}
-              <span style={{ fontSize: 10, color: '#a0aec0', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Value</span>
+              <span style={{ fontSize: 10, color: '#a0aec0', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{NODE_STRINGS.mapValueLabel}</span>
               <span style={{ fontSize: 12, color: '#81e6d9', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{map.valueType}</span>
             </div>
           </>
@@ -109,7 +111,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
       </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
+      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} style={handleStyle} />
     </div>
   );
 }
