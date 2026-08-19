@@ -141,6 +141,10 @@ npm run test:e2e      # end-to-end tests (Playwright, Chromium)
 npm run test:e2e:ui   # Playwright UI mode
 ```
 
+## Contributing
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) for the Accord Project guidelines, then [DEVELOPERS.md](DEVELOPERS.md) for the local setup, validation scripts and the pull request checklist. The module map and data-flow overview live in [docs/architecture.md](docs/architecture.md), and the reasoning behind the core technology choices in [docs/adr/](docs/adr/README.md).
+
 ## Links
 
 - [Accord Project](https://accordproject.org)
