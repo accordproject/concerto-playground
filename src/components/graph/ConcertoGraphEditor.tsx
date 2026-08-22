@@ -353,10 +353,16 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     updateModelAndSync([]);
   }, [updateModelAndSync]);
 
+  // Publish one stable action for the component's lifetime and read the
+  // latest handler through a ref. Re-registering on every handler identity
+  // change would set app state on each render, which re-renders this editor
+  // with fresh callbacks and registers again, in an endless loop.
+  const clearCanvasRef = useRef(handleClearCanvas);
+  clearCanvasRef.current = handleClearCanvas;
   useEffect(() => {
-    onRegisterClearCanvas?.(handleClearCanvas);
+    onRegisterClearCanvas?.(() => clearCanvasRef.current());
     return () => onRegisterClearCanvas?.(null);
-  }, [onRegisterClearCanvas, handleClearCanvas]);
+  }, [onRegisterClearCanvas]);
 
   useKeyboardShortcuts([
     { ...SHORTCUT_COMBOS.undo, description: SHORTCUT_STRINGS.undo, category: SHORTCUT_STRINGS.categoryEditing, handler: handleUndo },

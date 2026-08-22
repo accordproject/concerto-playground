@@ -397,17 +397,6 @@ export function Editor({
     monacoRef.current = monacoInstance;
     editorRef.current = editor;
     setEditorReady(true);
-    // The wrapper applies the theme in a mount effect that runs right after
-    // this callback, and that setTheme call knocks the colors out of text
-    // tokenized before it: the whole document renders as unstyled plaintext
-    // until the next full value replacement. Replay the value just after
-    // that effect so the document is tokenized under the final theme.
-    const model = editor.getModel();
-    if (model) {
-      window.setTimeout(() => {
-        if (!model.isDisposed()) model.setValue(model.getValue());
-      }, 150);
-    }
     editor.onMouseDown((e) => {
       if (!onNavigateRef.current || !e.event.leftButton) return;
       const pos = e.target.position;
