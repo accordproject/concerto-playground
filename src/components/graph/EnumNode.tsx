@@ -20,6 +20,8 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
   const incomingHandles = data.incomingHandles ?? [];
   const showFull = useSemanticZoom();
   const valueCount = declaration.enumValues.length;
+  const displayLabel = data.label || declaration.name;
+  const showTechnicalName = displayLabel !== declaration.name;
 
   return (
     <div className={`graph-node enum-node${selected ? ' selected' : ''}`}>
@@ -44,8 +46,20 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
           </button>
         </div>
         <div className="enum-node-name">
-          {declaration.name}
+          {displayLabel}
         </div>
+        {showTechnicalName && (
+          <div
+            style={{
+              fontSize: 10,
+              color: '#ffffff99',
+              marginTop: 2,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            {declaration.name}
+          </div>
+        )}
       </div>
 
       {!showFull && (

@@ -13,12 +13,23 @@ import type { ElkNode, ElkPort } from 'elkjs/lib/elk-api';
 import {
   HANDLE_SIZE,
   estimateNodeHeight,
+  getDeclarationDisplayLabel,
   getIncomingHandleTop,
   getMapValueHandleTop,
   getNodeWidth,
   getPropertyHandleTop,
+  getVisibleGraphDecorators,
+  hasDisplaySubtitle,
+  unquoteDecoratorArgument,
   type GraphTargetHandle,
 } from './nodeLayout';
+
+export {
+  getDeclarationDisplayLabel,
+  getVisibleGraphDecorators,
+  hasDisplaySubtitle,
+  unquoteDecoratorArgument,
+};
 import { declarationEqual, stringArrayEqual } from './modelDiff';
 
 import { Parser as ParserModule } from '@accordproject/concerto-cto';
@@ -1024,7 +1035,7 @@ export function declarationsToGraph(
         position:
           getDeclarationPosition(decl) ??
           (prev ? prev.position : positions?.get(decl.name) ?? nextNewPosition(estimateNodeHeight(decl))),
-        data: { label: decl.name, declaration: decl, edgeProperties, incomingHandles },
+        data: { label: getDeclarationDisplayLabel(decl), declaration: decl, edgeProperties, incomingHandles },
         // Estimated dimensions stand in until React Flow measures the node,
         // so viewport culling can decide visibility for never-rendered nodes.
         initialWidth: NODE_ESTIMATED_WIDTH,
