@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { TOUR_SEEN_KEY } from './src/tour/tourSteps';
 
 export default defineConfig({
   testDir: './e2e',
@@ -13,6 +14,18 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
+    // Every context starts with the onboarding tour marked as seen so its
+    // overlay never sits on top of unrelated specs; tour.spec.ts opts back
+    // into fresh storage to exercise the first-visit auto-start.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: 'http://localhost:5173',
+          localStorage: [{ name: TOUR_SEEN_KEY, value: 'e2e' }],
+        },
+      ],
+    },
   },
   projects: [
     {

@@ -22,6 +22,7 @@
     "@accordproject/concerto-util": "^4.1.0",
     "@monaco-editor/react": "^4.6.0",
     "@xyflow/react": "^12.10.2",
+    "driver.js": "^1.8.0",
     "elkjs": "^0.11.1",
     "fuse.js": "^7.4.2",
     "jszip": "^3.10.1",
