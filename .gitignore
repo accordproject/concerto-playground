@@ -6,3 +6,4 @@ test-results/
 *.local
 test-results
 playwright-report
+perf-results/
