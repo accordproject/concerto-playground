@@ -316,6 +316,12 @@ const setupMonaco: BeforeMount = (monacoInstance) => {
   });
 };
 
+// Register the language eagerly at module load, before any editor or model
+// exists. Registering it only from beforeMount can lose the race against the
+// first tokenization pass, which then renders the whole document as unstyled
+// plaintext until the next full value replacement.
+setupMonaco(monaco);
+
 // Builds the error markers for the current error, in priority order: the
 // position embedded in the message, then the culprit's location from the
 // parser AST (for semantic errors), then line 1 as a last resort.

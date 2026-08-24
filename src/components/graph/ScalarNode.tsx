@@ -1,9 +1,9 @@
-import { Handle, Position, useStore } from '@xyflow/react';
+import { Handle, Position } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
 import { HANDLE_ID } from '../../utils/graph/types';
 import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
-import { DETAIL_ROW_HEIGHT, HANDLE_SIZE, PROPERTY_ROW_GAP } from '../../utils/graph/nodeLayout';
-import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import { DETAIL_ROW_HEIGHT, HANDLE_SIZE, PROPERTY_ROW_GAP, getCompactHandleTop } from '../../utils/graph/nodeLayout';
+import { useSemanticZoom } from './semanticZoom';
 import { KindBadge } from './KindBadge';
 import { NODE_STRINGS } from './strings';
 
@@ -18,7 +18,7 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
   const { declaration } = data;
   const v = declaration.scalarValidators || {};
   const incomingHandles = data.incomingHandles ?? [];
-  const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
+  const showFull = useSemanticZoom();
   const constraintCount = [v.default, v.regex, v.range, v.length].filter(Boolean).length;
 
   return (
@@ -32,15 +32,18 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
         : '0 4px 16px rgba(0,0,0,0.3)',
       transition: 'border-color 0.2s, box-shadow 0.2s',
     }}>
-      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} style={handleStyle} />
-      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} style={handleStyle} />
-      {incomingHandles.map((handle) => (
+      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} className="graph-node-target-dot" style={handleStyle} />
+      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} className="graph-node-target-dot" style={handleStyle} />
+      {incomingHandles.map((handle, index) => (
         <Handle
           key={handle.id}
           type="target"
           position={Position.Left}
           id={handle.id}
-          style={{ ...incomingHandleStyle, top: handle.top }}
+          style={{
+            ...incomingHandleStyle,
+            top: getCompactHandleTop(index, incomingHandles.length),
+          }}
         />
       ))}
 
@@ -107,7 +110,7 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
       </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
+      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} style={{ ...handleStyle, opacity: 0 }} />
     </div>
   );
 }

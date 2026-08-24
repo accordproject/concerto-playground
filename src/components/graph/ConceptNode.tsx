@@ -1,8 +1,8 @@
-import { Handle, Position, useStore } from '@xyflow/react';
+import { Handle, Position } from '@xyflow/react';
 import type { Declaration, ClassDeclarationType, PrimitiveTypeName } from '../../utils/graph/types';
 import { HANDLE_ID, PRIMITIVE_TYPES, propHandleId } from '../../utils/graph/types';
-import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
-import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import { getCompactHandleTop, type GraphTargetHandle } from '../../utils/graph/nodeLayout';
+import { useSemanticZoom } from './semanticZoom';
 import { KindBadge, HintAnchor } from './KindBadge';
 import { getConceptHint } from '../../utils/conceptHints';
 import { NODE_STRINGS } from './strings';
@@ -47,18 +47,26 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
   const colors = DECL_COLORS[declaration.type as ClassDeclarationType] || DECL_COLORS.concept;
   const edgeProperties = new Set(data.edgeProperties ?? []);
   const incomingHandles = data.incomingHandles ?? [];
-  const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
+  const showFull = useSemanticZoom();
   const propCount = declaration.properties.length;
   const nodeVars = { '--accent': colors.accent, '--bg': colors.bg } as React.CSSProperties;
 
   return (
     <div className={`graph-node concept-node${selected ? ' selected' : ''}`} style={nodeVars}>
-      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} className="graph-node-handle" style={{ background: colors.accent }} />
-      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} className="graph-node-handle" style={{ background: colors.accent }} />
-      <Handle type="source" position={Position.Right} id={HANDLE_ID.right} className="graph-node-handle" style={{ background: colors.accent }} />
-      {incomingHandles.map((handle) => (
+      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} className="graph-node-handle graph-node-target-dot" style={{ background: colors.accent }} />
+      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} className="graph-node-handle graph-node-target-dot" style={{ background: colors.accent }} />
+      <Handle type="source" position={Position.Right} id={HANDLE_ID.right} className="graph-node-handle graph-node-plus-handle"
+        style={{ '--plus-accent': colors.accent } as React.CSSProperties} />
+      {/* One receiving dot per incoming edge. Spread proportionally over the
+          rendered height, so any number of dots stays inside the node frame
+          and the lines land exactly on them. */}
+      {incomingHandles.map((handle, index) => (
         <Handle key={handle.id} type="target" position={Position.Left} id={handle.id}
-          className="graph-node-handle" style={{ top: handle.top, background: colors.accent }} />
+          className="graph-node-handle"
+          style={{
+            top: getCompactHandleTop(index, incomingHandles.length),
+            background: colors.accent,
+          }} />
       ))}
 
       <div className="concept-node-header">
@@ -137,7 +145,7 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
               className="graph-node-handle graph-node-row-handle"
               style={{
                 background: colors.accent,
-                top: `${Math.round(((i + 1) / (arr.length + 1)) * 100)}%`,
+                top: getCompactHandleTop(i, arr.length),
                 opacity: 0,
               }}
             />
@@ -195,7 +203,10 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
       </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} className="graph-node-handle" style={{ background: colors.accent }} />
+      {/* Anchor for outgoing extends edges only; new links start from the
+          right-side plus, so this stays invisible. */}
+      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} className="graph-node-handle"
+        style={{ background: colors.accent, opacity: 0 }} />
     </div>
   );
 }

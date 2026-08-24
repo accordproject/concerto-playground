@@ -659,7 +659,11 @@ function buildElkLayoutOptions(graph: GraphShape, nodeDimensions: NodeDimensions
   );
   const paddingX = Math.max(40, Math.floor(maxNodeWidth * 0.2));
   const paddingY = Math.max(40, Math.floor(maxNodeHeight * 0.2));
-  const betweenLayerSpacing = Math.min(60, Math.max(40, Math.floor(maxNodeWidth * 0.2)));
+  // The lane router in routeGraphEdges prefers a corridor of ~180px between
+  // layers, but it compresses lanes into tighter gaps, so the layout can stay
+  // denser than the ideal corridor; density matters more for the zoomed-out
+  // overview than perfectly spread lanes.
+  const betweenLayerSpacing = Math.min(200, Math.max(140, Math.floor(maxNodeWidth * 0.25)));
   const nodeSpacing = Math.min(40, Math.max(24, Math.floor(maxNodeHeight * 0.25)));
 
   return {
@@ -672,9 +676,6 @@ function buildElkLayoutOptions(graph: GraphShape, nodeDimensions: NodeDimensions
     'elk.padding': `[top=${paddingY},left=${paddingX},bottom=${paddingY},right=${paddingX}]`,
     'org.eclipse.elk.layered.wrapping.strategy': 'MULTI_EDGE',
     'org.eclipse.elk.aspectRatio': '1.6',
-    'org.eclipse.elk.layered.considerModelOrder.portModelOrder': 'true',
-    'org.eclipse.elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
-    'org.eclipse.elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
     'org.eclipse.elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
     'org.eclipse.elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
   };
@@ -747,12 +748,36 @@ function buildElkPorts(
   return ports;
 }
 
+type ElkInstance = { layout: (graph: ElkNode) => Promise<ElkNode> };
+let elkInstancePromise: Promise<ElkInstance> | null = null;
+
+// ELK layout is CPU-heavy on large models, so run it in a web worker and keep
+// the UI responsive. The single-thread bundled build covers environments
+// without Worker support (unit tests run in node).
+function getElk(): Promise<ElkInstance> {
+  elkInstancePromise ??= (async () => {
+    if (typeof Worker !== 'undefined') {
+      try {
+        const [{ default: ELK }, { default: ElkWorker }] = await Promise.all([
+          import('elkjs/lib/elk-api.js'),
+          import('elkjs/lib/elk-worker.min.js?worker'),
+        ]);
+        return new ELK({ workerFactory: () => new ElkWorker() });
+      } catch {
+        // Fall through to the bundled single-thread build.
+      }
+    }
+    const { default: ELK } = await import('elkjs/lib/elk.bundled.js');
+    return new ELK();
+  })();
+  return elkInstancePromise;
+}
+
 async function computeElkLayout(
   declarations: Declaration[],
   graph: GraphShape,
   nodeDimensions: NodeDimensions,
 ): Promise<LayoutPositions> {
-  const { default: ELK } = await import('elkjs/lib/elk.bundled.js');
   const graphNodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const elkNodeNames = new Set(graph.nodes.map((node) => node.id));
   const elkGraph: ElkNode = {
@@ -783,7 +808,8 @@ async function computeElkLayout(
     })),
   };
 
-  const layoutedGraph = await new ELK().layout(elkGraph);
+  const elk = await getElk();
+  const layoutedGraph = await elk.layout(elkGraph);
   const positions: LayoutPositions = new Map();
 
   for (const child of layoutedGraph.children ?? []) {

@@ -270,7 +270,7 @@ concept NDAData {
     expect(partyNode?.data.incomingHandles).toHaveLength(4);
   });
 
-  it("does not store route points on base graph edges", () => {
+  it("does not store lane routes on base graph edges", () => {
     const denseCto = `namespace org.accordproject.nda@1.0.0
 concept Party {
   o String name
@@ -287,7 +287,7 @@ concept NDAData {
     );
 
     for (const edge of partyEdges) {
-      expect((edge.data as { routePoints?: Array<{ x: number; y: number }> } | undefined)?.routePoints).toBeUndefined();
+      expect((edge.data as { laneX?: number } | undefined)?.laneX).toBeUndefined();
     }
   });
 
@@ -308,11 +308,9 @@ concept NDAData {
       (edge) => edge.source === "NDAData" && edge.target === "Party"
     );
 
-    const laneColumns = routedEdges.map((edge) => {
-      const points = (edge.data as { routePoints?: Array<{ x: number; y: number }> }).routePoints!;
-      return points[1].x;
-    });
+    const laneColumns = routedEdges.map((edge) => (edge.data as { laneX?: number }).laneX!);
 
+    expect(laneColumns.every((laneX) => typeof laneX === "number")).toBe(true);
     expect(new Set(laneColumns).size).toBe(4);
   });
 
@@ -336,9 +334,9 @@ concept NDAData {
       (edge) => edge.source === "NDAData" && edge.target === "Party"
     )!;
 
-    const points = (routedEdge.data as { routePoints?: Array<{ x: number; y: number }> }).routePoints!;
-    expect(points[0]).toBeDefined();
-    expect(points[0]!.x).toBe(ndaNode.position.x + measuredWidth);
+    // The lane must clear the measured (wider) node, not the estimated width.
+    const laneX = (routedEdge.data as { laneX?: number }).laneX!;
+    expect(laneX).toBeGreaterThan(ndaNode.position.x + measuredWidth);
   });
 
   it("assigns positions to all nodes", () => {

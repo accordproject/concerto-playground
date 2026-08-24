@@ -10,7 +10,6 @@ const searchKbdHint = formatShortcut(SHORTCUT_COMBOS.searchNodes);
 const undoTitle = `${SHORTCUT_STRINGS.undo} (${formatShortcut(SHORTCUT_COMBOS.undo)})`;
 const redoTitle = `${SHORTCUT_STRINGS.redo} (${formatShortcut(SHORTCUT_COMBOS.redoPrimary)})`;
 const searchTitle = `${SHORTCUT_STRINGS.searchNodes} (${searchKbdHint})`;
-const clearTitle = `${SHORTCUT_STRINGS.clearCanvas} (${formatShortcut(SHORTCUT_COMBOS.clearCanvas)})`;
 
 interface GraphToolbarProps {
   declarations: Declaration[];
@@ -20,22 +19,20 @@ interface GraphToolbarProps {
   onSetSuperType: (declName: string, superType: string | undefined) => void;
   activeDialog: { type: DeclarationDialogKind; declName: string } | null;
   onCloseDialog: () => void;
-  onClearCanvas: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onAutoLayout: () => void;
-  isAutoLayouting: boolean;
-  onSaveLayout: () => void;
   onOpenSearch: () => void;
-  showText: boolean;
-  onToggleText: () => void;
   onImport: () => void;
   onExport: () => void;
+  /** CTO panel toggle, shown only in embedded (headless / toolbar=false)
+      mode where the app header's own toggle is hidden. */
+  showText?: boolean;
+  onToggleText?: () => void;
 }
 
-export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onClearCanvas, onUndo, onRedo, canUndo, canRedo, onAutoLayout, isAutoLayouting, onSaveLayout, onOpenSearch, showText, onToggleText, onImport, onExport }: GraphToolbarProps) {
+export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, onAddEnumValue, onSetSuperType, activeDialog, onCloseDialog, onUndo, onRedo, canUndo, canRedo, onOpenSearch, onImport, onExport, showText, onToggleText }: GraphToolbarProps) {
   const [showAddDecl, setShowAddDecl] = useState(false);
 
   // The add-declaration dialog is local to the toolbar, so it handles its
@@ -53,22 +50,19 @@ export function GraphToolbar({ declarations, onAddDeclaration, onAddProperty, on
 
   return (
     <div style={toolbarStyle}>
-      <button onClick={onToggleText}
-        style={{ ...pillBtn, background: showText ? '#3182ce' : '#4a5568' }}
-        title={showText ? TOOLBAR_STRINGS.hideCtoTooltip : TOOLBAR_STRINGS.showCtoTooltip}>
-        {showText ? TOOLBAR_STRINGS.hideCto : TOOLBAR_STRINGS.showCto}
-      </button>
+      {onToggleText && (
+        <button onClick={onToggleText}
+          style={{ ...pillBtn, background: showText ? '#3182ce' : '#4a5568' }}
+          title={showText ? TOOLBAR_STRINGS.hideCtoTooltip : TOOLBAR_STRINGS.showCtoTooltip}>
+          {showText ? TOOLBAR_STRINGS.hideCto : TOOLBAR_STRINGS.showCto}
+        </button>
+      )}
       <button onClick={onImport} style={pillBtn} title={TOOLBAR_STRINGS.importTooltip}>{TOOLBAR_STRINGS.importLabel}</button>
       <button onClick={onExport} style={pillBtn} title={TOOLBAR_STRINGS.exportTooltip}>{TOOLBAR_STRINGS.exportLabel}</button>
-      <button onClick={onAutoLayout} disabled={isAutoLayouting} style={{ ...pillBtn, opacity: isAutoLayouting ? 0.6 : 1 }}>
-        {isAutoLayouting ? TOOLBAR_STRINGS.layoutInProgress : TOOLBAR_STRINGS.autoLayout}
-      </button>
-      <button onClick={onSaveLayout} style={pillBtn}>{TOOLBAR_STRINGS.saveLayout}</button>
 
       <div style={sep} />
 
       <button onClick={() => setShowAddDecl(true)} style={{ ...pillBtn, background: '#3182ce' }} title={TOOLBAR_STRINGS.addDeclarationTooltip}>{TOOLBAR_STRINGS.addDeclaration}</button>
-      <button onClick={onClearCanvas} style={pillBtn} title={clearTitle}>{TOOLBAR_STRINGS.clearCanvas}</button>
 
       <div style={sep} />
 
@@ -320,6 +314,7 @@ const toolbarStyle: React.CSSProperties = {
 const pillBtn: React.CSSProperties = {
   background: '#4a5568', color: '#e2e8f0', border: 'none', borderRadius: 6,
   padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+  whiteSpace: 'nowrap', flexShrink: 0,
   transition: 'background 0.15s, opacity 0.15s',
 };
 
@@ -329,8 +324,8 @@ const btnStyle: React.CSSProperties = {
 };
 
 const arrowBtn: React.CSSProperties = {
-  background: '#2d3748', color: '#e2e8f0', border: '1px solid #4a5568',
-  borderRadius: 6, padding: '3px 7px', cursor: 'pointer', fontSize: 14,
+  background: 'transparent', color: '#a0aec0', border: 'none',
+  borderRadius: 6, padding: '3px 6px', cursor: 'pointer', fontSize: 16,
   lineHeight: 1, transition: 'opacity 0.15s',
 };
 

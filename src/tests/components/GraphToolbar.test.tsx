@@ -12,17 +12,11 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof GraphToolb
     onSetSuperType: vi.fn(),
     activeDialog: null,
     onCloseDialog: vi.fn(),
-    onClearCanvas: vi.fn(),
     onUndo: vi.fn(),
     onRedo: vi.fn(),
     canUndo: false,
     canRedo: false,
-    onAutoLayout: vi.fn(),
-    isAutoLayouting: false,
-    onSaveLayout: vi.fn(),
     onOpenSearch: vi.fn(),
-    showText: true,
-    onToggleText: vi.fn(),
     onImport: vi.fn(),
     onExport: vi.fn(),
     ...overrides,
@@ -62,11 +56,18 @@ describe('GraphToolbar dialog escape handling', () => {
     expect(notPrevented).toBe(true);
   });
 
-  it('invokes onClearCanvas from the Clear button', () => {
-    const onClearCanvas = vi.fn();
-    renderToolbar({ onClearCanvas });
+  it('does not render a Clear or CTO toggle button by default', () => {
+    renderToolbar();
 
-    fireEvent.click(screen.getByText('Clear'));
-    expect(onClearCanvas).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Clear')).toBeNull();
+    expect(screen.queryByText(/CTO/)).toBeNull();
+  });
+
+  it('renders the CTO toggle only when onToggleText is provided', () => {
+    const onToggleText = vi.fn();
+    renderToolbar({ showText: true, onToggleText });
+
+    fireEvent.click(screen.getByText(/CTO/));
+    expect(onToggleText).toHaveBeenCalledTimes(1);
   });
 });

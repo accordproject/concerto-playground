@@ -541,3 +541,59 @@
   line-height: 1.55;
   color: #cbd5e0;
 }
+
+/* Hovering an edge lifts its whole stroke toward white, matching the way
+   nodes light up, so the connection under the pointer is easy to follow. */
+.react-flow__edge:hover .react-flow__edge-path {
+  filter: brightness(1.8);
+}
+
+/* Drag-to-connect points render as a translucent circle with a plus, reading
+   as "drag from here to add a link"; edge anchors stay plain dots. The plus
+   is drawn from two centered bars because a text glyph never sits optically
+   centered. */
+.react-flow__handle.graph-node-plus-handle {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--plus-accent, #63b3ed) 55%, transparent);
+  background: color-mix(in srgb, var(--plus-accent, #63b3ed) 20%, transparent);
+  color: var(--plus-accent, #63b3ed);
+}
+
+.react-flow__handle.graph-node-plus-handle::before,
+.react-flow__handle.graph-node-plus-handle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: currentColor;
+  border-radius: 1px;
+}
+
+.react-flow__handle.graph-node-plus-handle::before {
+  width: 6px;
+  height: 1.5px;
+}
+
+.react-flow__handle.graph-node-plus-handle::after {
+  width: 1.5px;
+  height: 6px;
+}
+
+.react-flow__handle.graph-node-plus-handle:hover {
+  background: color-mix(in srgb, var(--plus-accent, #63b3ed) 45%, transparent);
+  color: #ffffff;
+}
+
+/* The generic top/left target dots say nothing while idle; they only appear
+   while a connection is being dragged, when they are the drop targets. */
+.graph-canvas .react-flow__handle.graph-node-target-dot {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.graph-canvas.is-connecting .react-flow__handle.graph-node-target-dot {
+  opacity: 1;
+}

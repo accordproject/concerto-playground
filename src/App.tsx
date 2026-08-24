@@ -111,6 +111,12 @@ export default function App() {
     _initialUrlOptions.activeTab,
     viewMode === "code",
   );
+  // Clear-canvas action published by the graph editor while it is mounted,
+  // so the shortcuts overlay can offer a clickable Clear.
+  const [clearCanvasAction, setClearCanvasAction] = useState<(() => void) | null>(null);
+  const registerClearCanvas = useCallback((action: (() => void) | null) => {
+    setClearCanvasAction(() => action);
+  }, []);
 
   // App-wide shortcuts, active in every view (the graph editor registers its
   // own on top of these). The cheat sheet overlay documents both sets.
@@ -504,7 +510,14 @@ export default function App() {
         </div>
       )}
 
-      {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
+      {shortcutsOpen && (
+        <ShortcutsOverlay
+          onClose={() => setShortcutsOpen(false)}
+          onClearCanvas={clearCanvasAction
+            ? () => { setShortcutsOpen(false); clearCanvasAction(); }
+            : undefined}
+        />
+      )}
 
       {/* Split pane */}
       <div className="flex flex-1 min-h-0">
@@ -642,8 +655,11 @@ export default function App() {
               <ConcertoGraphEditor
                 cto={source}
                 onModelChange={setSource}
+                onRegisterClearCanvas={registerClearCanvas}
                 showText={showCto}
-                onToggleText={() => setShowCto((v) => !v)}
+                onToggleText={_initialUrlOptions.showToolbar
+                  ? undefined
+                  : () => setShowCto((v) => !v)}
                 onImport={() => setIsImportDialogOpen(true)}
                 onExport={handleExport}
                 focusRequest={focusRequest}

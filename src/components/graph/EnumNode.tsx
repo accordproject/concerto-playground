@@ -1,8 +1,8 @@
-import { Handle, Position, useStore } from '@xyflow/react';
+import { Handle, Position } from '@xyflow/react';
 import type { Declaration } from '../../utils/graph/types';
 import { HANDLE_ID } from '../../utils/graph/types';
-import type { GraphTargetHandle } from '../../utils/graph/nodeLayout';
-import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
+import { getCompactHandleTop, type GraphTargetHandle } from '../../utils/graph/nodeLayout';
+import { useSemanticZoom } from './semanticZoom';
 import { KindBadge } from './KindBadge';
 import './graph.css';
 
@@ -18,17 +18,21 @@ interface EnumNodeData {
 export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: boolean }) {
   const { declaration } = data;
   const incomingHandles = data.incomingHandles ?? [];
-  const showFull = useStore((s) => s.transform[2] >= SEMANTIC_ZOOM_THRESHOLD);
+  const showFull = useSemanticZoom();
   const valueCount = declaration.enumValues.length;
 
   return (
     <div className={`graph-node enum-node${selected ? ' selected' : ''}`}>
-      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} className="graph-node-handle enum-node-handle" />
-      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} className="graph-node-handle enum-node-handle" />
-      <Handle type="source" position={Position.Right} id={HANDLE_ID.right} className="graph-node-handle enum-node-handle" />
-      {incomingHandles.map((handle) => (
+      <Handle type="target" position={Position.Top} id={HANDLE_ID.top} className="graph-node-handle enum-node-handle graph-node-target-dot" />
+      <Handle type="target" position={Position.Left} id={HANDLE_ID.left} className="graph-node-handle enum-node-handle graph-node-target-dot" />
+      <Handle type="source" position={Position.Right} id={HANDLE_ID.right} className="graph-node-handle graph-node-plus-handle"
+        style={{ '--plus-accent': '#ecc94b' } as React.CSSProperties} />
+      {incomingHandles.map((handle, index) => (
         <Handle key={handle.id} type="target" position={Position.Left} id={handle.id}
-          className="graph-node-handle enum-node-handle" style={{ top: handle.top }} />
+          className="graph-node-handle enum-node-handle"
+          style={{
+            top: getCompactHandleTop(index, incomingHandles.length),
+          }} />
       ))}
 
       <div className="enum-node-header">
@@ -67,7 +71,8 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
       </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} className="graph-node-handle enum-node-handle" />
+      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} className="graph-node-handle enum-node-handle"
+        style={{ opacity: 0 }} />
     </div>
   );
 }
