@@ -19,6 +19,7 @@ import {
   getPropertyHandleTop,
   type GraphTargetHandle,
 } from './nodeLayout';
+import { declarationEqual, stringArrayEqual } from './modelDiff';
 
 import { Parser as ParserModule } from '@accordproject/concerto-cto';
 import { ModelManager } from '@accordproject/concerto-core';
@@ -850,14 +851,69 @@ interface ExternalRef {
 
 const EXTERNAL_NODE_HEIGHT = 100;
 
-export function declarationsToGraph(declarations: Declaration[], context: GraphContext = {}): { nodes: Node[]; edges: Edge[] } {
+/**
+ * The previous graph state, used for incremental updates. When provided (and
+ * it overlaps the new declarations), unchanged declarations keep their exact
+ * node objects, changed ones keep their position, and only new declarations
+ * get a locally computed position. The full tree layout runs only for a new
+ * graph, so an edit never rearranges what the user already sees.
+ */
+export interface PreviousGraph {
+  nodes: Node[];
+  edges: Edge[];
+}
+
+export function declarationsToGraph(
+  declarations: Declaration[],
+  context: GraphContext = {},
+  previous?: PreviousGraph,
+): { nodes: Node[]; edges: Edge[] } {
   const { externalTypes = {}, workspaceDeclarations = {} } = context;
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   const declNames = new Set(declarations.map((d) => d.name));
   const declByName = new Map(declarations.map((decl) => [decl.name, decl]));
-  const treePositions = computeTreeLayout(declarations);
   const incomingHandlesByDecl = new Map<string, GraphTargetHandle[]>();
+
+  const prevById = new Map((previous?.nodes ?? []).map((n) => [n.id, n]));
+  const prevEdgesById = new Map((previous?.edges ?? []).map((e) => [e.id, e]));
+  // A previous graph that shares no ids with the new declarations is a
+  // different model (e.g. a namespace switch), not an edit: lay out fresh.
+  const incremental =
+    prevById.size > 0 && declarations.some((d) => prevById.has(d.name));
+  const positions = incremental ? null : computeTreeLayout(declarations);
+
+  // New nodes in an incremental update stack in a column to the right of
+  // everything that exists, so nothing the user placed or sees moves.
+  let newNodeCursor: { x: number; y: number } | null = null;
+  const nextNewPosition = (height: number): { x: number; y: number } => {
+    if (!newNodeCursor) {
+      let maxX = 0;
+      for (const n of previous?.nodes ?? []) maxX = Math.max(maxX, n.position.x);
+      newNodeCursor = { x: maxX + 380, y: 0 };
+    }
+    const pos = { ...newNodeCursor };
+    newNodeCursor.y += height + 40;
+    return pos;
+  };
+
+  // Reuses the previous edge object when nothing it renders changed, so
+  // memoized edge internals in React Flow can skip work too.
+  const pushEdge = (edge: Edge) => {
+    const prev = prevEdgesById.get(edge.id);
+    const prevStyle = prev?.style as { stroke?: string; strokeDasharray?: string } | undefined;
+    const nextStyle = edge.style as { stroke?: string; strokeDasharray?: string } | undefined;
+    if (
+      prev &&
+      prev.label === edge.label &&
+      prevStyle?.stroke === nextStyle?.stroke &&
+      prevStyle?.strokeDasharray === nextStyle?.strokeDasharray
+    ) {
+      edges.push(prev);
+      return;
+    }
+    edges.push(edge);
+  };
 
   // Resolve a type reference that does not point at a local declaration:
   // either a namespace-qualified name or a name brought in by an import.
@@ -922,7 +978,6 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
   });
 
   declarations.forEach((decl) => {
-    const pos = getDeclarationPosition(decl) || treePositions.get(decl.name) || { x: 0, y: 0 };
     const propsToEdge = getEdgeableProperties(decl);
     // Resolve each property's edge target once and reuse it for both the
     // node's edgeProperties list and the edge-building loop below.
@@ -933,24 +988,50 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
       .filter((_, i) => propTargets[i])
       .map((p) => p.name);
 
-    nodes.push({
-      id: decl.name,
-      type: NODE_KIND_BY_DECLARATION[decl.type],
-      position: pos,
-      data: {
-        label: decl.name,
-        declaration: decl,
-        edgeProperties,
-        incomingHandles: incomingHandlesByDecl.get(decl.name) ?? [],
-      },
-    });
+    const nodeType = NODE_KIND_BY_DECLARATION[decl.type];
+    const incomingHandles = incomingHandlesByDecl.get(decl.name) ?? [];
+    const prev = incremental ? prevById.get(decl.name) : undefined;
+    const prevData = prev?.data as {
+      declaration?: Declaration;
+      edgeProperties?: string[];
+      incomingHandles?: GraphTargetHandle[];
+    } | undefined;
+    const sameHandles =
+      (prevData?.incomingHandles?.length ?? 0) === incomingHandles.length &&
+      incomingHandles.every((handle, i) => {
+        const prevHandle = prevData?.incomingHandles?.[i];
+        return prevHandle != null && prevHandle.id === handle.id && prevHandle.top === handle.top;
+      });
+    if (
+      prev &&
+      prev.type === nodeType &&
+      prevData?.declaration &&
+      declarationEqual(prevData.declaration, decl) &&
+      stringArrayEqual(prevData.edgeProperties, edgeProperties) &&
+      sameHandles
+    ) {
+      // Unchanged declaration: the exact same node object survives, so the
+      // memoized component sees identical props and skips its render.
+      nodes.push(prev);
+    } else {
+      nodes.push({
+        id: decl.name,
+        type: nodeType,
+        // A source-declared position always wins; otherwise changed
+        // declarations keep their place and only new ones get a spot.
+        position:
+          getDeclarationPosition(decl) ??
+          (prev ? prev.position : positions?.get(decl.name) ?? nextNewPosition(estimateNodeHeight(decl))),
+        data: { label: decl.name, declaration: decl, edgeProperties, incomingHandles },
+      });
+    }
 
     if (decl.superType) {
       const superTarget = isLocal(decl.superType, decl.superTypeNamespace)
         ? decl.superType
         : registerExternal(decl.superType, decl.superTypeNamespace)?.id;
       if (superTarget) {
-        edges.push({
+        pushEdge({
           id: `${decl.name}-extends-${superTarget}`,
           source: decl.name, target: superTarget,
           sourceHandle: HANDLE_ID.bottom,
@@ -970,7 +1051,7 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
       const propTarget = propTargets[i];
       if (propTarget) {
         const isRel = prop.isRelationship;
-        edges.push({
+        pushEdge({
           id: `${decl.name}-${prop.name}-${propTarget}`,
           source: decl.name, target: propTarget,
           sourceHandle: propHandleId(prop.name),
@@ -995,23 +1076,49 @@ export function declarationsToGraph(declarations: Declaration[], context: GraphC
   });
 
   // Imported types get their own column to the right of the local layout so
-  // they read as external to the current file.
+  // they read as external to the current file. In an incremental sync there
+  // is no fresh layout to place a column against, so existing imported nodes
+  // keep their objects (or at least their position) and only new ones are
+  // placed, through the same new-node cursor as local declarations.
   if (externalNodes.size > 0) {
-    let maxX = 0;
-    for (const pos of treePositions.values()) maxX = Math.max(maxX, pos.x);
-    const externalX = declarations.length > 0 ? maxX + 380 : 0;
     const externals = [...externalNodes.values()];
-    const gapY = 40;
-    const totalHeight = externals.length * EXTERNAL_NODE_HEIGHT + (externals.length - 1) * gapY;
-    let y = -totalHeight / 2;
-    for (const ext of externals) {
-      nodes.push({
-        id: ext.id,
-        type: GRAPH_NODE_KIND.imported,
-        position: { x: externalX, y },
-        data: { label: ext.name, namespace: ext.namespace, resolved: ext.resolved },
-      });
-      y += EXTERNAL_NODE_HEIGHT + gapY;
+    if (incremental) {
+      for (const ext of externals) {
+        const prev = prevById.get(ext.id);
+        const prevData = prev?.data as { label?: string; namespace?: string; resolved?: boolean } | undefined;
+        if (
+          prev &&
+          prev.type === GRAPH_NODE_KIND.imported &&
+          prevData?.label === ext.name &&
+          prevData?.namespace === ext.namespace &&
+          prevData?.resolved === ext.resolved
+        ) {
+          nodes.push(prev);
+        } else {
+          nodes.push({
+            id: ext.id,
+            type: GRAPH_NODE_KIND.imported,
+            position: prev ? prev.position : nextNewPosition(EXTERNAL_NODE_HEIGHT),
+            data: { label: ext.name, namespace: ext.namespace, resolved: ext.resolved },
+          });
+        }
+      }
+    } else {
+      let maxX = 0;
+      for (const pos of positions!.values()) maxX = Math.max(maxX, pos.x);
+      const externalX = declarations.length > 0 ? maxX + 380 : 0;
+      const gapY = 40;
+      const totalHeight = externals.length * EXTERNAL_NODE_HEIGHT + (externals.length - 1) * gapY;
+      let y = -totalHeight / 2;
+      for (const ext of externals) {
+        nodes.push({
+          id: ext.id,
+          type: GRAPH_NODE_KIND.imported,
+          position: { x: externalX, y },
+          data: { label: ext.name, namespace: ext.namespace, resolved: ext.resolved },
+        });
+        y += EXTERNAL_NODE_HEIGHT + gapY;
+      }
     }
   }
 

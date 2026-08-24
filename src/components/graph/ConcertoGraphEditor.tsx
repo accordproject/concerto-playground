@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -31,6 +31,8 @@ import { computeAutoLayoutPositions, declarationsToGraph, describeParseError, pa
 import { DIALOG_STRINGS, SHORTCUT_STRINGS, TOOLBAR_STRINGS } from './strings';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { SHORTCUT_COMBOS } from '../../utils/shortcutCombos';
+import { nodePropsEqual } from './nodeMemo';
+import { useRafBatchedNodeChanges } from '../../hooks/useRafBatchedNodeChanges';
 import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel, DeclarationDialogKind } from '../../utils/graph/types';
@@ -39,12 +41,15 @@ import { routeGraphEdges } from '../../utils/graph/routeGraphEdges';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 import { SemanticZoomContext } from './semanticZoom';
 
+// Every node component is memoized behind the shared structural comparator:
+// a node re-renders only when its own declaration content, edge anchors,
+// selection state or callbacks changed, not because the graph state did.
 const nodeTypes: NodeTypes = {
-  [GRAPH_NODE_KIND.concept]: ConceptNode,
-  [GRAPH_NODE_KIND.enum]: EnumNode,
-  [GRAPH_NODE_KIND.map]: MapNode,
-  [GRAPH_NODE_KIND.scalar]: ScalarNode,
-  [GRAPH_NODE_KIND.imported]: ImportedNode,
+  [GRAPH_NODE_KIND.concept]: memo(ConceptNode, nodePropsEqual),
+  [GRAPH_NODE_KIND.enum]: memo(EnumNode, nodePropsEqual),
+  [GRAPH_NODE_KIND.map]: memo(MapNode, nodePropsEqual),
+  [GRAPH_NODE_KIND.scalar]: memo(ScalarNode, nodePropsEqual),
+  [GRAPH_NODE_KIND.imported]: memo(ImportedNode, nodePropsEqual),
 };
 
 const edgeTypes: EdgeTypes = {
@@ -104,6 +109,9 @@ function useDebouncedError<T>(value: T | null, delay: number): T | null {
 export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, onRegisterClearCanvas, showText, onToggleText, focusRequest, validationError, graphContext, onNavigateToType }: ConcertoGraphEditorProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  // Dragging emits several node changes per frame; batch them so React
+  // commits once per drawn frame instead of once per pointer move.
+  const handleNodesChange = useRafBatchedNodeChanges(onNodesChange);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [model, setModelState] = useState<ConcertoModel>({ namespace: 'org.example@1.0.0', imports: [], declarations: [] });
   const modelRef = useRef(model);
@@ -116,6 +124,11 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
 
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  // Mirror of historyIndex readable without a closure, so pushHistory keeps a
+  // stable identity. With historyIndex in its dependency list, every mutation
+  // would mint a new pushHistory, and through updateModelAndSync a new
+  // identity for every node callback, forcing all nodes to re-render.
+  const historyIndexRef = useRef(historyIndex);
   const isUndoRedo = useRef(false);
   const [isAutoLayouting, setIsAutoLayouting] = useState(false);
   const [controlsCollapsed, setControlsCollapsed] = useState(false);
@@ -137,6 +150,11 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
   // vertical column, and the edge renderer draws from live handle positions,
   // which follow the nodes whether they render full size or collapsed.
   const renderedEdges = useMemo(() => routeGraphEdges(nodes, edges), [nodes, edges]);
+  // Mirrors of the current graph state, read by the incremental sync without
+  // putting nodes/edges in the sync effect's dependency list (which would
+  // re-run it after its own setNodes/setEdges).
+  const graphNodesRef = useRef<Node[]>([]);
+  const graphEdgesRef = useRef<Edge[]>([]);
 
   // The semantic validation error shown in the overlay banner when the text
   // parses but the model is invalid. The snippet points a caret at the
@@ -161,20 +179,28 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
   const lastHistoryCtoRef = useRef<string | null>(null);
 
   useEffect(() => {
+    graphNodesRef.current = nodes;
     for (const node of nodes) {
       nodePositionsRef.current.set(node.id, { ...node.position });
     }
   }, [nodes]);
 
+  useEffect(() => {
+    graphEdgesRef.current = edges;
+  }, [edges]);
+
   const pushHistory = useCallback((entry: HistoryEntry) => {
+    const base = historyIndexRef.current;
     setHistory((prev) => {
-      const truncated = prev.slice(0, historyIndex + 1);
+      const truncated = prev.slice(0, base + 1);
       const next = [...truncated, entry];
       if (next.length > MAX_HISTORY) next.shift();
       return next;
     });
-    setHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
-  }, [historyIndex]);
+    const nextIndex = Math.min(base + 1, MAX_HISTORY - 1);
+    historyIndexRef.current = nextIndex;
+    setHistoryIndex(nextIndex);
+  }, []);
 
   useEffect(() => {
     if (updatingFromGraph.current) {
@@ -184,13 +210,18 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     try {
       const parsed = parseCto(cto);
       setModel(parsed);
-      const graph = declarationsToGraph(parsed.declarations, graphContext);
+      const graph = declarationsToGraph(parsed.declarations, graphContext, {
+        nodes: graphNodesRef.current,
+        edges: graphEdgesRef.current,
+      });
       const nodesWithPositions = graph.nodes.map((node) => {
         const savedPos = nodePositionsRef.current.get(node.id);
         const declaration = node.data.declaration as Declaration | undefined;
-        return declaration?.decorators.some((decorator) => decorator.name === 'Position') || !savedPos
-          ? node
-          : { ...node, position: savedPos };
+        if (declaration?.decorators.some((decorator) => decorator.name === 'Position') || !savedPos) return node;
+        // Wrap only when the position actually moved: a reused node object
+        // must keep its identity or the memoized component re-renders.
+        if (savedPos.x === node.position.x && savedPos.y === node.position.y) return node;
+        return { ...node, position: savedPos };
       });
       setNodes(nodesWithPositions);
       setEdges(graph.edges);
@@ -219,7 +250,10 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     const newModel = { ...cur, declarations: newDeclarations };
     const newCto = declarationsToCto(newModel);
     setModel(newModel);
-    const graph = declarationsToGraph(newDeclarations, graphContextRef.current);
+    const graph = declarationsToGraph(newDeclarations, graphContextRef.current, {
+      nodes: graphNodesRef.current,
+      edges: graphEdgesRef.current,
+    });
     const nodesWithPositions = graph.nodes.map((node) => {
       const savedPos = nodePositionsRef.current.get(node.id);
       const declaration = node.data.declaration as Declaration | undefined;
@@ -305,6 +339,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     const newIndex = historyIndex - 1;
     const entry = history[newIndex];
     isUndoRedo.current = true;
+    historyIndexRef.current = newIndex;
     setHistoryIndex(newIndex);
     setModel(entry.model);
     setNodes(entry.nodes);
@@ -324,6 +359,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     const newIndex = historyIndex + 1;
     const entry = history[newIndex];
     isUndoRedo.current = true;
+    historyIndexRef.current = newIndex;
     setHistoryIndex(newIndex);
     setModel(entry.model);
     setNodes(entry.nodes);
@@ -488,20 +524,39 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     setConnectDialog(null);
   }, [connectDialog, handleSetSuperType, handleAddProperty]);
 
-  const nodesWithCallbacks = nodes.map((node) => ({
+  const openPropertyDialog = useCallback((declName: string) => setActiveDialog({ type: 'property', declName }), []);
+  const openInheritanceDialog = useCallback((declName: string) => setActiveDialog({ type: 'inheritance', declName }), []);
+  const openEnumValueDialog = useCallback((declName: string) => setActiveDialog({ type: 'enum-value', declName }), []);
+
+  // Every dependency here is referentially stable across renders (the model
+  // handlers all close over refs), so this recomputes only when the nodes
+  // themselves change. Without the memo, each render would wrap every node in
+  // fresh objects with fresh callbacks, and the memoized node components
+  // would re-render for nothing.
+  const nodesWithCallbacks = useMemo(() => nodes.map((node) => ({
     ...node,
     data: {
       ...node.data,
-      onAddProperty: (declName: string) => setActiveDialog({ type: 'property', declName }),
+      onAddProperty: openPropertyDialog,
       onDeleteProperty: handleDeleteProperty,
       onDeleteDeclaration: handleDeleteDeclaration,
       onToggleAbstract: handleToggleAbstract,
-      onSetInheritance: (declName: string) => setActiveDialog({ type: 'inheritance', declName }),
-      onAddEnumValue: (declName: string) => setActiveDialog({ type: 'enum-value', declName }),
+      onSetInheritance: openInheritanceDialog,
+      onAddEnumValue: openEnumValueDialog,
       onDeleteEnumValue: handleDeleteEnumValue,
       onNavigateToType,
     },
-  }));
+  })), [
+    nodes,
+    openPropertyDialog,
+    openInheritanceDialog,
+    openEnumValueDialog,
+    handleDeleteProperty,
+    handleDeleteDeclaration,
+    handleToggleAbstract,
+    handleDeleteEnumValue,
+    onNavigateToType,
+  ]);
 
   return (
     <ReactFlowProvider>
@@ -529,7 +584,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
         <ReactFlow
           nodes={nodesWithCallbacks}
           edges={renderedEdges}
-          onNodesChange={onNodesChange}
+          onNodesChange={handleNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onConnectStart={() => setIsConnecting(true)}

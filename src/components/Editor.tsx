@@ -10,6 +10,7 @@ import {
   tokenizeWithCache,
 } from "../utils/editorTokens";
 import { EDITOR_STRINGS } from "../constants/ui";
+import { useDebouncedCallback } from "../hooks/useDebouncedCallback";
 import type { TypeLinkTarget } from "../utils/graph/types";
 
 loader.config({ monaco });
@@ -47,6 +48,11 @@ const DECL_CLASS = "concerto-type-decl";
 // Delay before re-scanning the model for clickable references, so the
 // full-document scan does not run on every keystroke.
 const LINK_DECORATION_DEBOUNCE_MS = 200;
+// Delay before a burst of keystrokes is sent to the app state as one change.
+// Until it fires, the app state is intentionally behind the editor content;
+// the flush and cancel rules below close that window whenever it could be
+// observed from outside.
+const CTO_CHANGE_DEBOUNCE_MS = 300;
 function ensureLinkStyle() {
   if (typeof document === "undefined" || document.getElementById("concerto-type-link-style")) return;
   const el = document.createElement("style");
@@ -385,18 +391,62 @@ export function Editor({
 }: EditorProps) {
   const monacoRef = useRef<typeof monaco | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const decorationsRef = useRef<string[]>([]);
   const targetsRef = useRef<Map<string, TypeLinkTarget>>(new Map());
   const onNavigateRef = useRef(onNavigate);
+  const onChangeRef = useRef(onChange);
   const [editorReady, setEditorReady] = useState(false);
 
   targetsRef.current = new Map((linkTargets ?? []).map((t) => [t.name, t]));
   onNavigateRef.current = onNavigate;
+  onChangeRef.current = onChange;
+
+  // Keystrokes reach the app state as one change per pause instead of one per
+  // key. lastEmittedRef remembers the text this editor sent last, so the
+  // external-change effect below can tell its own update apart from someone
+  // else changing the model (undo, loading an example, a graph edit).
+  const lastEmittedRef = useRef(value);
+  const debouncedChange = useDebouncedCallback<string>((text) => {
+    lastEmittedRef.current = text;
+    onChangeRef.current?.(text);
+  }, CTO_CHANGE_DEBOUNCE_MS);
+
+  // The model changed from somewhere else while keystrokes were waiting:
+  // drop the waiting text instead of overwriting the newer content.
+  useEffect(() => {
+    if (value !== lastEmittedRef.current) {
+      lastEmittedRef.current = value;
+      debouncedChange.cancel();
+    }
+  }, [value, debouncedChange]);
+
+  // Anything clicked outside the editor must see the current text, so the
+  // waiting text is sent first. Capture phase: this runs before the click
+  // target's own handlers, and mousedown precedes both blur and click.
+  // Still needed next to the blur flush below: targets that preventDefault
+  // on mousedown (the graph canvas does) never take focus from the editor,
+  // so no blur fires for them.
+  useEffect(() => {
+    const flushBeforeOutsideInteraction = (e: MouseEvent) => {
+      if (!debouncedChange.isPending()) return;
+      const container = containerRef.current;
+      if (container && e.target instanceof Node && !container.contains(e.target)) {
+        debouncedChange.flush();
+      }
+    };
+    document.addEventListener("mousedown", flushBeforeOutsideInteraction, true);
+    return () => document.removeEventListener("mousedown", flushBeforeOutsideInteraction, true);
+  }, [debouncedChange]);
 
   const handleMount: OnMount = (editor, monacoInstance) => {
     monacoRef.current = monacoInstance;
     editorRef.current = editor;
     setEditorReady(true);
+    // Focus can also leave through the keyboard (Ctrl+M releases tab trapping,
+    // then Tab moves on), which fires no mousedown. Flushing on widget blur
+    // covers every way focus moves away, whatever the input method.
+    editor.onDidBlurEditorWidget(() => debouncedChange.flush());
     editor.onMouseDown((e) => {
       if (!onNavigateRef.current || !e.event.leftButton) return;
       const pos = e.target.position;
@@ -494,11 +544,12 @@ export function Editor({
   }, [error, editorReady]);
 
   return (
-    <MonacoEditor
-      height={height}
+    <div ref={containerRef} style={{ height }}>
+      <MonacoEditor
+      height="100%"
       language={language}
       value={value}
-      onChange={(v) => onChange?.(v ?? "")}
+      onChange={(v) => debouncedChange.schedule(v ?? "")}
       beforeMount={setupMonaco}
       onMount={handleMount}
       theme="concerto-dark"
@@ -519,6 +570,7 @@ export function Editor({
         autoSurround: "languageDefined",
         bracketPairColorization: { enabled: true },
       }}
-    />
+      />
+    </div>
   );
 }
