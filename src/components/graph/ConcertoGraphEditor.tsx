@@ -82,10 +82,19 @@ interface ConcertoGraphEditorProps {
   onNavigateToType?: (name: string, namespace: string) => void;
 }
 
+// History entries hold only the source text and the node positions. Nodes,
+// edges and the parsed model are derived state, rebuilt through the
+// incremental sync on undo/redo, so an entry costs a string and a coordinate
+// map instead of deep-copied node and edge arrays holding full declarations.
 interface HistoryEntry {
-  model: ConcertoModel;
-  nodes: Node[];
-  edges: Edge[];
+  cto: string;
+  positions: Record<string, { x: number; y: number }>;
+}
+
+function capturePositions(nodes: Node[]): Record<string, { x: number; y: number }> {
+  const positions: Record<string, { x: number; y: number }> = {};
+  for (const node of nodes) positions[node.id] = { x: node.position.x, y: node.position.y };
+  return positions;
 }
 
 const MAX_HISTORY = 50;
@@ -226,7 +235,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
       setNodes(nodesWithPositions);
       setEdges(graph.edges);
       if (!isUndoRedo.current && lastHistoryCtoRef.current !== cto) {
-        pushHistory({ model: parsed, nodes: nodesWithPositions, edges: graph.edges });
+        pushHistory({ cto, positions: capturePositions(nodesWithPositions) });
         lastHistoryCtoRef.current = cto;
       }
       isUndoRedo.current = false;
@@ -263,7 +272,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     });
     setNodes(nodesWithPositions);
     setEdges(graph.edges);
-    pushHistory({ model: newModel, nodes: nodesWithPositions, edges: graph.edges });
+    pushHistory({ cto: newCto, positions: capturePositions(nodesWithPositions) });
     // A graph edit regenerates the CTO from the last valid model, so any
     // pending text parse error is now stale.
     setRawParseError(null);
@@ -334,45 +343,56 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     );
   }, [updateModelAndSync]);
 
-  const handleUndo = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const newIndex = historyIndex - 1;
-    const entry = history[newIndex];
-    isUndoRedo.current = true;
-    historyIndexRef.current = newIndex;
-    setHistoryIndex(newIndex);
-    setModel(entry.model);
-    setNodes(entry.nodes);
-    setEdges(entry.edges);
-    for (const node of entry.nodes) {
-      nodePositionsRef.current.set(node.id, { ...node.position });
+  // Rehydrates a history entry: parse its source, rebuild the graph through
+  // the incremental sync (unchanged nodes keep their objects) and apply the
+  // recorded positions on top.
+  const applyHistoryEntry = useCallback((entry: HistoryEntry) => {
+    let parsed: ConcertoModel;
+    try {
+      parsed = parseCto(entry.cto);
+    } catch {
+      // Entries parsed when they were recorded; if this one no longer does,
+      // keep the current state instead of corrupting it.
+      return;
+    }
+    const graph = declarationsToGraph(parsed.declarations, graphContextRef.current, {
+      nodes: graphNodesRef.current,
+      edges: graphEdgesRef.current,
+    });
+    const nodesWithPositions = graph.nodes.map((node) => {
+      const saved = entry.positions[node.id];
+      if (!saved || (saved.x === node.position.x && saved.y === node.position.y)) return node;
+      return { ...node, position: saved };
+    });
+    setModel(parsed);
+    setNodes(nodesWithPositions);
+    setEdges(graph.edges);
+    for (const [id, pos] of Object.entries(entry.positions)) {
+      nodePositionsRef.current.set(id, { ...pos });
     }
     setRawParseError(null);
     updatingFromGraph.current = true;
-    const entryCto = declarationsToCto(entry.model);
-    lastHistoryCtoRef.current = entryCto;
-    onModelChange?.(entryCto);
-  }, [history, historyIndex, setNodes, setEdges, onModelChange]);
+    lastHistoryCtoRef.current = entry.cto;
+    onModelChange?.(entry.cto);
+  }, [setModel, setNodes, setEdges, onModelChange]);
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex <= 0) return;
+    const newIndex = historyIndex - 1;
+    isUndoRedo.current = true;
+    historyIndexRef.current = newIndex;
+    setHistoryIndex(newIndex);
+    applyHistoryEntry(history[newIndex]);
+  }, [history, historyIndex, applyHistoryEntry]);
 
   const handleRedo = useCallback(() => {
     if (historyIndex >= history.length - 1) return;
     const newIndex = historyIndex + 1;
-    const entry = history[newIndex];
     isUndoRedo.current = true;
     historyIndexRef.current = newIndex;
     setHistoryIndex(newIndex);
-    setModel(entry.model);
-    setNodes(entry.nodes);
-    setEdges(entry.edges);
-    for (const node of entry.nodes) {
-      nodePositionsRef.current.set(node.id, { ...node.position });
-    }
-    setRawParseError(null);
-    updatingFromGraph.current = true;
-    const entryCto = declarationsToCto(entry.model);
-    lastHistoryCtoRef.current = entryCto;
-    onModelChange?.(entryCto);
-  }, [history, historyIndex, setNodes, setEdges, onModelChange]);
+    applyHistoryEntry(history[newIndex]);
+  }, [history, historyIndex, applyHistoryEntry]);
 
   // Escape closes the topmost overlay only: dialogs render above the search
   // panel, so they go first.
@@ -424,12 +444,18 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
   const bannerError = parseError ?? semanticError;
 
   const onNodeDragStop: OnNodeDrag<Node> = useCallback((_event, _node) => {
-    const currentNodes = nodes.map((n) => {
-      const pos = nodePositionsRef.current.get(n.id);
-      return pos ? { ...n, position: pos } : n;
+    const positions: Record<string, { x: number; y: number }> = {};
+    for (const n of nodes) {
+      const pos = nodePositionsRef.current.get(n.id) ?? n.position;
+      positions[n.id] = { x: pos.x, y: pos.y };
+    }
+    // The model is unchanged by a drag; reuse the text already in history so
+    // undoing a drag never rewrites the user's source formatting.
+    pushHistory({
+      cto: lastHistoryCtoRef.current ?? declarationsToCto(modelRef.current),
+      positions,
     });
-    pushHistory({ model: modelRef.current, nodes: currentNodes, edges });
-  }, [nodes, edges, pushHistory]);
+  }, [nodes, pushHistory]);
 
   const handleAutoLayout = useCallback(async () => {
     setIsAutoLayouting(true);
@@ -452,12 +478,17 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
       for (const node of nextNodes) {
         nodePositionsRef.current.set(node.id, { ...node.position });
       }
-      pushHistory({ model: modelRef.current, nodes: nextNodes, edges });
+      // The model is unchanged by a layout pass, so the history entry reuses
+      // the source already recorded and captures only the new positions.
+      pushHistory({
+        cto: lastHistoryCtoRef.current ?? declarationsToCto(modelRef.current),
+        positions: capturePositions(nextNodes),
+      });
       requestAnimationFrame(() => fitViewRef.current?.());
     } finally {
       setIsAutoLayouting(false);
     }
-  }, [edges, nodes, pushHistory, setNodes]);
+  }, [nodes, pushHistory, setNodes]);
 
   const handleSaveLayout = useCallback(() => {
     const positions = new Map<string, { x: number; y: number }>(
@@ -466,11 +497,11 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     const newCto = withSourcePositions(cto, positions);
     const newModel = parseCto(newCto);
     setModel(newModel);
-    pushHistory({ model: newModel, nodes, edges });
+    pushHistory({ cto: newCto, positions: capturePositions(nodes) });
     lastHistoryCtoRef.current = newCto;
     updatingFromGraph.current = true;
     onModelChange?.(newCto);
-  }, [cto, edges, nodes, onModelChange, pushHistory, setModel]);
+  }, [cto, nodes, onModelChange, pushHistory, setModel]);
 
   // Routes React Flow's Delete/Backspace removals through the model, so a
   // keyboard delete updates the CTO instead of being reverted on the next
@@ -601,11 +632,11 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
           edgeTypes={edgeTypes}
           fitView
           fitViewOptions={{ padding: 0.3 }}
+          onlyRenderVisibleElements
           style={{ background: '#1a202c' }}
           connectionLineStyle={{ stroke: '#63b3ed', strokeWidth: 2 }}
           minZoom={0.05}
           maxZoom={4}
-          onlyRenderVisibleElements
           panActivationKeyCode={null}
           proOptions={{ hideAttribution: true }}
         >

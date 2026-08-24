@@ -493,33 +493,51 @@ export function Editor({
         targets.length > 0 && monacoInstance
           ? monacoInstance.editor.tokenize(model.getValue(), model.getLanguageId())
           : [];
-      for (const target of targets) {
-        const escaped = target.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const matches = model.findMatches(`\\b${escaped}\\b`, false, true, true, null, false);
-        const options: monaco.editor.IModelDecorationOptions = target.resolved
-          ? {
-              inlineClassName: LINK_CLASS,
-              hoverMessage: target.namespace
-                ? { value: EDITOR_STRINGS.importedTypeHover(target.namespace) }
-                : undefined,
-            }
-          : {
-              inlineClassName: UNRESOLVED_LINK_CLASS,
-              hoverMessage: {
-                value: EDITOR_STRINGS.unresolvedTypeHover(target.namespace ?? "unknown"),
-              },
-            };
-        // Declaration names navigate too (to their own node in the graph),
-        // but with a distinct style so definitions and usages stay apart.
-        const declOptions: monaco.editor.IModelDecorationOptions = {
-          inlineClassName: DECL_CLASS,
-          hoverMessage: { value: EDITOR_STRINGS.declarationHover(target.name) },
-        };
+      if (targets.length > 0) {
+        // One scan for all names: a single alternation regex walks the
+        // document once, instead of one full-document search per type name.
+        const byName = new Map(targets.map((t) => [t.name, t]));
+        const escaped = targets.map((t) => t.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+        const pattern = `\\b(?:${escaped.join("|")})\\b`;
+        const matches = model.findMatches(pattern, false, true, true, null, true);
+        const optionsCache = new Map<string, monaco.editor.IModelDecorationOptions>();
+        const declOptionsCache = new Map<string, monaco.editor.IModelDecorationOptions>();
         for (const m of matches) {
+          const name = m.matches?.[0];
+          if (!name) continue;
+          const target = byName.get(name);
+          if (!target) continue;
           const tokenType = tokenTypeAt(tokenLines, m.range.startLineNumber, m.range.startColumn);
           if (isReferenceToken(tokenType)) {
+            let options = optionsCache.get(name);
+            if (!options) {
+              options = target.resolved
+                ? {
+                    inlineClassName: LINK_CLASS,
+                    hoverMessage: target.namespace
+                      ? { value: EDITOR_STRINGS.importedTypeHover(target.namespace) }
+                      : undefined,
+                  }
+                : {
+                    inlineClassName: UNRESOLVED_LINK_CLASS,
+                    hoverMessage: {
+                      value: EDITOR_STRINGS.unresolvedTypeHover(target.namespace ?? "unknown"),
+                    },
+                  };
+              optionsCache.set(name, options);
+            }
             decorations.push({ range: m.range, options });
           } else if (target.resolved && isDeclarationToken(tokenType)) {
+            // Declaration names navigate too (to their own node in the graph),
+            // but with a distinct style so definitions and usages stay apart.
+            let declOptions = declOptionsCache.get(name);
+            if (!declOptions) {
+              declOptions = {
+                inlineClassName: DECL_CLASS,
+                hoverMessage: { value: EDITOR_STRINGS.declarationHover(target.name) },
+              };
+              declOptionsCache.set(name, declOptions);
+            }
             decorations.push({ range: m.range, options: declOptions });
           }
         }

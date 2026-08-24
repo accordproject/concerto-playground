@@ -850,6 +850,8 @@ interface ExternalRef {
 }
 
 const EXTERNAL_NODE_HEIGHT = 100;
+const EXTERNAL_NODE_WIDTH = 220;
+const NODE_ESTIMATED_WIDTH = 260;
 
 /**
  * The previous graph state, used for incremental updates. When provided (and
@@ -1023,6 +1025,10 @@ export function declarationsToGraph(
           getDeclarationPosition(decl) ??
           (prev ? prev.position : positions?.get(decl.name) ?? nextNewPosition(estimateNodeHeight(decl))),
         data: { label: decl.name, declaration: decl, edgeProperties, incomingHandles },
+        // Estimated dimensions stand in until React Flow measures the node,
+        // so viewport culling can decide visibility for never-rendered nodes.
+        initialWidth: NODE_ESTIMATED_WIDTH,
+        initialHeight: estimateNodeHeight(decl),
       });
     }
 
@@ -1100,6 +1106,8 @@ export function declarationsToGraph(
             type: GRAPH_NODE_KIND.imported,
             position: prev ? prev.position : nextNewPosition(EXTERNAL_NODE_HEIGHT),
             data: { label: ext.name, namespace: ext.namespace, resolved: ext.resolved },
+            initialWidth: EXTERNAL_NODE_WIDTH,
+            initialHeight: EXTERNAL_NODE_HEIGHT,
           });
         }
       }
@@ -1116,6 +1124,8 @@ export function declarationsToGraph(
           type: GRAPH_NODE_KIND.imported,
           position: { x: externalX, y },
           data: { label: ext.name, namespace: ext.namespace, resolved: ext.resolved },
+          initialWidth: EXTERNAL_NODE_WIDTH,
+          initialHeight: EXTERNAL_NODE_HEIGHT,
         });
         y += EXTERNAL_NODE_HEIGHT + gapY;
       }
