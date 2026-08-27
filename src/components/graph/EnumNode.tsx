@@ -25,8 +25,10 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
     <div className={`graph-node enum-node${selected ? ' selected' : ''}`}>
       <Handle type="target" position={Position.Top} id={HANDLE_ID.top} className="graph-node-handle enum-node-handle graph-node-target-dot" />
       <Handle type="target" position={Position.Left} id={HANDLE_ID.left} className="graph-node-handle enum-node-handle graph-node-target-dot" />
+      {/* Enums cannot own properties or extend another type, so nothing can
+          be dragged out of them. The handles stay for edge geometry. */}
       <Handle type="source" position={Position.Right} id={HANDLE_ID.right} className="graph-node-handle graph-node-plus-handle"
-        style={{ '--plus-accent': '#ecc94b' } as React.CSSProperties} />
+        isConnectable={false} style={{ '--plus-accent': '#ecc94b' } as React.CSSProperties} />
       {incomingHandles.map((handle, index) => (
         <Handle key={handle.id} type="target" position={Position.Left} id={handle.id}
           className="graph-node-handle enum-node-handle"
@@ -72,7 +74,7 @@ export function EnumNode({ data, selected }: { data: EnumNodeData; selected?: bo
       )}
 
       <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} className="graph-node-handle enum-node-handle"
-        style={{ opacity: 0 }} />
+        isConnectable={false} style={{ opacity: 0 }} />
     </div>
   );
 }

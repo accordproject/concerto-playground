@@ -35,8 +35,10 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
     }}>
       <Handle type="target" position={Position.Top} id={HANDLE_ID.top} className="graph-node-target-dot" style={handleStyle} />
       <Handle type="target" position={Position.Left} id={HANDLE_ID.left} className="graph-node-target-dot" style={handleStyle} />
+      {/* A map's key/value types are fixed by its declaration, so it cannot
+          gain properties or a supertype by dragging. */}
       <Handle type="source" position={Position.Right} id={HANDLE_ID.right} className="graph-node-plus-handle"
-        style={{ '--plus-accent': '#38b2ac' } as React.CSSProperties} />
+        isConnectable={false} style={{ '--plus-accent': '#38b2ac' } as React.CSSProperties} />
       {incomingHandles.map((handle, index) => (
         <Handle
           key={handle.id}
@@ -115,7 +117,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
       </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} style={{ ...handleStyle, opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} isConnectable={false} style={{ ...handleStyle, opacity: 0 }} />
     </div>
   );
 }
