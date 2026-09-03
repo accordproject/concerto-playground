@@ -78,6 +78,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
               type="source"
               position={Position.Right}
               id={propHandleId(MAP_VALUE_PROP)}
+              isConnectable={false}
               style={{ ...rowHandleStyle, top: '50%', opacity: 0 }}
             />
           )}
@@ -106,6 +107,7 @@ export function MapNode({ data, selected }: { data: MapNodeData; selected?: bool
                   type="source"
                   position={Position.Right}
                   id={propHandleId(MAP_VALUE_PROP)}
+                  isConnectable={false}
                   style={rowHandleStyle}
                 />
               )}
