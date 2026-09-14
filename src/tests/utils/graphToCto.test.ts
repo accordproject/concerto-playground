@@ -80,7 +80,7 @@ concept Vehicle {
     const roundtripAst = Parser.parse(output, undefined, { skipLocationNodes: true });
 
     expect(roundtripAst.namespace).toBe(originalAst.namespace);
-    expect(roundtripAst.declarations).toHaveLength(originalAst.declarations.length);
+    expect(roundtripAst.declarations).toHaveLength(originalAst.declarations!.length);
   });
 
   it("roundtrip is parseable by validateCto", async () => {
@@ -134,7 +134,7 @@ concept Container {
     const output = declarationsToCto(model);
     expect(output).toContain("items");
     const reparsed = Parser.parse(output, undefined, { skipLocationNodes: true });
-    const itemsProp = (reparsed.declarations[0] as any).properties[0];
+    const itemsProp = (reparsed.declarations![0] as any).properties[0];
     expect(itemsProp.isArray).toBe(true);
   });
 
@@ -147,7 +147,7 @@ concept Example {
     const model = parseCto(cto);
     const output = declarationsToCto(model);
     const reparsed = Parser.parse(output, undefined, { skipLocationNodes: true });
-    const props = (reparsed.declarations[0] as any).properties;
+    const props = (reparsed.declarations![0] as any).properties;
     const maybeNull = props.find((p: any) => p.name === "maybeNull");
     expect(maybeNull.isOptional).toBe(true);
   });

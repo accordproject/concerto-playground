@@ -64,12 +64,7 @@ async function generateLive(
     return JSON.stringify(modelManager.getAst(true), null, 2);
   }
   if (target === "concertino") {
-    // Import the serializer directly to avoid the fs.readFileSync call in
-    // index.js (which loads the JSON schema for AJV validation at module level
-    // and breaks in the browser).
-    const { convertToConcertino } = await import(
-      "@accordproject/concertino/dist/concertinoSerializer"
-    );
+    const { convertToConcertino } = await import("@accordproject/concertino");
     return JSON.stringify(convertToConcertino(modelManager.getAst(true)), null, 2);
   }
 

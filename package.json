@@ -15,11 +15,11 @@
     "perf:e2e": "playwright test -c playwright.perf.config.ts"
   },
   "dependencies": {
-    "@accordproject/concertino": "^4.1.3",
-    "@accordproject/concerto-codegen": "^4.1.0",
-    "@accordproject/concerto-core": "^4.1.0",
-    "@accordproject/concerto-cto": "^4.1.0",
-    "@accordproject/concerto-util": "^4.1.0",
+    "@accordproject/concertino": "^5.0.0",
+    "@accordproject/concerto-codegen": "^6.3.0",
+    "@accordproject/concerto-core": "^5.0.0",
+    "@accordproject/concerto-cto": "^5.0.0",
+    "@accordproject/concerto-util": "^5.0.0",
     "@monaco-editor/react": "^4.6.0",
     "@xyflow/react": "^12.10.2",
     "driver.js": "^1.8.0",
