@@ -160,6 +160,11 @@ const MAP_KEY_SCALAR_BASES = new Set(['String', 'DateTime']);
 const MAP_VALUE_SCALAR_BASES = new Set(['String', 'Integer', 'Long', 'Double', 'Boolean']);
 const CLASS_DECL_TYPES = new Set<string>(CLASS_DECLARATION_TYPES);
 
+/** True for declaration kinds that can own properties and a supertype. */
+export function isClassDeclarationType(type: string): type is ClassDeclarationType {
+  return CLASS_DECL_TYPES.has(type);
+}
+
 export function getMapKeyTypes(declarations: Declaration[]): string[] {
   const scalars = declarations
     .filter((d) => d.type === 'scalar' && d.scalarExtends && MAP_KEY_SCALAR_BASES.has(d.scalarExtends))

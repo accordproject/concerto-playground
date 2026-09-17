@@ -36,7 +36,7 @@ import { useRafBatchedNodeChanges } from '../../hooks/useRafBatchedNodeChanges';
 import { findErrorHint, locateCulprit, parseErrorPosition, buildSnippet, stripPosition } from '../../utils/errorHints';
 import { declarationsToCto } from '../../utils/graph/graphToCto';
 import type { Declaration, ConcertoModel, DeclarationDialogKind } from '../../utils/graph/types';
-import { GRAPH_NODE_KIND, GRAPH_EDGE_KIND } from '../../utils/graph/types';
+import { GRAPH_NODE_KIND, GRAPH_EDGE_KIND, isClassDeclarationType } from '../../utils/graph/types';
 import { routeGraphEdges } from '../../utils/graph/routeGraphEdges';
 import { SEMANTIC_ZOOM_THRESHOLD } from './constants';
 import { SemanticZoomContext } from './semanticZoom';
@@ -277,9 +277,13 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     // pending text parse error is now stale.
     setRawParseError(null);
     lastHistoryCtoRef.current = newCto;
-    updatingFromGraph.current = true;
+    // The flag tells the cto effect to skip the echo of this change. It is
+    // only consumed when the cto prop actually changes, so leaving it set for
+    // an edit that serializes to the same text would swallow the next real
+    // text edit instead.
+    updatingFromGraph.current = newCto !== cto;
     onModelChange?.(newCto);
-  }, [setModel, setNodes, setEdges, onModelChange, pushHistory]);
+  }, [cto, setModel, setNodes, setEdges, onModelChange, pushHistory]);
 
   const handleAddDeclaration = useCallback((decl: Declaration) => {
     updateModelAndSync([...modelRef.current.declarations, decl]);
@@ -499,7 +503,7 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
     setModel(newModel);
     pushHistory({ cto: newCto, positions: capturePositions(nodes) });
     lastHistoryCtoRef.current = newCto;
-    updatingFromGraph.current = true;
+    updatingFromGraph.current = newCto !== cto;
     onModelChange?.(newCto);
   }, [cto, nodes, onModelChange, pushHistory, setModel]);
 
@@ -534,6 +538,12 @@ export function ConcertoGraphEditor({ cto, onModelChange, onImport, onExport, on
 
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source && connection.target && connection.source !== connection.target) {
+      // Only class-like declarations can own a property or a supertype. A
+      // property added to an enum, scalar or map is dropped by the CTO
+      // serializer and its edge has no handle to attach to, so it would
+      // silently vanish; refuse the connection instead.
+      const sourceDecl = modelRef.current.declarations.find((d) => d.name === connection.source);
+      if (!sourceDecl || !isClassDeclarationType(sourceDecl.type)) return;
       // Imported nodes use namespace-qualified ids; a property created against
       // one references the short name (the import statement already exists).
       const targetNode = nodes.find((n) => n.id === connection.target);

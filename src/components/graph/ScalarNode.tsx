@@ -110,7 +110,7 @@ export function ScalarNode({ data, selected }: { data: ScalarNodeData; selected?
       </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} style={{ ...handleStyle, opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom} id={HANDLE_ID.bottom} isConnectable={false} style={{ ...handleStyle, opacity: 0 }} />
     </div>
   );
 }
