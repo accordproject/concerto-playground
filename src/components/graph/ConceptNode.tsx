@@ -2,6 +2,7 @@ import { Handle, Position } from '@xyflow/react';
 import type { Declaration, ClassDeclarationType, PrimitiveTypeName } from '../../utils/graph/types';
 import { HANDLE_ID, PRIMITIVE_TYPES, propHandleId } from '../../utils/graph/types';
 import { getCompactHandleTop, type GraphTargetHandle } from '../../utils/graph/nodeLayout';
+import { getVisibleGraphDecorators } from '../../utils/graph/ctoToGraph';
 import { useSemanticZoom } from './semanticZoom';
 import { KindBadge, HintAnchor } from './KindBadge';
 import { getConceptHint } from '../../utils/conceptHints';
@@ -50,6 +51,9 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
   const showFull = useSemanticZoom();
   const propCount = declaration.properties.length;
   const nodeVars = { '--accent': colors.accent, '--bg': colors.bg } as React.CSSProperties;
+  const visibleDecorators = getVisibleGraphDecorators(declaration);
+  const displayLabel = data.label || declaration.name;
+  const showTechnicalName = displayLabel !== declaration.name;
 
   return (
     <div className={`graph-node concept-node${selected ? ' selected' : ''}`} style={nodeVars}>
@@ -93,9 +97,9 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
             &times;
           </button>
         </div>
-        {declaration.decorators?.length > 0 && (
+        {visibleDecorators.length > 0 && (
           <div className="concept-node-decorators">
-            {declaration.decorators.map((d) => {
+            {visibleDecorators.map((d) => {
               const decoratorHint = getConceptHint('@');
               const label = `@${d.name}${d.args.length > 0 ? `(${d.args.join(', ')})` : ''}`;
               if (!decoratorHint) {
@@ -112,8 +116,20 @@ export function ConceptNode({ data, selected }: { data: ConceptNodeData; selecte
           </div>
         )}
         <div className="concept-node-name">
-          {declaration.name}
+          {displayLabel}
         </div>
+        {showTechnicalName && (
+          <div
+            style={{
+              fontSize: 10,
+              color: '#ffffff99',
+              marginTop: 2,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          >
+            {declaration.name}
+          </div>
+        )}
         {declaration.identified === 'identified-by' && declaration.identifiedBy && (
           <div className="concept-node-identified">
             identified by {declaration.identifiedBy}

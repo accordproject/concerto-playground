@@ -1,4 +1,4 @@
-import type { Declaration } from './types';
+import type { Declaration, Decorator } from './types';
 
 export interface GraphTargetHandle {
   id: string;
@@ -18,8 +18,65 @@ export const ACTION_BUTTON_HEIGHT = 34;
 
 const HEADER_BASE_HEIGHT = 70;
 const HEADER_DECORATOR_HEIGHT = 20;
+const HEADER_SUBTITLE_HEIGHT = 14;
 const HEADER_IDENTITY_HEIGHT = 16;
 const HEADER_SUPERTYPE_HEIGHT = 16;
+
+const TERM_LABEL_DECLARATION_TYPES = new Set<Declaration['type']>([
+  'concept',
+  'enum',
+  'asset',
+  'participant',
+  'transaction',
+]);
+
+export function unquoteDecoratorArgument(value: string): string {
+  const trimmed = value.trim();
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+
+  if ((first === '"' || first === "'") && last === first) {
+    return trimmed.slice(1, -1);
+  }
+
+  return trimmed;
+}
+
+function getDisplayTermDecoratorIndex(decl: Declaration): number {
+  if (!TERM_LABEL_DECLARATION_TYPES.has(decl.type)) return -1;
+
+  return decl.decorators.findIndex((decorator) =>
+    decorator.name === 'Term' &&
+    !!decorator.args[0] &&
+    !!unquoteDecoratorArgument(decorator.args[0]).trim()
+  );
+}
+
+function getDisplayTermDecorator(decl: Declaration): Decorator | undefined {
+  const index = getDisplayTermDecoratorIndex(decl);
+  return index >= 0 ? decl.decorators[index] : undefined;
+}
+
+export function getDeclarationDisplayLabel(decl: Declaration): string {
+  const term = getDisplayTermDecorator(decl);
+  const label = term?.args[0] ? unquoteDecoratorArgument(term.args[0]).trim() : '';
+
+  return label || decl.name;
+}
+
+export function getVisibleGraphDecorators(decl: Declaration): Decorator[] {
+  const displayTermIndex = getDisplayTermDecoratorIndex(decl);
+
+  if (displayTermIndex < 0) {
+    return decl.decorators;
+  }
+
+  return decl.decorators.filter((_, index) => index !== displayTermIndex);
+}
+
+export function hasDisplaySubtitle(decl: Declaration): boolean {
+  return getDeclarationDisplayLabel(decl) !== decl.name;
+}
 
 export function getNodeWidth(decl: Declaration): number {
   if (decl.type === 'map') return 210;
@@ -30,7 +87,8 @@ export function getNodeWidth(decl: Declaration): number {
 export function getHeaderHeight(decl: Declaration): number {
   let height = HEADER_BASE_HEIGHT;
 
-  if (decl.decorators?.length) height += HEADER_DECORATOR_HEIGHT;
+  if (getVisibleGraphDecorators(decl).length) height += HEADER_DECORATOR_HEIGHT;
+  if (hasDisplaySubtitle(decl)) height += HEADER_SUBTITLE_HEIGHT;
   if (decl.identified !== 'none') height += HEADER_IDENTITY_HEIGHT;
   if (decl.superType) height += HEADER_SUPERTYPE_HEIGHT;
 

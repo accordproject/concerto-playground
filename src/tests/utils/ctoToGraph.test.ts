@@ -1,7 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { declarationsToCto } from "../../utils/graph/graphToCto";
-import { buildExternalTypeMap, computeAutoLayoutPositions, declarationsToGraph, describeParseError, getDeclarationPosition, parseCto, validateCto, withDeclarationPositions, withSourcePositions } from "../../utils/graph/ctoToGraph";
-import { estimateNodeHeight, getNodeWidth } from "../../utils/graph/nodeLayout";
+import {
+  buildExternalTypeMap,
+  computeAutoLayoutPositions,
+  declarationsToGraph,
+  describeParseError,
+  getDeclarationPosition,
+  getVisibleGraphDecorators,
+  parseCto,
+  validateCto,
+  withDeclarationPositions,
+  withSourcePositions,
+} from "../../utils/graph/ctoToGraph";
+import { estimateNodeHeight, getHeaderHeight, getNodeWidth } from "../../utils/graph/nodeLayout";
 import { routeGraphEdges } from "../../utils/graph/routeGraphEdges";
 import type { Declaration } from "../../utils/graph/types";
 
@@ -793,5 +804,135 @@ concept Kid {
     expect(nodes.filter((n) => n.type === "importedNode")).toHaveLength(0);
     const edge = edges.find((e) => e.source === "Kid");
     expect(edge!.target).toBe("BaseThing");
+  });
+});
+
+describe("declaration display labels and visible decorators", () => {
+  it("uses @Term as the graph label for supported declaration nodes", () => {
+    const cto = `namespace org.test@1.0.0
+
+@Term("Billing Account")
+concept Account {
+  o String id
+}
+
+@Term("Account Status")
+enum Status {
+  o ACTIVE
+}
+
+@Term("Car Asset")
+asset Vehicle identified by vin {
+  o String vin
+}
+
+@Term("System User")
+participant User identified by email {
+  o String email
+}
+
+@Term("Transfer Funds")
+transaction Transfer {
+  o Double amount
+}
+`;
+
+    const { declarations } = parseCto(cto);
+    const { nodes } = declarationsToGraph(declarations);
+    const labelByNodeId = new Map(nodes.map((node) => [node.id, node.data.label]));
+
+    expect(labelByNodeId.get("Account")).toBe("Billing Account");
+    expect(labelByNodeId.get("Status")).toBe("Account Status");
+    expect(labelByNodeId.get("Vehicle")).toBe("Car Asset");
+    expect(labelByNodeId.get("User")).toBe("System User");
+    expect(labelByNodeId.get("Transfer")).toBe("Transfer Funds");
+  });
+
+  it("falls back to the declaration name when @Term is empty or unsupported", () => {
+    const cto = `namespace org.test@1.0.0
+
+@Term("")
+concept EmptyTerm {
+  o String id
+}
+
+@Term("   ")
+concept WhitespaceTerm {
+  o String id
+}
+
+@Term("Ignored Event Label")
+event Notification {
+  o String message
+}
+`;
+
+    const { declarations } = parseCto(cto);
+    const { nodes } = declarationsToGraph(declarations);
+    const labelByNodeId = new Map(nodes.map((node) => [node.id, node.data.label]));
+
+    expect(labelByNodeId.get("EmptyTerm")).toBe("EmptyTerm");
+    expect(labelByNodeId.get("WhitespaceTerm")).toBe("WhitespaceTerm");
+    expect(labelByNodeId.get("Notification")).toBe("Notification");
+  });
+
+  it("reserves header height when @Term adds a technical-name subtitle", () => {
+    const cto = `namespace org.test@1.0.0
+
+concept PlainAccount {
+  o String id
+}
+
+@Term("Billing Account")
+concept LabeledAccount {
+  o String id
+}
+`;
+
+    const { declarations } = parseCto(cto);
+    const plain = declarations.find((decl) => decl.name === "PlainAccount")!;
+    const labeled = declarations.find((decl) => decl.name === "LabeledAccount")!;
+
+    expect(getHeaderHeight(labeled)).toBe(getHeaderHeight(plain) + 14);
+  });
+
+  it("excludes the consumed @Term decorator from visible graph decorators", () => {
+    const cto = `namespace org.test@1.0.0
+
+@Audited
+@Term("Billing Account")
+@Sensitive
+concept Account {
+  o String id
+}
+`;
+
+    const { declarations } = parseCto(cto);
+    const account = declarations.find((decl) => decl.name === "Account")!;
+    const visible = getVisibleGraphDecorators(account);
+
+    expect(visible.map((decorator) => decorator.name)).toEqual(["Audited", "Sensitive"]);
+  });
+
+  it("keeps decorators visible when @Term does not drive the graph label", () => {
+    const cto = `namespace org.test@1.0.0
+
+@Term("Notification Event")
+event Notification {
+  o String message
+}
+
+@Term("")
+concept BlankTerm {
+  o String id
+}
+`;
+
+    const { declarations } = parseCto(cto);
+    const notification = declarations.find((decl) => decl.name === "Notification")!;
+    const blankTerm = declarations.find((decl) => decl.name === "BlankTerm")!;
+
+    expect(getVisibleGraphDecorators(notification).map((d) => d.name)).toEqual(["Term"]);
+    expect(getVisibleGraphDecorators(blankTerm).map((d) => d.name)).toEqual(["Term"]);
   });
 });
